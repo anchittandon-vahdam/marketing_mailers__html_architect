@@ -1,0 +1,34 @@
+# Netlify
+.netlify/
+.cache/
+
+# Node / npm
+node_modules/
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*~
+
+# Env / secrets — NEVER commit these
+.env
+.env.local
+.env.*.local
+supabase/.env
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Logs
+*.log
+
+# Local downloads / generated artefacts
+*.html.bak
+test-output/
