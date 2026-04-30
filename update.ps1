@@ -1,6 +1,6 @@
 # =============================================================
-#  VAHDAM Mailer Studio -- One-command update pipeline
-#  Runs:  git add -> git commit -> git push (if remote set) -> Netlify deploy
+#  VAHDAM Mailer Studio -- Update Pipeline (Git -> Vercel)
+#  Runs:  git add -> git commit -> git push (Vercel auto-deploys)
 #  Usage:  .\update.ps1 "describe what changed"
 #       or .\update.ps1                        (auto-generated message)
 # =============================================================
@@ -10,15 +10,12 @@ param(
 )
 
 # -- Config -----------------------------------------------------
-$SiteId = "ba6e6175-0d05-4a3e-9228-36c08f2855c8"
-$Token  = if ($env:NETLIFY_AUTH_TOKEN) { $env:NETLIFY_AUTH_TOKEN } else { "nfp_CFXJSrGCgpvC5xZnmZPhNSX6y2Lc3ch6cc2a" }
-$LiveUrl = "https://vahdam-marketing-mailer-architect.netlify.app"
+$LiveUrl  = "https://vahdam-marketing-mailer-architect.vercel.app"   # update if Vercel assigns a different domain
+$RepoUrl  = "https://github.com/anchittandon-vahdam/marketing_mailers__html_architect"
+$VercelDashboard = "https://vercel.com/dashboard"
 
 # -- Paths ------------------------------------------------------
-$Src   = $PSScriptRoot
-$Stage = Join-Path $env:TEMP "vahdam-deploy-stage"
-$Zip   = Join-Path $env:TEMP "vahdam-deploy.zip"
-
+$Src = $PSScriptRoot
 Set-Location $Src
 
 # Auto-generate commit message if none provided
@@ -31,105 +28,60 @@ if (-not $Message) {
 
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Green
-Write-Host " VAHDAM Mailer Studio -- Update Pipeline" -ForegroundColor Green
+Write-Host " VAHDAM Mailer Studio -- Git -> Vercel Pipeline" -ForegroundColor Green
 Write-Host "================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Message: $Message" -ForegroundColor Gray
 Write-Host ""
 
 # -- 1. Git add + commit ----------------------------------------
-Write-Host "[1/5] Committing changes to git..." -ForegroundColor Cyan
+Write-Host "[1/3] Committing changes to local git..." -ForegroundColor Cyan
 git add -A 2>$null
-$changes = (git status --porcelain | Measure-Object).Count
-if ($changes -eq 0) {
+$pending = (git status --porcelain | Measure-Object).Count
+if ($pending -eq 0) {
   Write-Host "      No changes to commit (working tree clean)" -ForegroundColor DarkGray
+  $hasNewCommit = $false
 } else {
   $commitOut = git commit -m $Message 2>&1
   Write-Host "      $($commitOut[-1])" -ForegroundColor DarkGray
+  $hasNewCommit = $true
 }
 
-# -- 2. Git push to GitHub -> triggers Vercel auto-deploy --------
+# -- 2. Git push to GitHub (triggers Vercel auto-deploy) --------
 $remote = git remote 2>$null
-if ($remote) {
-  $remoteUrl = git remote get-url origin 2>$null
-  Write-Host "[2/5] Pushing to GitHub: $remoteUrl" -ForegroundColor Cyan
-  $pushOut = git push origin HEAD 2>&1
-  if ($LASTEXITCODE -eq 0) {
-    Write-Host "      Pushed -- Vercel will auto-deploy from this push" -ForegroundColor DarkGreen
-    Write-Host "      Vercel dashboard: https://vercel.com/dashboard" -ForegroundColor DarkGray
-  } else {
-    Write-Host "      Push failed:" -ForegroundColor Yellow
-    Write-Host "        $($pushOut -join '; ')" -ForegroundColor DarkYellow
-  }
-} else {
-  Write-Host "[2/5] No GitHub remote -- skipping push" -ForegroundColor DarkGray
-}
-
-# -- 3. Stage clean files for deploy ----------------------------
-Write-Host "[3/5] Staging deploy bundle..." -ForegroundColor Cyan
-if (Test-Path $Stage) { Remove-Item $Stage -Recurse -Force }
-New-Item -ItemType Directory -Path $Stage | Out-Null
-
-Copy-Item (Join-Path $Src "vahdam_mailer_architect_v23.html") (Join-Path $Stage "vahdam_mailer_architect_v23.html")
-if (Test-Path (Join-Path $Src "netlify.toml")) {
-  Copy-Item (Join-Path $Src "netlify.toml") (Join-Path $Stage "netlify.toml")
-}
-
-$indexHtml = '<!DOCTYPE html>' + "`n" +
-'<html><head>' + "`n" +
-'<meta charset="UTF-8">' + "`n" +
-'<title>VAHDAM Mailer Studio</title>' + "`n" +
-'<meta http-equiv="refresh" content="0; url=/vahdam_mailer_architect_v23.html">' + "`n" +
-'<link rel="canonical" href="/vahdam_mailer_architect_v23.html">' + "`n" +
-'</head><body style="font-family:DM Sans,sans-serif;text-align:center;padding:60px;color:#004A2B">' + "`n" +
-'<p>Loading <a href="/vahdam_mailer_architect_v23.html" style="color:#AB8743">VAHDAM Mailer Studio</a>...</p>' + "`n" +
-'</body></html>'
-Set-Content (Join-Path $Stage "index.html") -Value $indexHtml -Encoding UTF8
-
-if (Test-Path $Zip) { Remove-Item $Zip -Force }
-Compress-Archive -Path "$Stage\*" -DestinationPath $Zip -Force
-$zipKB = [math]::Round((Get-Item $Zip).Length / 1KB, 1)
-Write-Host "      Bundle: $zipKB KB" -ForegroundColor DarkGray
-
-# -- 4. Upload to Netlify ---------------------------------------
-Write-Host "[4/5] Deploying to Netlify..." -ForegroundColor Cyan
-$uri = "https://api.netlify.com/api/v1/sites/$SiteId/deploys"
-$headers = @{
-  "Authorization" = "Bearer $Token"
-  "Content-Type"  = "application/zip"
-}
-try {
-  $deploy = Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -InFile $Zip -TimeoutSec 180
-  Write-Host "      Deploy ID: $($deploy.id)" -ForegroundColor DarkGray
-} catch {
-  Write-Host "X Netlify upload failed: $($_.Exception.Message)" -ForegroundColor Red
-  if ($_.ErrorDetails.Message) { Write-Host "  $($_.ErrorDetails.Message)" -ForegroundColor Red }
+if (-not $remote) {
+  Write-Host ""
+  Write-Host "X No GitHub remote configured. Add one with:" -ForegroundColor Red
+  Write-Host "    git remote add origin $RepoUrl" -ForegroundColor Yellow
   exit 1
 }
 
-# -- 5. Poll until live -----------------------------------------
-Write-Host "[5/5] Waiting for deploy..." -ForegroundColor Cyan
-$pollUri = "https://api.netlify.com/api/v1/sites/$SiteId/deploys/$($deploy.id)"
-$pollHeaders = @{ "Authorization" = "Bearer $Token" }
-$tries = 0
-do {
-  $tries++
-  Start-Sleep -Seconds 3
-  try { $status = Invoke-RestMethod -Uri $pollUri -Method Get -Headers $pollHeaders } catch {}
-  Write-Host "      [$tries] state=$($status.state)" -ForegroundColor DarkGray
-} while ($status.state -notin @('ready','error') -and $tries -lt 20)
+Write-Host "[2/3] Pushing to GitHub: $RepoUrl" -ForegroundColor Cyan
+$pushOut = git push origin HEAD 2>&1
+$pushSuccess = $LASTEXITCODE -eq 0
+if ($pushSuccess) {
+  $latestSha = (git rev-parse --short HEAD).Trim()
+  Write-Host "      Pushed commit $latestSha" -ForegroundColor DarkGreen
+} else {
+  Write-Host "      Push failed:" -ForegroundColor Red
+  Write-Host "        $($pushOut -join '; ')" -ForegroundColor DarkYellow
+  exit 1
+}
+
+# -- 3. Notify about Vercel auto-deploy -------------------------
+Write-Host "[3/3] Vercel will auto-deploy from this push..." -ForegroundColor Cyan
+Write-Host "      Vercel detects the push and builds in ~30 seconds." -ForegroundColor DarkGray
+Write-Host "      No further action needed -- the deploy happens server-side." -ForegroundColor DarkGray
 
 Write-Host ""
-if ($status.state -eq 'ready') {
-  Write-Host "================================================" -ForegroundColor Green
-  Write-Host " LIVE: $LiveUrl" -ForegroundColor Green
-  Write-Host "================================================" -ForegroundColor Green
-  Write-Host ""
-  Write-Host "  Permalink: $($status.deploy_ssl_url)" -ForegroundColor Gray
-  Write-Host "  Admin:     $($status.admin_url)/deploys/$($deploy.id)" -ForegroundColor Gray
-  Write-Host ""
-} else {
-  Write-Host "X Deploy state: $($status.state)" -ForegroundColor Red
-  if ($status.error_message) { Write-Host "  $($status.error_message)" -ForegroundColor Red }
-  exit 1
-}
+Write-Host "================================================" -ForegroundColor Green
+Write-Host " DONE" -ForegroundColor Green
+Write-Host "================================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "  Commit:    $latestSha"                                -ForegroundColor White
+Write-Host "  GitHub:    $RepoUrl/commit/$latestSha"                -ForegroundColor White
+Write-Host "  Vercel:    $VercelDashboard"                          -ForegroundColor White
+Write-Host "  Live URL:  $LiveUrl"                                  -ForegroundColor White
+Write-Host ""
+Write-Host "  Live site refreshes automatically once Vercel finishes building (~30s)." -ForegroundColor Gray
+Write-Host ""

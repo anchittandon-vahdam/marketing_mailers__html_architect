@@ -700,9 +700,6 @@ body{font-family:DM Sans,sans-serif;background:var(--bg);background-image:radial
   <!-- Campaign context injected by runGeneration() -->
   <div id="p4CampaignCtx" style="display:none;background:linear-gradient(90deg,#004A2B,#1a3a28);border-radius:10px;padding:12px 16px;margin-bottom:16px;align-items:flex-start;gap:12px;flex-wrap:wrap"></div>
 
-  <!-- ★ GENERATED IMAGES (Region → Variant filter, always visible at top of Step 4) -->
-  <div id="generatedImagesMatrixTop" style="margin-bottom:18px"></div>
-
   <!-- Tab row -->
   <div class="p4tabs" style="margin-bottom:20px">
     <button class="p4tab on" id="tab-claude" onclick="switchP4Tab('claude',this)">&#128065; Canvas Preview</button>
@@ -739,7 +736,14 @@ body{font-family:DM Sans,sans-serif;background:var(--bg);background-image:radial
         </div>
       </div>
     </div>
-    <!-- Also show action row at bottom for quick access -->
+    <!-- ★ COMPLETE MAILER DESIGN IMAGE — region + variant filters apply here -->
+    <div style="margin-top:24px;padding-top:18px;border-top:2px solid var(--border)">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#AB8743;margin-bottom:10px">&#127912; Complete Mailer Design Image &mdash; with all content, region &amp; variant aware</div>
+      <p style="font-size:11.5px;color:#6b7280;line-height:1.6;margin-bottom:14px">Choose region and variant below &mdash; the AI re-generates a full mailer design image (FLUX) for that exact combination, including headline, products, offer code, currency, and shipping note specific to that market &amp; layout.</p>
+      <div id="generatedImagesMatrixTop"></div>
+    </div>
+
+    <!-- Action row at bottom for quick access -->
     <div class="btn-row" style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
       <span style="font-size:11px;color:#9ca3af;flex:1">Happy with the layout?</span>
       <button class="btn btn-ghost btn-sm" onclick="goBack(2)">&larr; Back</button>
@@ -944,7 +948,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='conversion-funnel-fix-v15';
+window.__VAHDAM_BUILD__='filters-on-mailer-design-v16';
 console.log('%c[VAHDAM Mailer] Build:','color:#004A2B;font-weight:bold','supabase-kb-v4 — window.S:',!!window.S);
 
 // ═══════════════════════════════════════════════════════════════════════════
