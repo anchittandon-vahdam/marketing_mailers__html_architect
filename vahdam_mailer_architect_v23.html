@@ -950,7 +950,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='canvas-variants-hero-single-v17-supabase-full';
+window.__VAHDAM_BUILD__='supabase-live-v18';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -972,9 +972,9 @@ console.log('%c[VAHDAM Mailer] Build:','color:#004A2B;font-weight:bold','supabas
 // 3. Run the SQL in the comment block below to create the required tables
 // ═══════════════════════════════════════════════════════════════════════════
 const SUPABASE_CONFIG={
-  url:'YOUR_SUPABASE_PROJECT_URL_HERE',          // e.g. 'https://abcdefgh.supabase.co'
-  anonKey:'YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY_HERE', // full key, not truncated
-  enabled:false  // set to true after filling in url + key, then hard-refresh
+  url:'https://ozlmmiyyjmmfdvvrtgdp.supabase.co',
+  anonKey:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im96bG1taXl5am1tZmR2dnJ0Z2RwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NTY4MzksImV4cCI6MjA5MzAzMjgzOX0.UnGsjz8zVTzma5Klumj21pRSPCU_kD1Re-kK1WSYwMM',
+  enabled:true
 };
 /* ═══ REQUIRED SQL — paste into Supabase SQL Editor ══════════════════════════
 -- Table 1: Campaigns (every generated mailer)
