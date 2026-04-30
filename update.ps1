@@ -48,15 +48,17 @@ if ($changes -eq 0) {
   Write-Host "      $($commitOut[-1])" -ForegroundColor DarkGray
 }
 
-# -- 2. Git push (if remote configured) -------------------------
+# -- 2. Git push to GitHub -> triggers Vercel auto-deploy --------
 $remote = git remote 2>$null
 if ($remote) {
-  Write-Host "[2/5] Pushing to GitHub remote '$remote'..." -ForegroundColor Cyan
+  $remoteUrl = git remote get-url origin 2>$null
+  Write-Host "[2/5] Pushing to GitHub: $remoteUrl" -ForegroundColor Cyan
   $pushOut = git push origin HEAD 2>&1
   if ($LASTEXITCODE -eq 0) {
-    Write-Host "      Pushed" -ForegroundColor DarkGreen
+    Write-Host "      Pushed -- Vercel will auto-deploy from this push" -ForegroundColor DarkGreen
+    Write-Host "      Vercel dashboard: https://vercel.com/dashboard" -ForegroundColor DarkGray
   } else {
-    Write-Host "      Push failed (continuing with Netlify deploy):" -ForegroundColor Yellow
+    Write-Host "      Push failed:" -ForegroundColor Yellow
     Write-Host "        $($pushOut -join '; ')" -ForegroundColor DarkYellow
   }
 } else {
