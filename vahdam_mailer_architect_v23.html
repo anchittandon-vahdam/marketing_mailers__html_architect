@@ -944,7 +944,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='top-of-step4-images-v14';
+window.__VAHDAM_BUILD__='conversion-funnel-fix-v15';
 console.log('%c[VAHDAM Mailer] Build:','color:#004A2B;font-weight:bold','supabase-kb-v4 — window.S:',!!window.S);
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2394,6 +2394,136 @@ function prodShortDesc(n){
   if(l.includes('sampler')||l.includes('assorted'))return 'Explore multiple varieties. Great for gifting.';
   return 'Premium Indian tea. Ethically sourced, freshness-sealed.';
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// CONVERSION FUNNEL HELPERS — built from learnings:
+//   "Open + click rates rose, but users drop without adding to cart.
+//    Mid-funnel (landing + expectation) is broken because PRICE and OFFER are
+//    not visible enough in the email. Every product card must communicate
+//    Product · Benefit · Price · Discount Offer at a glance."
+// These helpers ensure every product card carries all four.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// 2-4 word crisp BENEFIT line for each product (the "why care" hook)
+function prodBenefit(n){
+  var l=(n||'').toLowerCase();
+  if(l.includes('turmeric')&&l.includes('ginger'))return 'Reduce inflammation';
+  if(l.includes('moringa'))return 'Nutrient powerhouse';
+  if(l.includes('ashwagandha'))return 'Stress relief';
+  if(l.includes('masala chai'))return 'Authentic Indian chai';
+  if(l.includes('cardamom')&&l.includes('chai'))return 'Aromatic spice ritual';
+  if(l.includes('cinnamon')&&l.includes('chai'))return 'Sweet warming spice';
+  if(l.includes('ginger')&&l.includes('chai'))return 'Digestive warmth';
+  if(l.includes('kashmiri')||l.includes('kahwa'))return 'Royal Kashmiri blend';
+  if(l.includes('matcha'))return 'Sustained energy + focus';
+  if(l.includes('green tea')||l.includes('himalayan green'))return 'Antioxidant boost';
+  if(l.includes('darjeeling')||l.includes('first flush'))return 'Champagne of teas';
+  if(l.includes('assam')||l.includes('breakfast'))return 'Bold morning kick';
+  if(l.includes('earl grey'))return 'Bergamot citrus classic';
+  if(l.includes('oolong'))return 'Floral, complex finish';
+  if(l.includes('silver needle')||l.includes('white tea'))return 'Rare antioxidant tea';
+  if(l.includes('hibiscus')||l.includes('iced'))return 'Refreshing iced tea';
+  if(l.includes('lychee'))return 'Sweet floral cooler';
+  if(l.includes('chamomile'))return 'Calming sleep aid';
+  if(l.includes('butterfly pea'))return 'Colour-shifting calm';
+  if(l.includes('spearmint'))return 'Cooling clarity';
+  if(l.includes('vedic kadha'))return 'Ayurvedic immunity boost';
+  if(l.includes('sampler')||l.includes('assorted'))return 'Try 10+ varieties';
+  if(l.includes('gift set')||l.includes('bundle'))return 'Premium gifting set';
+  if(l.includes('detox'))return 'Cleanse + reset';
+  if(l.includes('immunity'))return 'Daily immune support';
+  return 'Farm-direct premium tea';
+}
+
+// Per-product retail PRICE — derived from product size/format + market regional pricing
+// Returns { regular, currency, currencySymbol } as numbers + strings
+function prodPrice(n,market){
+  var cat=(window.getRegionalCatalog?getRegionalCatalog(market||'US'):{currency:'USD',currencySymbol:'$'});
+  var sym=cat.currencySymbol||'$';
+  var l=(n||'').toLowerCase();
+  // Detect product format/size from name
+  var isGiftSet=l.includes('gift set')||l.includes('bundle')||l.includes('hamper');
+  var isCapsule=l.includes('capsule')||l.includes('mg ');
+  var isPowder=l.includes('powder');
+  var is100ct=l.includes('100 count')||l.includes(', 100');
+  var is30ct=l.includes('30 count')||l.includes(', 30');
+  var is40ct=l.includes('40 count')||l.includes(', 40');
+  var isSampler=l.includes('sampler')||l.includes('assorted')||l.includes('variety pack');
+  var is12oz=l.includes('12 oz');
+  var is353oz=l.includes('3.53 oz');
+  var is176oz=l.includes('1.76 oz');
+  var isPitcher=l.includes('pitcher tea bags');
+  // Base USD price → multiplied per-market
+  var usd;
+  if(isGiftSet)usd=l.includes('36 teas')?44.99:(l.includes('24')?39.99:34.99);
+  else if(isSampler)usd=l.includes('20 flavors')?24.99:21.99;
+  else if(isCapsule||isPowder)usd=29.99;
+  else if(is100ct)usd=19.99;
+  else if(is30ct)usd=9.99;
+  else if(is40ct)usd=11.99;
+  else if(isPitcher)usd=14.99;
+  else if(is12oz)usd=24.99;
+  else if(is353oz)usd=14.99;
+  else if(is176oz)usd=12.99;
+  else usd=15.99;
+  // Premium tier surcharge (estate teas, oolong, white)
+  if(l.includes('imperial')||l.includes('silver needle')||l.includes('first flush')||l.includes('arya')||l.includes('jungpana')||l.includes('giddapahar')||l.includes('muscatel'))usd+=7;
+  // Market-specific currency conversion (rough, customer-facing tier prices)
+  var rate={USD:1,GBP:0.79,EUR:0.93,AUD:1.52,INR:84,CAD:1.36};
+  var cur=cat.currency||'USD';
+  var amt=usd*(rate[cur]||1);
+  // Round to .99
+  var rounded=Math.floor(amt)+0.99;
+  // INR uses whole rupees, no decimals
+  var display=cur==='INR'?(sym+Math.round(amt).toLocaleString()):(sym+rounded.toFixed(2));
+  return {regular:rounded,currency:cur,currencySymbol:sym,display:display,raw:amt};
+}
+
+// Apply discount % to regular price → returns sale price
+function prodSalePrice(p,offerPct,market){
+  var pp=prodPrice(p,market);
+  if(!offerPct)return {regular:pp,sale:null};
+  var pct=parseInt(offerPct,10);if(isNaN(pct)||pct<=0||pct>=100)return {regular:pp,sale:null};
+  var saleAmt=pp.raw*(1-pct/100);
+  var saleRounded=Math.floor(saleAmt)+0.99;
+  var saleDisplay=pp.currency==='INR'?(pp.currencySymbol+Math.round(saleAmt).toLocaleString()):(pp.currencySymbol+saleRounded.toFixed(2));
+  var savings=pp.raw-saleAmt;
+  var savingsDisplay=pp.currency==='INR'?(pp.currencySymbol+Math.round(savings).toLocaleString()):(pp.currencySymbol+savings.toFixed(2));
+  return {regular:pp,sale:{regular:saleRounded,display:saleDisplay,raw:saleAmt,savings:savingsDisplay,pct:pct}};
+}
+
+// HTML snippet for a product card price block (regular + strikethrough + savings)
+function prodPriceBlockHTML(p,prompt,market){
+  var sig=extractPromptSignals(prompt||'');
+  var pricing=prodSalePrice(p.n,sig.pct,market);
+  var pp=pricing.regular;
+  if(!pricing.sale){
+    return '<p style="font-family:Lao MN,Georgia,serif;font-size:16px;font-weight:bold;color:#004A2B;margin:0;letter-spacing:0.02em">'+pp.display+'</p>';
+  }
+  return '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">'+
+    '<p style="font-family:Lao MN,Georgia,serif;font-size:16px;font-weight:bold;color:#c0392b;margin:0;letter-spacing:0.02em">'+pricing.sale.display+'</p>'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#999;margin:0;text-decoration:line-through">'+pp.display+'</p>'+
+    '<span style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;color:#fff;background:#c0392b;padding:2px 6px;border-radius:3px;letter-spacing:0.1em">SAVE '+pricing.sale.savings+'</span>'+
+  '</div>';
+}
+
+// HTML snippet for a benefit chip — inline below product name
+function prodBenefitHTML(p){
+  return '<span style="display:inline-block;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#AB8743;background:#fdf6e8;padding:3px 8px;border-radius:12px;margin:4px 0 2px;border:1px solid #f0e3c4">&#x2728; '+prodBenefit(p.n)+'</span>';
+}
+
+// VALUE SUMMARY ROW — shown in the hero/offer band so user sees the full deal at-a-glance
+// Returns: "20% OFF · Code SUMMER15 · Save up to £8.40 · Free UK shipping £35+"
+function valueSummaryLine(prompt,market){
+  var sig=extractPromptSignals(prompt||'');
+  var pieces=[];
+  if(sig.pct)pieces.push(sig.pct+'% OFF');
+  var oc=offerCode(prompt);
+  if(oc)pieces.push('Code: '+oc);
+  var cat=window.getRegionalCatalog?getRegionalCatalog(market||'US'):null;
+  if(cat&&cat.shippingNote)pieces.push(cat.shippingNote);
+  return pieces.join(' &middot; ');
+}
+
 function vsUs(p){return ['Premium single-estate teas','Direct from Indian farms','Third-party quality tested','Farm-to-home freshness'];}
 function ritual(p){return [{t:'Boil Water'},{t:'Steep Tea'},{t:'Breathe Deep'},{t:'Sip & Reset'}];}
 function ritualTitle(p){return 'Your Daily Tea Ritual';}
@@ -3923,12 +4053,21 @@ function buildEmailVariantB(uploadedDesignImg,mktOverride){
           (prod.i?'<img src="'+prod.i+'" alt="'+prod.n.replace(/"/g,'&quot;')+'" width="160" border="0" style="width:160px;height:200px;object-fit:cover;display:block;border:0;outline:none;text-decoration:none">':'<div style="width:160px;height:200px;background:linear-gradient(135deg,#d8ede2,#e8f0e8)"></div>')+
         '</td>'+
         '<td style="padding:18px 22px;vertical-align:middle">'+
-          (isHero?'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:0.2em;color:#AB8743;margin:0 0 8px;text-transform:uppercase">★ Hero Pick</p>':'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:0.2em;color:#AB8743;margin:0 0 8px;text-transform:uppercase">— Featured —</p>')+
-          '<p style="font-family:Lao MN,Georgia,serif;font-size:'+(isHero?'17':'15')+'px;font-weight:bold;color:#1a1a1a;margin:0 0 8px;line-height:1.25">'+prod.n.split(',')[0]+'</p>'+
-          '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11.5px;color:#666;margin:0 0 14px;line-height:1.6">'+prodShortDesc(prod.n)+'</p>'+
-          '<span style="color:#AB8743;font-size:13px">&#9733;&#9733;&#9733;&#9733;&#9733;</span><span style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#aaa;margin-left:4px">4.8 · 1,000+ reviews</span>'+
+          // Pick / Featured label
+          (isHero?'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:0.2em;color:#AB8743;margin:0 0 6px;text-transform:uppercase">&#9733; Hero Pick</p>':'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:0.2em;color:#AB8743;margin:0 0 6px;text-transform:uppercase">&mdash; Featured &mdash;</p>')+
+          // PRODUCT name
+          '<p style="font-family:Lao MN,Georgia,serif;font-size:'+(isHero?'17':'15')+'px;font-weight:bold;color:#1a1a1a;margin:0 0 4px;line-height:1.25">'+prod.n.split(',')[0]+'</p>'+
+          // BENEFIT chip
+          prodBenefitHTML(prod)+
+          // PRICE block (sale + strikethrough + savings)
+          '<div style="margin:8px 0 10px">'+prodPriceBlockHTML(prod,(st&&st.activePrompt)||(S&&S.activePrompt)||(S&&S.prompt)||'',mt)+'</div>'+
+          // Description
+          '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11.5px;color:#666;margin:0 0 10px;line-height:1.6">'+prodShortDesc(prod.n)+'</p>'+
+          // Rating
+          '<span style="color:#AB8743;font-size:13px">&#9733;&#9733;&#9733;&#9733;&#9733;</span><span style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#aaa;margin-left:4px">4.8 &middot; 1,000+ reviews</span>'+
+          // CTA (Add to Cart for higher conversion intent)
           '<div style="margin-top:14px">'+
-          '<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="'+pdpUrl(prod.n,mt)+'" style="height:36px;v-text-anchor:middle;width:140px" arcsize="10%" stroke="f" fillcolor="#004A2B"><w:anchorlock/><center style="color:#FBF5EA;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:bold;letter-spacing:0.12em;">SHOP NOW &rarr;</center></v:roundrect><![endif]--><!--[if !mso]><!--><a href="'+pdpUrl(prod.n,mt)+'" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:'+(isHero?'#AB8743':'#004A2B')+';color:#FBF5EA;padding:9px 22px;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:bold;letter-spacing:0.12em;text-decoration:none;border-radius:4px">'+(isHero?'SHOP HERO PICK &rarr;':'SHOP NOW &rarr;')+'</a><!--<![endif]-->'+
+          '<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="'+pdpUrl(prod.n,mt)+'" style="height:36px;v-text-anchor:middle;width:140px" arcsize="10%" stroke="f" fillcolor="#004A2B"><w:anchorlock/><center style="color:#FBF5EA;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:bold;letter-spacing:0.12em;">ADD TO CART &rarr;</center></v:roundrect><![endif]--><!--[if !mso]><!--><a href="'+pdpUrl(prod.n,mt)+'" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:'+(isHero?'#AB8743':'#004A2B')+';color:#FBF5EA;padding:9px 22px;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:bold;letter-spacing:0.12em;text-decoration:none;border-radius:4px">'+(isHero?'ADD TO CART &rarr;':'ADD TO CART &rarr;')+'</a><!--<![endif]-->'+
           '</div>'+
         '</td>'+
       '</tr></table>'+
@@ -3968,7 +4107,12 @@ function buildEmailVariantB(uploadedDesignImg,mktOverride){
       '<div style="width:48px;height:2px;background:#AB8743;margin:18px auto 22px;border-radius:1px"></div>'+
       '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:14px;color:#555;margin:0 0 26px;line-height:1.7;max-width:440px;display:inline-block">'+(sc||'').substring(0,180)+'</p>'+
       '<br>'+btn(collUrl,cta,'#004A2B','#FBF5EA')+
-      (oc?'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#AB8743;margin:14px 0 0;letter-spacing:0.18em;text-transform:uppercase;font-weight:700">Use code &nbsp;<span style="border:1px dashed #AB8743;padding:3px 10px;border-radius:3px">'+oc+'</span></p>':'')+
+      (oc?'<div style="margin:14px 0 0;display:inline-block">'+
+        '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;color:#AB8743;margin:0 0 4px;letter-spacing:0.2em;text-transform:uppercase">Use code at checkout</p>'+
+        '<p style="font-family:Lao MN,Georgia,serif;font-size:22px;font-weight:bold;color:#fff;margin:0;letter-spacing:0.18em;background:#AB8743;display:inline-block;padding:7px 18px;border-radius:5px;box-shadow:0 2px 8px rgba(171,135,67,0.3)">'+oc+'</p>'+
+      '</div>':'')+
+      // Value summary line — repeats the offer + free shipping for clarity
+      '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;font-weight:700;color:#c0392b;margin:16px 0 0;letter-spacing:0.04em;line-height:1.5">&#9889; '+valueSummaryLine((st&&st.activePrompt)||(S&&S.activePrompt)||(S&&S.prompt)||'',mt)+'</p>'+
     '</td></tr>\n'+
     // S5 — Story / origin section (replaces feature bar from Variant A)
     '<tr><td class="pd20" style="background:#fff;padding:36px 48px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
@@ -4068,10 +4212,18 @@ function buildEmail(uploadedDesignImg,mktOverride){
         heroBadge+
         '</div>'+
       '</td></tr>'+
-      '<tr><td style="background:#fff;padding:12px 12px 4px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:'+(isHero?'13':'11.5')+'px;font-weight:bold;color:#1a1a1a;margin:0 0 4px;line-height:1.3">'+prod.n.split(',')[0]+'</p></td></tr>'+
-      '<tr><td style="background:#fff;padding:0 12px 6px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#777;margin:0;line-height:1.55">'+prodShortDesc(prod.n)+'</p></td></tr>'+
+      // Product NAME
+      '<tr><td style="background:#fff;padding:12px 12px 2px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:'+(isHero?'13':'11.5')+'px;font-weight:bold;color:#1a1a1a;margin:0 0 2px;line-height:1.3">'+prod.n.split(',')[0]+'</p></td></tr>'+
+      // BENEFIT chip — short value statement
+      '<tr><td style="background:#fff;padding:0 12px 4px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+prodBenefitHTML(prod)+'</td></tr>'+
+      // PRICE block — sale price + strikethrough + savings (THE conversion fix)
+      '<tr><td style="background:#fff;padding:4px 12px 4px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+prodPriceBlockHTML(prod,p,mt)+'</td></tr>'+
+      // Short description
+      '<tr><td style="background:#fff;padding:2px 12px 6px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#777;margin:0;line-height:1.55">'+prodShortDesc(prod.n)+'</p></td></tr>'+
+      // Rating
       '<tr><td style="background:#fff;padding:5px 12px 8px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><span style="color:#AB8743;font-size:12px">&#9733;&#9733;&#9733;&#9733;&#9733;</span><span style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;color:#aaa;margin-left:4px">4.8 &middot; 1,000+ reviews</span></td></tr>'+
-      '<tr><td style="background:#fff;padding:6px 12px 12px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8;border-bottom:1px solid #ede5d8;border-radius:0 0 8px 8px"><a href="'+pdpUrl(prod.n,mt)+'" target="_blank" rel="noopener noreferrer" border="0" style="display:block;text-align:center;background:'+(isHero?'#AB8743':'#004A2B')+';color:#FBF5EA;padding:'+(isHero?'10px':'8px')+';font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:'+(isHero?'11':'10')+'px;font-weight:bold;letter-spacing:0.12em;text-decoration:none;border-radius:5px">'+(isHero?'SHOP HERO PICK &rarr;':'SHOP NOW &rarr;')+'</a></td></tr>'+
+      // CTA button
+      '<tr><td style="background:#fff;padding:6px 12px 12px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8;border-bottom:1px solid #ede5d8;border-radius:0 0 8px 8px"><a href="'+pdpUrl(prod.n,mt)+'" target="_blank" rel="noopener noreferrer" border="0" style="display:block;text-align:center;background:'+(isHero?'#AB8743':'#004A2B')+';color:#FBF5EA;padding:'+(isHero?'10px':'8px')+';font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:'+(isHero?'11':'10')+'px;font-weight:bold;letter-spacing:0.12em;text-decoration:none;border-radius:5px">'+(isHero?'ADD TO CART &rarr;':'ADD TO CART &rarr;')+'</a></td></tr>'+
       '</table></td>';
   }
   let html='<!DOCTYPE html>\n<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<meta http-equiv="X-UA-Compatible" content="IE=edge">\n<title>VAHDAM&reg; &ndash; '+p.substring(0,60)+'</title>\n'+msoHead+'\n<style>\n@media only screen and (max-width:600px){\n  .email-wrap{width:100%!important}\n  .pcol{display:block!important;width:100%!important;padding-left:0!important;padding-right:0!important}\n  .hero-left{display:block!important;width:100%!important;padding:24px 20px!important}\n  .hero-right{display:none!important}\n  .hide-mobile{display:none!important}\n  .pd20{padding:14px 16px!important}\n}\n</style>\n</head>\n<body style="margin:0;padding:0;background:#f0ebe0;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">\n';
@@ -4105,7 +4257,16 @@ function buildEmail(uploadedDesignImg,mktOverride){
   html+='<div style="width:36px;height:2px;background:#AB8743;margin:0 0 14px;border-radius:1px"></div>\n';
   html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:12.5px;color:#555;margin:0 0 22px;line-height:1.72">'+sc+'</p>\n';
   html+=bulletBtn(collUrl,cta,'#004A2B','#FBF5EA');
-  if(oc)html+='\n<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:8.5px;font-weight:800;color:#AB8743;margin:10px 0 0;letter-spacing:0.16em;text-transform:uppercase;border:1px dashed #AB8743;display:inline-block;padding:4px 12px;border-radius:4px">USE CODE: '+oc+'</p>\n';
+  // OFFER CODE — large, prominent, impossible to miss (mid-funnel value clarity fix)
+  if(oc){
+    html+='\n<div style="margin:12px 0 0;display:inline-block">'+
+      '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;color:#AB8743;margin:0 0 4px;letter-spacing:0.18em;text-transform:uppercase">Use code at checkout</p>'+
+      '<p style="font-family:Lao MN,Georgia,serif;font-size:22px;font-weight:bold;color:#fff;margin:0;letter-spacing:0.18em;background:#AB8743;display:inline-block;padding:7px 18px;border-radius:5px;box-shadow:0 2px 8px rgba(171,135,67,0.3)">'+oc+'</p>'+
+    '</div>\n';
+  }
+  // VALUE SUMMARY — % off + code + free shipping at a glance (the visible-offer fix)
+  var valueLine=valueSummaryLine(p,mt);
+  if(valueLine)html+='\n<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;font-weight:700;color:#c0392b;margin:14px 0 0;letter-spacing:0.04em;line-height:1.5">&#9889; '+valueLine+'</p>\n';
   html+='<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border-top:1px solid #e4dbd0;margin-top:16px"><tr>\n';
   feats.forEach(function(f,i){
     var sp=f.indexOf(' ');var icon=sp>0?f.substring(0,sp):f;var lbl=sp>0?f.substring(sp+1):f;
