@@ -1340,9 +1340,15 @@ function setStep(n){
   }
 }
 function show(id,v){const el=document.getElementById(id);if(el)el.style.display=v?'block':'none';}
+// Show ONE step panel and explicitly hide all the others — prevents stale
+// content from a previous step (esp. Step 5 mailer iframe / dark code panel)
+// bleeding through when the user navigates between steps.
+function showOnly(stepNum){
+  for(var i=1;i<=5;i++)show('p'+i,i===stepNum);
+  setStep(stepNum);
+}
 function goBack(to){
-  for(var i=2;i<=5;i++)show('p'+i,false);
-  show('p'+to,true);setStep(to);
+  showOnly(to);
   if(to===2){_activeCatFilter='all';renderCatalog('all');}
 }
 function renderCatalog(filter){
@@ -1763,7 +1769,7 @@ function go2(){
   document.querySelectorAll('.cfbtn').forEach(function(b){b.classList.remove('on');});
   var allBtn=document.querySelector('#catFilter .cfbtn[onclick*="\'all\'"]');if(allBtn)allBtn.classList.add('on');
   // ─────────────────────────────────────────────────────────────
-  show('p1',false);show('p2',true);setStep(2);renderCatalog('all');updateSelInfo();
+  showOnly(2);renderCatalog('all');updateSelInfo();
   injectCtxBanners();
   // Auto-filter catalog using prompt signals first, then campaign type fallback
   var smartTab=getBestCatalogTab(S.prompt,S.type);
