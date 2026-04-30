@@ -709,6 +709,8 @@ body{font-family:DM Sans,sans-serif;background:var(--bg);background-image:radial
 
   <!-- TAB 1: Canvas Layout Preview -->
   <div id="p4-claude">
+    <!-- ★ Region + Variant filters for the canvas (the COMPLETE mailer design) -->
+    <div id="canvasFilterPanel" style="margin-bottom:14px"></div>
     <div class="design-wrap">
       <!-- Canvas -->
       <div class="canvas-area">
@@ -948,7 +950,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='filters-on-mailer-design-v16';
+window.__VAHDAM_BUILD__='canvas-variants-hero-single-v17';
 console.log('%c[VAHDAM Mailer] Build:','color:#004A2B;font-weight:bold','supabase-kb-v4 — window.S:',!!window.S);
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2792,14 +2794,16 @@ function getCanvasTheme(p){
   var offer=offerText(p);
   return {bg:'#FBF5EA',accent:'#004A2B',gold:'#AB8743',h:headline,sub:sub,offer:offer};
 }
-async function drawLayout(canvas,prompt,market,prods){
-  // Layout constants
+async function drawLayout(canvas,prompt,market,prods,variant){
+  variant=variant||S.canvasVariant||S.activeVariant||(S.strategy&&S.strategy.primaryVariant)||'A';
+  // Variant B uses a TALLER canvas (full-width hero + vertical product stack);
+  // Variant A keeps the standard editorial-hero proportions.
   const W=560;
-  const PROD_COLS=Math.min(prods.length,4)||1;
-  // Dynamic height: grows with product count
+  const PROD_COLS=variant==='B'?1:(Math.min(prods.length,4)||1);
   const PROD_ROWS=Math.ceil(prods.length/PROD_COLS);
-  const PROD_CARD_H=130;
-  const H=32+80+230+36+30+28+(PROD_ROWS*PROD_CARD_H+60)+90+60;
+  const PROD_CARD_H=variant==='B'?180:130; // taller rows for vertical stack
+  const HERO_H=variant==='B'?320:230;       // full-width image vs side-by-side
+  const H=32+80+HERO_H+36+30+28+(PROD_ROWS*PROD_CARD_H+60)+90+60;
   canvas.width=W;canvas.height=H;
   const ctx=canvas.getContext('2d');
   const ep=buildEffectivePrompt(prompt,prods); // product-enriched prompt for copy
@@ -2856,7 +2860,7 @@ async function drawLayout(canvas,prompt,market,prods){
 
   // S3 — Hero split
   y+=80;
-  const heroH=230;
+  const heroH=HERO_H;
   ctx.fillStyle='#FBF5EA';ctx.fillRect(0,y,W,heroH);
   // Left: copy
   const leftW=W/2-4;
@@ -3032,7 +3036,11 @@ async function runGeneration(feedback){
   S.lastPrompt=activePrompt;S.lastMarket=S.market;S.lastType=S.type||detectType(S.prompt);S.lastProducts=S.finalProds;
   await delay(400);setStages(3);
   const canvas=document.getElementById('layoutCanvas');
-  await drawLayout(canvas,activePrompt,S.market,S.finalProds);
+  // Use the active canvas market+variant if user has switched filters; default to suggested
+  S.canvasMarket = S.canvasMarket || S.market;
+  S.canvasVariant = S.canvasVariant || S.activeVariant || (S.strategy && S.strategy.primaryVariant) || 'A';
+  await drawLayout(canvas,activePrompt,S.canvasMarket,S.finalProds,S.canvasVariant);
+  renderCanvasFilterPanel();
   // Canvas may be tainted by cross-origin images — safe fallback, no error thrown
   try{S.canvasDataUrl=canvas.toDataURL('image/png');}catch(e){S.canvasDataUrl='';/* tainted canvas — use uploaded/AI image instead */}
   await delay(300);setStages(4);await delay(500);
@@ -3367,6 +3375,67 @@ function downloadBothVariants(){
   setTimeout(function(){if(entry.B)downloadVariant('B');},500); // stagger so both saves register
   showCopyToast('Downloading both variants…');
 }
+// ── Step 4: Canvas Region + Variant filter panel ────────────────────────────
+// The canvas is the COMPLETE mailer wireframe. Filters here actually change the
+// canvas rendering — region drives currency/copy + variant drives layout style.
+function renderCanvasFilterPanel(){
+  var box=document.getElementById('canvasFilterPanel');
+  if(!box)return;
+  var mkts=(S.markets&&S.markets.length?S.markets:[S.market||'US']);
+  if(!mkts.length){box.innerHTML='';return;}
+  var aMkt=S.canvasMarket||S.market||mkts[0];
+  if(mkts.indexOf(aMkt)<0)aMkt=mkts[0];
+  var aVar=S.canvasVariant||S.activeVariant||(S.strategy&&S.strategy.primaryVariant)||'A';
+  var mktLabels={US:'🇺🇸 United States',UK:'🇬🇧 United Kingdom',IN:'🇮🇳 India',Global:'🌍 Global',ME:'🇦🇪 Middle East',AU:'🇦🇺 Australia',EU:'🇪🇺 Europe'};
+  var variantMeta={A:{name:'Editorial Hero',accent:'#004A2B',sub:'Side-by-side hero · 4-col grid · mid-flow offer'},B:{name:'Narrative Story',accent:'#AB8743',sub:'Full-width hero · vertical stack · gold offer at bottom'}};
+  box.innerHTML=
+    '<div style="border:1.5px solid #ede5d8;border-radius:12px;overflow:hidden;background:#fff">'+
+      '<div style="background:linear-gradient(135deg,#004A2B,#1a3a28);padding:12px 16px;display:flex;align-items:center;gap:10px;color:#FBF5EA;flex-wrap:wrap">'+
+        '<span style="font-size:9px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:#9fd6b5">Complete Mailer Design</span>'+
+        '<span style="font-size:10.5px;color:#fff;font-weight:600">'+(mktLabels[aMkt]||aMkt)+' · Variant '+aVar+' · '+variantMeta[aVar].name+'</span>'+
+      '</div>'+
+      // Region tabs
+      (mkts.length>1?'<div style="padding:12px 16px;border-bottom:1px solid #ede5d8;background:#fafaf6">'+
+        '<div style="font-size:8.5px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#888;margin-bottom:8px">1. Region</div>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+          mkts.map(function(m){
+            var act=m===aMkt;
+            var short={US:'🇺🇸 US',UK:'🇬🇧 UK',IN:'🇮🇳 IN',Global:'🌍 Global',ME:'🇦🇪 ME',AU:'🇦🇺 AU',EU:'🇪🇺 EU'}[m]||m;
+            return '<button onclick="selectCanvasCell(\''+m+'\',\''+aVar+'\')" style="padding:7px 14px;background:'+(act?'#004A2B':'#fff')+';color:'+(act?'#FBF5EA':'#374151')+';border:1.5px solid '+(act?'#004A2B':'#ede5d8')+';border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.04em">'+short+'</button>';
+          }).join('')+
+        '</div></div>':'')+
+      // Variant tabs
+      '<div style="padding:12px 16px;background:#fafaf6">'+
+        '<div style="font-size:8.5px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#888;margin-bottom:8px">'+(mkts.length>1?'2. ':'')+'Variant for '+(mktLabels[aMkt]||aMkt)+'</div>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+          ['A','B'].map(function(v){
+            var meta=variantMeta[v];
+            var act=v===aVar;
+            return '<button onclick="selectCanvasCell(\''+aMkt+'\',\''+v+'\')" style="text-align:left;padding:9px 14px;background:'+(act?meta.accent:'#fff')+';color:'+(act?'#fff':'#374151')+';border:1.5px solid '+(act?meta.accent:'#ede5d8')+';border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;flex:1;min-width:200px">'+
+              '<div style="font-size:11px;font-weight:700;letter-spacing:0.04em;margin-bottom:2px">Variant '+v+' · '+meta.name+'</div>'+
+              '<div style="font-size:9.5px;font-weight:400;line-height:1.4;'+(act?'opacity:0.9':'color:#888')+'">'+meta.sub+'</div>'+
+            '</button>';
+          }).join('')+
+        '</div>'+
+      '</div>'+
+    '</div>';
+}
+// Switch the canvas to a specific region + variant combo
+function selectCanvasCell(mkt,v){
+  S.canvasMarket=mkt;
+  S.canvasVariant=v;
+  // Sync the global activeMarket / activeVariant so downstream steps follow
+  S.market=mkt;
+  S.activeVariant=v;
+  // Redraw canvas with the new combo
+  var canvas=document.getElementById('layoutCanvas');
+  if(canvas&&S.finalProds&&S.finalProds.length){
+    drawLayout(canvas,S.activePrompt||S.prompt,mkt,S.finalProds,v);
+  }
+  renderCanvasFilterPanel();
+  showCopyToast('Canvas now showing: '+mkt+' · Variant '+v);
+}
+
 // ── Step 4: AUTO-GENERATED IMAGES via Pollinations FLUX ────────────────────
 // Build a FOCUSED prompt for Pollinations (1200 chars max) that puts the regen
 // feedback FIRST, then the campaign brief, then layout instructions. Without
@@ -3509,58 +3578,77 @@ function renderRegionVariantPanel(config){
     '</div>';
 }
 
-// Render the auto-generated image — REGION → VARIANT → PREVIEW + DOWNLOAD
+// Render the auto-generated FLUX hero image — REGION TABS ONLY (no variant filter)
+// The hero image is a single illustrative shot per region; variant choice belongs
+// to the canvas/mailer layout below, not to this hero render.
 function renderGeneratedImagesMatrix(){
-  // Image matrix lives at the TOP of Step 4 (outside tabs) so it's always visible
   var box=document.getElementById('generatedImagesMatrixTop')||document.getElementById('generatedImagesMatrix');
   if(!box)return;
   if(!S.imagePrompts){box.innerHTML='';return;}
   buildImageMatrix();
   var mkts=Object.keys(S.imagePrompts);
   if(!mkts.length){box.innerHTML='';return;}
-  // ── Use the universal Region → Variant → Actions panel ──
+  var aMkt=S.activeImageMarket||mkts[0];
+  if(!S.imagePrompts[aMkt])aMkt=mkts[0];
+  // Always use Variant A's prompt for the hero illustration (single image per region)
+  var imgUrl=(S.generatedImages&&S.generatedImages[aMkt]&&S.generatedImages[aMkt].A)||'';
+  var mktLabels={US:'🇺🇸 US',UK:'🇬🇧 UK',IN:'🇮🇳 IN',Global:'🌍 Global',ME:'🇦🇪 ME',AU:'🇦🇺 AU',EU:'🇪🇺 EU'};
   var feedbackBadge=(S.feedbackHistory&&S.feedbackHistory.length)?
     '<span style="font-size:9px;font-weight:700;color:#fff;background:#AB8743;padding:3px 8px;border-radius:12px;letter-spacing:0.06em">REGEN ×'+S.feedbackHistory.length+'</span>':'';
-  renderRegionVariantPanel({
-    containerId:box.id,
-    title:'Auto-Generated Hero Images',
-    subtitle:'FLUX · '+(mkts.length*2)+' renders ('+mkts.length+' region'+(mkts.length===1?'':'s')+' × 2 variants)'+(feedbackBadge?'  ':''),
-    regions:mkts,
-    variants:['A','B'],
-    activeRegion:S.activeImageMarket||mkts[0],
-    activeVariant:S.activeImageVariant||'A',
-    onSelectRegion:'__selectImageRegion',
-    onSelectVariant:'__selectImageVariant',
-    onPreview:'__previewImage',
-    onDownload:'__downloadImage',
-    extraTopActions:[
-      {label:'&#8635; Regenerate All',onclick:'regenerateAllImages()'},
-      {label:'&#11015; Download All',onclick:'downloadAllImages()',style:'padding:6px 12px;background:#AB8743;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.04em'}
-    ],
-    getContentHTML:function(mkt,v){
-      var imgUrl=S.generatedImages[mkt][v];
-      var ovId='imgLoad_'+mkt+'_'+v;
-      var meta={A:'#004A2B',B:'#AB8743'}[v];
-      return '<div style="max-width:600px;width:100%;border:1px solid #e8e3da;border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.08);position:relative">'+
-        '<div id="'+ovId+'" style="position:absolute;inset:0;background:rgba(248,244,238,0.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:2">'+
-          '<div style="width:36px;height:36px;border:3px solid '+meta+';border-top-color:transparent;border-radius:50%;animation:spinAnim .9s linear infinite"></div>'+
-          '<div style="font-size:11px;font-weight:700;color:'+meta+';letter-spacing:0.06em">Generating '+mkt+' · Variant '+v+'…</div>'+
-          '<div style="font-size:9.5px;color:#888;font-style:italic">FLUX · ~10–30s first render</div>'+
-          '<style>@keyframes spinAnim{to{transform:rotate(360deg)}}</style>'+
+  var ovId='imgLoad_'+aMkt;
+  box.innerHTML=
+    '<div style="border:1.5px solid #ede5d8;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,0.06)">'+
+      // Header
+      '<div style="background:linear-gradient(135deg,#004A2B,#1a3a28);padding:14px 18px;display:flex;align-items:center;gap:10px;color:#FBF5EA;flex-wrap:wrap">'+
+        '<span style="font-size:9px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:#9fd6b5">Auto-Generated Hero Image</span>'+
+        '<span style="font-size:10.5px;color:#fff;font-weight:600">FLUX · '+mkts.length+' region'+(mkts.length===1?'':'s')+'</span>'+
+        feedbackBadge+
+        '<span style="flex:1"></span>'+
+        '<button onclick="regenerateHeroImage()" style="padding:6px 12px;background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.04em">&#8635; Regenerate</button>'+
+        '<button onclick="downloadGeneratedImage(\''+aMkt+'\',\'A\')" style="padding:6px 12px;background:#AB8743;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.04em">&#11015; Download</button>'+
+      '</div>'+
+      // Region tabs only (no variant tabs)
+      (mkts.length>1?'<div style="background:#fafaf6;padding:12px 16px;border-bottom:1px solid #ede5d8">'+
+        '<div style="font-size:8.5px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#888;margin-bottom:8px">Region</div>'+
+        '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
+          mkts.map(function(m){
+            var act=m===aMkt;
+            return '<button onclick="__selectHeroRegion(\''+m+'\')" style="padding:7px 14px;background:'+(act?'#004A2B':'#fff')+';color:'+(act?'#FBF5EA':'#374151')+';border:1.5px solid '+(act?'#004A2B':'#ede5d8')+';border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.04em">'+(mktLabels[m]||m)+'</button>';
+          }).join('')+
         '</div>'+
-        '<img src="'+imgUrl+'" alt="'+mkt+' Variant '+v+'" '+
-          'style="display:block;width:100%;height:auto;background:#fff" '+
-          'onload="(function(){var o=document.getElementById(\''+ovId+'\');if(o)o.style.display=\'none\';})()" '+
-          'onerror="(function(){var o=document.getElementById(\''+ovId+'\');if(o)o.innerHTML=\'<div style=&quot;font-size:11px;color:#b91c1c;padding:20px;text-align:center&quot;>Image generation failed.<br>Try Regenerate.</div>\';})()">'+
-      '</div>';
-    }
-  });
+      '</div>':'')+
+      // Image display
+      '<div style="padding:18px;background:#f0ebe0;display:flex;justify-content:center">'+
+        '<div style="max-width:600px;width:100%;border:1px solid #e8e3da;border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.08);position:relative">'+
+          '<div id="'+ovId+'" style="position:absolute;inset:0;background:rgba(248,244,238,0.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;z-index:2">'+
+            '<div style="width:36px;height:36px;border:3px solid #004A2B;border-top-color:transparent;border-radius:50%;animation:spinAnim .9s linear infinite"></div>'+
+            '<div style="font-size:11px;font-weight:700;color:#004A2B;letter-spacing:0.06em">Generating '+aMkt+'…</div>'+
+            '<div style="font-size:9.5px;color:#888;font-style:italic">FLUX · ~10–30s first render</div>'+
+            '<style>@keyframes spinAnim{to{transform:rotate(360deg)}}</style>'+
+          '</div>'+
+          '<img src="'+imgUrl+'" alt="'+aMkt+' hero" '+
+            'style="display:block;width:100%;height:auto;background:#fff" '+
+            'onload="(function(){var o=document.getElementById(\''+ovId+'\');if(o)o.style.display=\'none\';})()" '+
+            'onerror="(function(){var o=document.getElementById(\''+ovId+'\');if(o)o.innerHTML=\'<div style=&quot;font-size:11px;color:#b91c1c;padding:20px;text-align:center&quot;>Image generation failed.</div>\';})()">'+
+        '</div>'+
+      '</div>'+
+      '<div style="background:#fff;padding:10px 16px;border-top:1px solid #ede5d8;font-size:10px;color:#888;font-style:italic">Showing: '+(mktLabels[aMkt]||aMkt)+' · This is a single illustrative hero render. Variant A vs B layout choice applies to the canvas mailer below.</div>'+
+    '</div>';
 }
-// Helper handlers used by the universal panel for image rendering
-window.__selectImageRegion=function(m){S.activeImageMarket=m;switchImagePrompt(m,S.activeImageVariant||'A');renderGeneratedImagesMatrix();};
-window.__selectImageVariant=function(v){switchImagePrompt(S.activeImageMarket||(S.markets||['US'])[0],v);renderGeneratedImagesMatrix();};
-window.__previewImage=function(m,v){var u=S.generatedImages&&S.generatedImages[m]&&S.generatedImages[m][v];if(u)window.open(u,'_blank');};
-window.__downloadImage=function(m,v){downloadGeneratedImage(m,v);};
+// Region tab handler (variant always 'A' for the hero render)
+window.__selectHeroRegion=function(m){
+  S.activeImageMarket=m;
+  switchImagePrompt(m,S.activeImageVariant||'A');
+  renderGeneratedImagesMatrix();
+};
+window.regenerateHeroImage=function(){
+  var m=S.activeImageMarket||(S.markets||['US'])[0];
+  if(!S._imageSeeds)S._imageSeeds={};
+  S._imageSeeds[m+'_A']=Math.floor(Math.random()*999999);
+  S.generatedImages[m].A=pollinationsImageUrl(buildPollinationsPrompt(m,'A'),S._imageSeeds[m+'_A']);
+  renderGeneratedImagesMatrix();
+  showCopyToast('Re-generating '+m+' hero image…');
+};
 
 // ── Step 5: unified Region → Variant → Preview + Download panel ──
 function renderStep5UnifiedPanel(){
