@@ -950,7 +950,17 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='canvas-variants-hero-single-v17';
+window.__VAHDAM_BUILD__='canvas-variants-hero-single-v17-supabase-full';
+// On page load, surface Supabase connection state so the user can see if
+// data is going to Supabase or only to localStorage.
+setTimeout(function(){
+  if(typeof SUPABASE_CONFIG==='undefined')return;
+  if(!SUPABASE_CONFIG.enabled){
+    console.log('%c[Supabase] DISABLED','color:#dc2626;font-weight:bold','— set SUPABASE_CONFIG.enabled=true and fill url+anonKey to write to Supabase. Until then, dashboard data is localStorage-only.');
+  }else if(SUPABASE_CONFIG.url==='YOUR_SUPABASE_PROJECT_URL_HERE'){
+    console.log('%c[Supabase] PLACEHOLDER VALUES','color:#dc2626;font-weight:bold','— url/anonKey not filled in yet. Replace placeholders in SUPABASE_CONFIG.');
+  }
+},100);
 console.log('%c[VAHDAM Mailer] Build:','color:#004A2B;font-weight:bold','supabase-kb-v4 — window.S:',!!window.S);
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -5553,8 +5563,9 @@ function saveMailerToDashboard(){
   var primaryEntry=(S.marketMailers||{})[primaryMkt]||{};
   var variantA=typeof primaryEntry==='string'?primaryEntry:(primaryEntry.A||'');
   var variantB=typeof primaryEntry==='string'?'':(primaryEntry.B||'');
-  // Build a comprehensive record — every field captured for analytics
+  // Build a comprehensive record — EVERY field captured for analytics + reproducibility
   var fullRecord={
+    // ── INPUT (the task) ──
     user_name:user.name||'Unknown',
     user_email:user.email||'',
     prompt_short:(S.prompt||'').substring(0,200),
@@ -5563,26 +5574,45 @@ function saveMailerToDashboard(){
     campaign_type:S.type||detectType(S.prompt||''),
     primary_market:primaryMkt,
     markets:S.markets||['US'],
+    // ── GOALS (products) ──
     hero_product_name:st.hero?st.hero.n:'',
     hero_product_image:st.hero?st.hero.i:'',
     hero_category:st.category||'',
     product_names:(S.finalProds||[]).map(function(p){return (p.n||'').split(',')[0];}),
     product_full:S.finalProds||[],
+    // ── OFFER + OCCASION ──
     offer_text:(st.offer&&st.offer.text)||'',
     offer_code:(st.offer&&st.offer.code)||'',
     offer_pct:(st.offer&&st.offer.pct)||'',
     occasion:st.occasion||null,
+    // ── COMPUTED COPY ──
     headline:st.headline||[],
     sub_copy:st.subCopy||'',
     cta:st.cta||'',
     ann_bar:st.annBar||'',
+    feature_strip:st.feats||[],
+    ingredients:st.ings||[],
+    section_title:st.sectionTitle||'',
+    product_section_title:st.productSectionTitle||'',
+    // ── LAYOUT VARIANTS ──
     layout_variant:S.activeVariant||st.primaryVariant||'A',
+    canvas_market:S.canvasMarket||S.market||primaryMkt,
+    canvas_variant:S.canvasVariant||S.activeVariant||'A',
     variant_a_html:variantA,
     variant_b_html:variantB,
+    market_mailers:S.marketMailers||{},
+    // ── IMAGE GENERATION (full matrix of prompts + URLs) ──
     variant_a_image_prompt:S.lastImagePromptA||'',
     variant_b_image_prompt:S.lastImagePromptB||'',
-    market_mailers:S.marketMailers||{},
+    image_prompts_full:S.imagePrompts||{},          // {US:{A:'...',B:'...'}, UK:{...}, …}
+    generated_images:S.generatedImages||{},         // {US:{A:url,B:url}, UK:{...}, …}
+    image_seeds:S._imageSeeds||{},                  // {US_A:12345, …} for reproducibility
+    canvas_data_url:S.canvasDataUrl||'',            // PNG snapshot of the local canvas (if not tainted)
+    // ── REGEN HISTORY ──
+    regen_count:S.regenCount||0,
+    last_feedback:S.lastFeedback||'',
     feedback_history:(S.feedbackHistory||[]).slice(),
+    // ── AUDIT TRAIL ──
     reasoning:st.reasoning||{},
     strategy_full:st,
     build_version:window.__VAHDAM_BUILD__||'',

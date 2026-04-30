@@ -43,15 +43,29 @@ CREATE TABLE IF NOT EXISTS public.vahdam_campaigns (
   cta TEXT,
   ann_bar TEXT,
 
+  -- COMPUTED COPY (extended)
+  feature_strip JSONB,               -- ["🌿 Farm Direct", "🤝 Ethically Sourced", …]
+  ingredients JSONB,                 -- [{n:'Hibiscus', d:'Tart, ruby-red bloom'}, …]
+  section_title TEXT,
+  product_section_title TEXT,
+
   -- LAYOUT VARIANTS (Step 5 output — both A & B)
   layout_variant TEXT,               -- 'A' or 'B' (suggested primary)
+  canvas_market TEXT,                -- region active in the Step 4 canvas filter
+  canvas_variant TEXT,               -- variant active in the Step 4 canvas filter
   variant_a_html TEXT,               -- Variant A "Editorial Hero" HTML for primary market
   variant_b_html TEXT,               -- Variant B "Narrative Story" HTML for primary market
   market_mailers JSONB,              -- {US:{A:html,B:html}, UK:{A:html,B:html}, …}
-  variant_a_image_prompt TEXT,       -- Variant A image-gen prompt
-  variant_b_image_prompt TEXT,       -- Variant B image-gen prompt
+  variant_a_image_prompt TEXT,       -- Variant A image-gen prompt (primary market)
+  variant_b_image_prompt TEXT,       -- Variant B image-gen prompt (primary market)
+  image_prompts_full JSONB,          -- {US:{A:'...',B:'...'}, UK:{…}, …} — every region × variant
+  generated_images JSONB,            -- {US:{A:url,B:url}, UK:{…}, …} — Pollinations URLs
+  image_seeds JSONB,                 -- {US_A:12345, US_B:67890, …} — for reproducibility
+  canvas_data_url TEXT,              -- PNG data URL of the local canvas (if not cross-origin tainted)
 
   -- REGEN HISTORY
+  regen_count INT DEFAULT 0,
+  last_feedback TEXT,
   feedback_history JSONB,            -- ["regen feedback 1", "regen feedback 2"]
 
   -- AUDIT TRAIL (full reasoning + strategy snapshot — for analytics/debugging)
@@ -59,7 +73,7 @@ CREATE TABLE IF NOT EXISTS public.vahdam_campaigns (
   strategy_full JSONB,               -- full S.strategy snapshot
 
   -- TECHNICAL META
-  build_version TEXT,                -- e.g. 'matrix-grouping-v5'
+  build_version TEXT,                -- e.g. 'canvas-variants-hero-single-v17'
   user_agent TEXT,
   origin TEXT
 );
