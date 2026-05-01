@@ -701,6 +701,9 @@ body{font-family:DM Sans,sans-serif;background:var(--bg);background-image:radial
   <div id="p4CampaignCtx" style="display:none;background:linear-gradient(90deg,#004A2B,#1a3a28);border-radius:10px;padding:12px 16px;margin-bottom:16px;align-items:flex-start;gap:12px;flex-wrap:wrap"></div>
 
   <!-- Tab row -->
+  <!-- ★ Region + Variant filter — applies to Canvas Preview, Prompts AND Upload tabs below -->
+  <div id="canvasFilterPanel" style="margin-bottom:14px"></div>
+
   <div class="p4tabs" style="margin-bottom:20px">
     <button class="p4tab on" id="tab-claude" onclick="switchP4Tab('claude',this)">&#128065; Canvas Preview</button>
     <button class="p4tab" id="tab-chatgpt" onclick="switchP4Tab('chatgpt',this)">&#127775; Prompts</button>
@@ -709,8 +712,6 @@ body{font-family:DM Sans,sans-serif;background:var(--bg);background-image:radial
 
   <!-- TAB 1: Canvas Layout Preview -->
   <div id="p4-claude">
-    <!-- ★ Region + Variant filters for the canvas (the COMPLETE mailer design) -->
-    <div id="canvasFilterPanel" style="margin-bottom:14px"></div>
     <div class="design-wrap">
       <!-- Canvas -->
       <div class="canvas-area">
@@ -815,9 +816,8 @@ body{font-family:DM Sans,sans-serif;background:var(--bg);background-image:radial
       </div>
     </div>
 
-    <!-- (Image matrix moved to top of Step 4 — outside tabs — so it's always visible) -->
-    <!-- Campaign prompt preview — TWO variants -->
-    <div id="imageVariantSwitcher" style="margin-bottom:14px"></div>
+    <!-- (Region+Variant filter is persistent above all tabs — no duplicate switcher needed here) -->
+    <div id="imageVariantSwitcher" style="display:none"></div>
     <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">
       <div style="background:#f8f6f2;padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
         <span style="font-size:11px;font-weight:700;color:#374151">&#128203; Campaign Image Prompt &mdash; <span id="activeImagePromptVariantLabel">Variant A</span></span>
@@ -950,7 +950,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='supabase-live-v18';
+window.__VAHDAM_BUILD__='shared-filter-clean-steps-v19';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -1792,7 +1792,7 @@ function go3(){
     if(selInfo)selInfo.innerHTML='<strong>'+manCount+' product'+(manCount>1?'s':'')+' selected</strong> for your <em>'+(S.type||'campaign')+'</em> mailer. ✓ Proceeding with your selection.';
   }
   injectCtxBanners();
-  show('p2',false);show('p3',true);setStep(3);runGeneration(null);
+  showOnly(3);runGeneration(null);
 }
 
 function has(p,...kws){return kws.some(k=>p.toLowerCase().includes(k));}
@@ -3006,7 +3006,7 @@ function setStages(activeIdx){
 }
 function delay(ms){return new Promise(function(r){setTimeout(r,ms);});}
 async function runGeneration(feedback){
-  show('p3',true);show('p4',false);
+  showOnly(3); // Step 3 only — hides Step 5 leftovers from previous run
   setStages(0);await delay(300);setStages(1);
   if(S.manualProds.length>0){S.finalProds=S.manualProds.map(function(p,i){return Object.assign({},p,{role:i===0?'hero':i<=2?'featured':'grid'});});}
   else{S.finalProds=autoPickProducts(S.prompt,S.type||detectType(S.prompt));}
@@ -3060,7 +3060,7 @@ async function runGeneration(feedback){
   // Canvas may be tainted by cross-origin images — safe fallback, no error thrown
   try{S.canvasDataUrl=canvas.toDataURL('image/png');}catch(e){S.canvasDataUrl='';/* tainted canvas — use uploaded/AI image instead */}
   await delay(300);setStages(4);await delay(500);
-  show('p3',false);show('p4',true);setStep(4);
+  showOnly(4);
   injectCtxBanners();
   switchP4Tab('claude',document.getElementById('tab-claude'));
   var monoEl=document.getElementById('promptMono');if(monoEl)monoEl.textContent=S.lastImagePrompt;
@@ -3083,8 +3083,8 @@ async function regenFeedback(){
   const fb=document.getElementById('fbIn').value.trim();
   if(!fb){alert('Please describe what to change in the feedback box first.');return;}
   S.regenCount++;
-  // Don't clear the feedback input — user may want to refine it
-  show('p4',false);
+  // Hide all step panels then runGeneration will show Step 3 → Step 4
+  for(var _i=1;_i<=5;_i++)show('p'+_i,false);
   await runGeneration(fb);
   // After regen, scroll to show the updated result
   setTimeout(function(){
@@ -3213,7 +3213,7 @@ function handleImgUpload(event){
 }
 async function approveWithUpload(){
   if(!S.uploadedDesignUrl){alert('Please upload a design image first.');return;}
-  show('p4',false);setStep(5);show('p5',true);
+  showOnly(5);
   document.getElementById('p5').scrollIntoView({behavior:'smooth'});
   var mkts=S.markets&&S.markets.length>0?S.markets:['US'];
   S.activeMarket=mkts[0];
@@ -3249,7 +3249,7 @@ async function approveWithUpload(){
   saveMailerToDashboard();
 }
 function approveAndBuild(){
-  show('p4',false);setStep(5);
+  showOnly(5);
   S.marketMailers={};
   var mkts=S.markets&&S.markets.length>0?S.markets:['US'];
   refreshStrategy();
@@ -3262,7 +3262,6 @@ function approveAndBuild(){
   S.finalHTML=(S.marketMailers[S.activeMarket]||{})[S.activeVariant]||'';
   var frEl=document.getElementById('emailFr');if(frEl)frEl.srcdoc=S.finalHTML;
   var rawEl2=document.getElementById('htmlRaw');if(rawEl2)rawEl2.textContent=S.finalHTML;
-  show('p5',true);
   document.getElementById('p5').scrollIntoView({behavior:'smooth'});
   buildStep5UI(S.prompt,S.finalProds,S.activeMarket);
   renderMarketTabs();
@@ -3407,8 +3406,10 @@ function renderCanvasFilterPanel(){
   box.innerHTML=
     '<div style="border:1.5px solid #ede5d8;border-radius:12px;overflow:hidden;background:#fff">'+
       '<div style="background:linear-gradient(135deg,#004A2B,#1a3a28);padding:12px 16px;display:flex;align-items:center;gap:10px;color:#FBF5EA;flex-wrap:wrap">'+
-        '<span style="font-size:9px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:#9fd6b5">Complete Mailer Design</span>'+
+        '<span style="font-size:9px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:#9fd6b5">Region &amp; Variant Filter</span>'+
         '<span style="font-size:10.5px;color:#fff;font-weight:600">'+(mktLabels[aMkt]||aMkt)+' · Variant '+aVar+' · '+variantMeta[aVar].name+'</span>'+
+        '<span style="flex:1"></span>'+
+        '<span style="font-size:9px;color:#9fd6b5;font-style:italic">Applies to: 👁 Canvas · 🌟 Prompts · 📤 Upload</span>'+
       '</div>'+
       // Region tabs
       (mkts.length>1?'<div style="padding:12px 16px;border-bottom:1px solid #ede5d8;background:#fafaf6">'+
@@ -3436,20 +3437,41 @@ function renderCanvasFilterPanel(){
       '</div>'+
     '</div>';
 }
-// Switch the canvas to a specific region + variant combo
+// Switch the canvas + prompt + upload-context to a specific region + variant combo
+// Applied across ALL THREE Step 4 sub-tabs (Canvas, Prompts, Upload).
 function selectCanvasCell(mkt,v){
   S.canvasMarket=mkt;
   S.canvasVariant=v;
-  // Sync the global activeMarket / activeVariant so downstream steps follow
+  // Sync the global activeMarket / activeVariant so Step 5 follows the same combo
   S.market=mkt;
+  S.activeMarket=mkt;
   S.activeVariant=v;
-  // Redraw canvas with the new combo
+  S.activeImageMarket=mkt;
+  S.activeImageVariant=v;
+  // 1. Canvas — redraw with the new combo
   var canvas=document.getElementById('layoutCanvas');
   if(canvas&&S.finalProds&&S.finalProds.length){
     drawLayout(canvas,S.activePrompt||S.prompt,mkt,S.finalProds,v);
   }
+  // 2. Prompts tab — swap the displayed image prompt for the new combo
+  if(S.imagePrompts&&S.imagePrompts[mkt]){
+    S.lastImagePromptA=S.imagePrompts[mkt].A||'';
+    S.lastImagePromptB=S.imagePrompts[mkt].B||'';
+    S.lastImagePrompt=S.imagePrompts[mkt][v]||'';
+    S.generatedPrompt=S.lastImagePrompt;
+    var monoEl=document.getElementById('promptMono');
+    if(monoEl)monoEl.textContent=S.lastImagePrompt;
+    var lblEl=document.getElementById('activeImagePromptVariantLabel');
+    if(lblEl)lblEl.textContent=mkt+' · Variant '+v;
+    var dispEl=document.getElementById('genPromptDisplay');
+    if(dispEl)dispEl.textContent=S.lastImagePrompt;
+  }
+  // 3. Hero image (region only) — refresh single-image render
+  if(typeof renderGeneratedImagesMatrix==='function')renderGeneratedImagesMatrix();
+  // 4. Upload tab — update the "Use this image" button context (no DOM change needed; state already synced)
+  // 5. Re-render the filter panel itself so the active cell highlights correctly
   renderCanvasFilterPanel();
-  showCopyToast('Canvas now showing: '+mkt+' · Variant '+v);
+  showCopyToast('Showing: '+mkt+' · Variant '+v+' (applies to canvas, prompt and upload tabs)');
 }
 
 // ── Step 4: AUTO-GENERATED IMAGES via Pollinations FLUX ────────────────────
