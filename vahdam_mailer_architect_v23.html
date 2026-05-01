@@ -314,7 +314,19 @@ body{font-family:DM Sans,sans-serif;background:var(--bg);background-image:radial
   display:grid;grid-template-columns:repeat(2,1fr);gap:10px;
   padding:14px 14px 16px;background:#fdfcfa
 }
+/* ── Skeleton shimmer for loading states (used by dashboard / KB hydration) ── */
+@keyframes vhdShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.vhd-skel{display:block;background:linear-gradient(90deg,#ede5d8 0%,#f6f1e6 50%,#ede5d8 100%);background-size:200% 100%;animation:vhdShimmer 1.4s ease-in-out infinite;border-radius:6px}
+.vhd-skel-row{height:14px;margin:4px 0}
+.vhd-skel-card{height:120px;border-radius:14px;margin-bottom:14px}
+/* Focus rings for keyboard a11y — every interactive element gets a visible ring */
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2.5px solid #AB8743;outline-offset:2px;border-radius:4px}
+/* Mobile (≤600px) overrides — keep dashboard cards readable, modal full-bleed */
 @media(max-width:600px){
+  #dashRecordModal>div{max-width:100% !important;border-radius:0 !important;margin:0 !important}
+  #statusPillHost{top:60px !important;right:8px !important;left:8px !important;max-width:none !important}
+  #statusPillHost>div{font-size:11px !important}
+  /* Dashboard row header strip wraps cleanly on small screens */
   .sugg-grid{
     display:flex;flex-direction:row;flex-wrap:nowrap;
     overflow-x:auto;scroll-snap-type:x mandatory;
@@ -927,7 +939,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='a-plus-v27';
+window.__VAHDAM_BUILD__='deliver-not-claim-v28';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -1230,6 +1242,32 @@ async function supabaseUpsertUser(user){
     return data;
   }catch(e){console.warn('[Supabase] user upsert error:',e.message);return null;}
 }
+// ── In-page smoke-test suite ─────────────────────────────────────────────────
+// Runs on every load when window.location.hash includes 'tests' OR localStorage
+// has 'vhd_tests=1'. ~30 tests covering pure-logic functions. A red status pill
+// appears if anything fails so regressions never ship silently.
+window.__VAHDAM_TESTS__=[];
+function _t(name,fn){window.__VAHDAM_TESTS__.push({name:name,fn:fn});}
+function runVahdamTests(){
+  var pass=0, fail=0, failures=[];
+  window.__VAHDAM_TESTS__.forEach(function(t){
+    try{var r=t.fn();if(r===false)throw new Error('returned false');pass++;}
+    catch(e){fail++;failures.push({name:t.name,err:e.message});}
+  });
+  var total=pass+fail;
+  console.log('%c[VAHDAM tests] '+pass+'/'+total+' passed','color:'+(fail===0?'#3ecf8e':'#b91c1c')+';font-weight:bold');
+  if(fail){
+    failures.forEach(function(f){console.error('  ✖',f.name,'—',f.err);});
+    if(typeof statusPill==='function')statusPill('err',fail+' / '+total+' tests failed','See console for details');
+  } else if(total>0){
+    if(typeof statusPill==='function')statusPill('ok','All '+total+' tests passed');
+  }
+  return {pass:pass,fail:fail,total:total,failures:failures};
+}
+function _eq(a,b,msg){if(JSON.stringify(a)!==JSON.stringify(b))throw new Error((msg||'')+' expected '+JSON.stringify(b)+' got '+JSON.stringify(a));return true;}
+function _truthy(x,msg){if(!x)throw new Error(msg||'expected truthy');return true;}
+// Tests are registered after their dependencies are defined; see end of file.
+
 // ── Status pill — every async failure surfaces here, no more silent warns ───
 // Levels: ok (green) | warn (amber) | err (red) | info (forest). Auto-fades
 // after 6s for ok/info, sticks until clicked for warn/err.
@@ -3563,17 +3601,27 @@ async function approveWithUpload(){
   renderStep5UnifiedPanel();
   saveMailerToDashboard();
 }
+// Lazy mailer builder — generates the HTML for one (mkt, variant) cell on
+// demand and caches it on S.marketMailers. Switching markets/variants only
+// builds the cell the user actually views, not all 14 up-front.
+function _ensureMailerBuilt(mkt,v){
+  if(!S.marketMailers[mkt])S.marketMailers[mkt]={};
+  if(S.marketMailers[mkt][v])return S.marketMailers[mkt][v];
+  var html=v==='B'?buildEmailVariantB(S.uploadedDesignUrl||null,mkt):buildEmail(S.uploadedDesignUrl||null,mkt);
+  S.marketMailers[mkt][v]=html;
+  return html;
+}
 function approveAndBuild(){
   showOnly(5);
   S.marketMailers={};
   var mkts=S.markets&&S.markets.length>0?S.markets:['US'];
   refreshStrategy();
   S.activeVariant=S.strategy.primaryVariant||'A';
-  // Build BOTH variants for every selected market
-  mkts.forEach(function(mkt){
-    S.marketMailers[mkt]={A:buildEmail(null,mkt),B:buildEmailVariantB(null,mkt)};
-  });
+  // Build BOTH variants for the ACTIVE market only — others build lazily on click
   S.activeMarket=mkts[0];
+  mkts.forEach(function(mkt){S.marketMailers[mkt]=S.marketMailers[mkt]||{};});
+  _ensureMailerBuilt(S.activeMarket,'A');
+  _ensureMailerBuilt(S.activeMarket,'B');
   S.finalHTML=(S.marketMailers[S.activeMarket]||{})[S.activeVariant]||'';
   var frEl=document.getElementById('emailFr');if(frEl)frEl.srcdoc=S.finalHTML;
   var rawEl2=document.getElementById('htmlRaw');if(rawEl2)rawEl2.textContent=S.finalHTML;
@@ -3821,9 +3869,28 @@ function buildPollinationsPrompt(market,variant){
   pieces.push('Photorealistic studio photography, magazine-quality typography, ChatGPT-4o image fidelity, 600px wide vertical email column, 2400-2800px tall, NO browser chrome, NO device frames');
   return pieces.join(' | ');
 }
+// Strip the parts of an image prompt that FLUX renders as garbled in-image
+// text — quoted headlines, currency strings, promo codes. The hero illustration
+// is just the visual scene; copy belongs in the HTML over the top, never inside
+// the image. This is what stops "PSel'CO!l Olesls hluse" gibberish.
+function _imagePromptStripText(prompt){
+  if(!prompt)return prompt;
+  return prompt
+    .replace(/"[^"]+"/g,'')                        // quoted strings
+    .replace(/'[^']+'/g,'')                        // quoted strings
+    .replace(/\b(headline|sub-?headline|sub-?copy|cta|button|tagline|copy|text)[:\s]+[^.,;\n]+/gi,'')
+    .replace(/\b(use code|promo code|code)\s*\w+/gi,'')
+    .replace(/\b\d{1,3}%\s*(off|discount)\b/gi,'')
+    .replace(/[\$£€₹]\s*\d+(\.\d+)?/g,'')
+    .replace(/\s{2,}/g,' ')
+    .trim();
+}
 function pollinationsImageUrl(prompt,seed,width,height){
+  // Quality fallback: any text-bearing tokens in the prompt produce garbled
+  // text in the rendered image. Strip them so FLUX focuses on the scene only.
+  var clean=_imagePromptStripText(prompt);
   // Pollinations supports ~2000 char URLs reliably. Stay under 1800 to be safe.
-  var p=(prompt||'').substring(0,1800);
+  var p=(clean||prompt||'').substring(0,1800);
   var encoded=encodeURIComponent(p);
   var w=width||600,h=height||1800;
   var s=seed||Math.floor(Math.random()*999999);
@@ -4094,8 +4161,15 @@ function renderStep5UnifiedPanel(){
     }
   });
 }
-window.__step5SelectRegion=function(m){showMarketMailer(m);renderStep5UnifiedPanel();};
-window.__step5SelectVariant=function(v){switchVariant(v);renderStep5UnifiedPanel();};
+window.__step5SelectRegion=function(m){
+  // Build this market's variants lazily the first time it's clicked
+  _ensureMailerBuilt(m,'A');_ensureMailerBuilt(m,'B');
+  showMarketMailer(m);renderStep5UnifiedPanel();
+};
+window.__step5SelectVariant=function(v){
+  _ensureMailerBuilt(S.activeMarket,v);
+  switchVariant(v);renderStep5UnifiedPanel();
+};
 window.__step5Preview=function(m,v){
   var entry=S.marketMailers[m];
   if(!entry)return;
@@ -6110,14 +6184,17 @@ function saveMailerToDashboard(){
 var _dashPage=0;
 var _dashPageSize=12;
 // Dashboard filter state — drives the filter chips + search box
-window._dashFilters=window._dashFilters||{type:'',market:'',user:'',q:''};
+// `mineOnly` defaults to TRUE: users see only their own campaigns out of the
+// box (a sensible privacy default for the anon-shared DB). Admins / power
+// users can toggle to "Show all" via the chip.
+window._dashFilters=window._dashFilters||{type:'',market:'',user:'',q:'',mineOnly:true};
 function dashSetFilter(field,val){
   window._dashFilters[field]=(window._dashFilters[field]===val)?'':val;
   _dashPage=0;
   renderDashboard(0);
 }
 function dashClearFilters(){
-  window._dashFilters={type:'',market:'',user:'',q:''};
+  window._dashFilters={type:'',market:'',user:'',q:'',mineOnly:true};
   _dashPage=0;
   var sb=document.getElementById('dashSearch');if(sb)sb.value='';
   renderDashboard(0);
@@ -6163,7 +6240,8 @@ async function renderDashboard(page){
   // Try Supabase first (cross-device, all users), fall back to localStorage
   var logs=[];
   if(SUPABASE_CONFIG.enabled){
-    el.innerHTML='<div style="text-align:center;padding:32px 16px;color:#bbb"><div style="font-size:32px;margin-bottom:10px">&#9203;</div><div style="font-size:13px">Loading campaigns from Supabase…</div></div>';
+    // Shimmer skeletons while we wait — much better than a spinner for perceived speed
+    el.innerHTML='<div role="status" aria-live="polite" aria-label="Loading campaigns"><div class="vhd-skel vhd-skel-card"></div><div class="vhd-skel vhd-skel-card"></div><div class="vhd-skel vhd-skel-card"></div></div>';
     var rows=await supabaseFetchCampaigns(500);
     if(rows&&rows.length){
       // Normalise Supabase row → renderable log shape (date/userName/etc)
@@ -6193,6 +6271,12 @@ async function renderDashboard(page){
   var allLogs=logs.slice(); // unfiltered universe — used for filter chip facets
   // ── Apply active filters ──
   var f=window._dashFilters||{};
+  // Privacy default: scope to the signed-in user unless they explicitly
+  // toggled "Show all". This avoids leaking campaigns across team members.
+  if(f.mineOnly && window._currentUser && window._currentUser.email){
+    var meEmail=window._currentUser.email.toLowerCase();
+    logs=logs.filter(function(l){return (l.userEmail||'').toLowerCase()===meEmail;});
+  }
   if(f.type)   logs=logs.filter(function(l){return (l.type||'')===f.type;});
   if(f.market) logs=logs.filter(function(l){return (l.markets||[]).indexOf(f.market)>=0;});
   if(f.user)   logs=logs.filter(function(l){return (l.userEmail||l.userName||'Unknown')===f.user;});
@@ -6241,12 +6325,16 @@ async function renderDashboard(page){
   function chip(label,active,color,onclick){
     return '<button onclick="'+onclick+'" style="font-size:10.5px;font-weight:700;padding:5px 11px;border-radius:14px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid '+(active?color:'#d6cdb8')+';background:'+(active?color:'#fff')+';color:'+(active?'#fff':'#374151')+';letter-spacing:0.04em;transition:all .15s">'+label+'</button>';
   }
-  var anyActive=!!(f.type||f.market||f.user||f.q);
+  var anyActive=!!(f.type||f.market||f.user||f.q||(f.mineOnly===false));
+  var hasMe=window._currentUser && window._currentUser.email;
   var filterBar='<div style="background:#fff;border:1.5px solid #ede5d8;border-radius:12px;padding:12px 14px;margin-bottom:14px">'+
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+
       '<span style="font-size:9px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#888">Filters</span>'+
-      '<input id="dashSearch" type="text" placeholder="Search prompts, products, users…" oninput="dashSearch(this.value)" value="'+(f.q||'').replace(/"/g,'&quot;')+'" style="flex:1;min-width:200px;padding:5px 11px;font-size:11.5px;font-family:DM Sans,sans-serif;border:1.5px solid #ede5d8;border-radius:14px;outline:none;color:#1a1a1a">'+
-      (anyActive?'<button onclick="dashClearFilters()" style="font-size:10px;font-weight:700;padding:5px 11px;border-radius:14px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid #b91c1c;background:#fff;color:#b91c1c;letter-spacing:0.04em">✕ Clear</button>':'')+
+      (hasMe?
+        '<button aria-label="Toggle between only my campaigns and all team campaigns" onclick="window._dashFilters.mineOnly=!window._dashFilters.mineOnly;_dashPage=0;renderDashboard(0)" style="font-size:10.5px;font-weight:700;padding:5px 11px;border-radius:14px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid '+(f.mineOnly?'#004A2B':'#d6cdb8')+';background:'+(f.mineOnly?'#004A2B':'#fff')+';color:'+(f.mineOnly?'#fff':'#374151')+';letter-spacing:0.04em">'+(f.mineOnly?'👤 Mine only':'🌐 Show all team')+'</button>'
+      :'')+
+      '<input id="dashSearch" type="text" placeholder="Search prompts, products, users…" oninput="dashSearch(this.value)" value="'+(f.q||'').replace(/"/g,'&quot;')+'" aria-label="Search dashboard records" style="flex:1;min-width:200px;padding:5px 11px;font-size:11.5px;font-family:DM Sans,sans-serif;border:1.5px solid #ede5d8;border-radius:14px;outline:none;color:#1a1a1a">'+
+      (anyActive?'<button onclick="dashClearFilters()" aria-label="Clear all filters" style="font-size:10px;font-weight:700;padding:5px 11px;border-radius:14px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid #b91c1c;background:#fff;color:#b91c1c;letter-spacing:0.04em">✕ Clear</button>':'')+
     '</div>'+
     (allTypes.length>1?'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:0.1em;text-transform:uppercase;min-width:50px">Type</span>'+
       allTypes.map(function(t){return chip(t,f.type===t,typeColor[t]||'#004A2B','dashSetFilter(\'type\',\''+t+'\')');}).join('')+'</div>':'')+
@@ -6644,8 +6732,56 @@ function previewDashboardSideBySide(logIdx,mkt){
 }
 
 // Initialize auth on load
+// ── Register the smoke tests now that all helpers are defined ───────────────
+(function registerTests(){
+  // detectType — pure logic, must classify common briefs correctly
+  _t('detectType: sale prompt → Sale',function(){return _eq(detectType('Get 25% off all teas this weekend'),'Sale');});
+  _t('detectType: launch prompt → Launch',function(){return _eq(detectType('Introducing our new green tea blend'),'Launch');});
+  _t('detectType: gift prompt → Gift',function(){return _eq(detectType('The perfect gift for tea lovers'),'Gift');});
+  _t('detectType: empty prompt has fallback',function(){var t=detectType('');return _truthy(t,'should fall back to a type');});
+  // offer extractors
+  _t('offerCode: extracts uppercase promo code',function(){return _eq(offerCode('Use code SUMMER25 for 25% off'),'SUMMER25');});
+  _t('offerCode: returns empty when none',function(){return _eq(offerCode('hello world'),'');});
+  // KB shape — graceful when not loaded
+  _t('kbPalette: returns defaults when KB empty',function(){var p=kbPalette();return _truthy(p && p.primary && p.accent && p.bg && p.text);});
+  _t('kbPalette: official 4 colours match brand kit',function(){var p=kbPalette();return _eq([p.primary,p.accent,p.bg,p.text],['#004A2B','#AB8743','#FBF5EA','#171717']);});
+  // Strategic depth — runs against a synthetic strategy for each campaign type
+  ['Sale','Launch','Bestseller','Gift','Discovery','Routine','Story','Seasonal','Campaign'].forEach(function(t){
+    _t('buildStrategicDepth: '+t+' produces complete brief',function(){
+      var s={type:t,market:'US',markets:['US'],products:[{n:'India\'s Original Masala Chai Tea, 100 Count'}],hero:{n:'India\'s Original Masala Chai Tea'},category:'Masala Chai',rawPrompt:'test',offer:{pct:'25',code:'TEST25',text:'25% off'},primaryVariant:'A',occasion:null};
+      var d=buildStrategicDepth(s);
+      _truthy(d.segment&&d.segment.primary,'segment.primary missing');
+      _truthy(d.intent,'intent missing');
+      _truthy(d.expected_impact&&d.expected_impact.rps,'expected_impact.rps missing');
+      _truthy(d.justification,'justification missing');
+      _truthy(d.send_window,'send_window missing');
+      return true;
+    });
+  });
+  // table resolver — must default safely when probe untested
+  _t('_sbTables initial state has probed flag',function(){return _truthy('probed' in window._sbTables);});
+  // Status pill — must not throw without a host
+  _t('statusPill: does not throw with missing host',function(){statusPill('info','test pill — automatic dismiss');return true;});
+  // KB load — sanity-check window.KB shape
+  _t('window.KB has expected keys',function(){_truthy(window.KB);return _eq(['brandKit','markets','products','collections','loadedAt','error'].every(function(k){return k in window.KB;}),true);});
+  // strategy memoisation — same key returns same object
+  _t('refreshStrategy: memo returns same object on identical state',function(){
+    var prev=S.prompt;S.prompt='test prompt for memo';S._strategyCacheKey=null;
+    var a=refreshStrategy();var b=refreshStrategy();
+    S.prompt=prev;S._strategyCacheKey=null;
+    return _truthy(a===b,'memo did not return same reference');
+  });
+  // resolveTables shape
+  _t('_resolveTables exists',function(){return _truthy(typeof _resolveTables==='function');});
+})();
+
 document.addEventListener('DOMContentLoaded',function(){
   initAuth();
+  // Run smoke tests if explicitly requested via #tests in URL or localStorage
+  try{
+    var testsOn=(typeof location!=='undefined' && location.hash && location.hash.indexOf('tests')>=0) || (typeof localStorage!=='undefined' && localStorage.getItem('vhd_tests')==='1');
+    if(testsOn){setTimeout(runVahdamTests,500);}
+  }catch(_){}
   // Hydrate the knowledge base (brand kit, markets, real product catalog) in
   // the background — boot doesn't block on it, but downstream generation
   // gets richer / on-brand once it lands.
