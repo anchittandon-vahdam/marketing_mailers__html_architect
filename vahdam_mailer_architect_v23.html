@@ -927,7 +927,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='orphan-controls-removed-v26';
+window.__VAHDAM_BUILD__='a-plus-v27';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -1185,25 +1185,40 @@ async function _resolveTables(){
   return window._sbTables;
 }
 // ── Supabase: save a campaign record ──────────────────────────────────────────
+// Columns added by 20260501200000_strategic_depth_columns.sql — if the migration
+// hasn't run yet on this project the insert will reject them; we retry once
+// without those keys so the row still lands.
+var _DEPTH_KEYS=['target_segment','segment_size','segment_rationale','campaign_intent','expected_impact','justification','send_window','layout_chosen'];
 async function supabaseSaveCampaign(record){
-  var sb=getSupabase();if(!sb)return null;
+  var sb=getSupabase();if(!sb){statusPill('warn','Supabase offline','Saved locally only');return null;}
   var t=await _resolveTables();
   try{
     var {data,error}=await sb.from(t.mailers).insert([record]).select().single();
-    if(error){console.warn('[Supabase] insert failed:',error.message);return null;}
-    console.log('%c[Supabase] Saved mailer id:','color:#3ecf8e',data.id);
+    if(error){
+      var msg=error.message||'';
+      if(/column\s+\S*\s*does not exist/i.test(msg) || /Could not find/i.test(msg)){
+        // Strip the depth columns and retry — old schema, no migration applied
+        var stripped={};Object.keys(record).forEach(function(k){if(_DEPTH_KEYS.indexOf(k)<0)stripped[k]=record[k];});
+        var retry=await sb.from(t.mailers).insert([stripped]).select().single();
+        if(retry.error){statusPill('err','Mailer save failed',retry.error.message);return null;}
+        statusPill('ok','Mailer saved · id '+retry.data.id,'Run strategic-depth migration to unlock columns');
+        return retry.data;
+      }
+      statusPill('err','Mailer save failed',msg);return null;
+    }
+    statusPill('ok','Mailer saved · id '+data.id);
     return data;
-  }catch(e){console.warn('[Supabase] save error:',e.message);return null;}
+  }catch(e){statusPill('err','Mailer save error',e.message);return null;}
 }
 // ── Supabase: fetch dashboard records (most recent first, all users) ──────────
 async function supabaseFetchCampaigns(limit){
-  var sb=getSupabase();if(!sb)return null;
+  var sb=getSupabase();if(!sb){statusPill('warn','Supabase offline','Showing cached records');return null;}
   var t=await _resolveTables();
   try{
     var {data,error}=await sb.from(t.mailers).select('*').order('created_at',{ascending:false}).limit(limit||500);
-    if(error){console.warn('[Supabase] fetch failed:',error.message);return null;}
+    if(error){statusPill('err','Dashboard fetch failed',error.message);return null;}
     return data;
-  }catch(e){console.warn('[Supabase] fetch error:',e.message);return null;}
+  }catch(e){statusPill('err','Dashboard fetch error',e.message);return null;}
 }
 // ── Supabase: upsert user record ──────────────────────────────────────────────
 async function supabaseUpsertUser(user){
@@ -1214,6 +1229,33 @@ async function supabaseUpsertUser(user){
     if(error){console.warn('[Supabase] user upsert failed:',error.message);return null;}
     return data;
   }catch(e){console.warn('[Supabase] user upsert error:',e.message);return null;}
+}
+// ── Status pill — every async failure surfaces here, no more silent warns ───
+// Levels: ok (green) | warn (amber) | err (red) | info (forest). Auto-fades
+// after 6s for ok/info, sticks until clicked for warn/err.
+window._statusPills=[];
+function statusPill(level,msg,detail){
+  try{
+    var host=document.getElementById('statusPillHost');
+    if(!host){
+      host=document.createElement('div');
+      host.id='statusPillHost';
+      host.style.cssText='position:fixed;top:74px;right:14px;z-index:10000;display:flex;flex-direction:column;gap:6px;max-width:340px;font-family:DM Sans,sans-serif;pointer-events:none';
+      document.body.appendChild(host);
+    }
+    var palette={ok:{bg:'#004A2B',fg:'#FBF5EA',ic:'✓'},info:{bg:'#1a3a28',fg:'#FBF5EA',ic:'ⓘ'},warn:{bg:'#AB8743',fg:'#fff',ic:'⚠'},err:{bg:'#b91c1c',fg:'#fff',ic:'✖'}}[level]||{bg:'#1a3a28',fg:'#FBF5EA',ic:'ⓘ'};
+    var pill=document.createElement('div');
+    pill.style.cssText='pointer-events:auto;display:flex;align-items:flex-start;gap:8px;padding:9px 12px;background:'+palette.bg+';color:'+palette.fg+';border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,0.2);font-size:11.5px;font-weight:600;line-height:1.4;cursor:pointer;min-height:34px';
+    pill.innerHTML='<span style="font-size:13px;flex-shrink:0">'+palette.ic+'</span><span style="flex:1">'+msg+(detail?'<br><span style="font-size:10px;font-weight:400;opacity:0.85">'+detail+'</span>':'')+'</span><span style="font-size:10px;opacity:0.6;flex-shrink:0">×</span>';
+    pill.onclick=function(){pill.style.transition='opacity 0.3s';pill.style.opacity='0';setTimeout(function(){pill.remove();},320);};
+    host.appendChild(pill);
+    var ttl=(level==='warn'||level==='err')?15000:6000;
+    setTimeout(function(){if(pill.parentNode){pill.style.transition='opacity 0.6s';pill.style.opacity='0';setTimeout(function(){pill.remove();},620);}},ttl);
+    // Console mirror so dev tooling still sees it
+    if(level==='err')console.error('[status]',msg,detail||'');
+    else if(level==='warn')console.warn('[status]',msg,detail||'');
+    else console.log('%c[status]','color:#3ecf8e',msg,detail||'');
+  }catch(_){}
 }
 // ── Knowledge base loader ────────────────────────────────────────────────────
 // On boot we hydrate window.KB from Supabase: brand kit (colours/fonts/voice),
@@ -1296,12 +1338,17 @@ async function supabaseUploadImage(dataOrUrl,pathHint){
     var ts=Date.now(), rand=Math.random().toString(36).slice(2,8);
     var safeHint=(pathHint||'asset').replace(/[^a-z0-9_\-\/]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase();
     var path=safeHint+'/'+ts+'-'+rand+'.'+ext;
-    var {error}=await sb.storage.from(SUPABASE_BUCKET).upload(path,blob,{contentType:blob.type,upsert:false,cacheControl:'31536000'});
-    if(error){console.warn('[Storage] upload failed:',error.message);return '';}
-    var url=_publicStorageUrl(path);
-    console.log('%c[Storage] uploaded:','color:#3ecf8e',url);
-    return url;
-  }catch(e){console.warn('[Storage] upload error:',e.message);return '';}
+    // Retry up to 3× with exponential backoff for transient network errors
+    var lastErr=null;
+    for(var attempt=0;attempt<3;attempt++){
+      var {error}=await sb.storage.from(SUPABASE_BUCKET).upload(path,blob,{contentType:blob.type,upsert:false,cacheControl:'31536000'});
+      if(!error){return _publicStorageUrl(path);}
+      lastErr=error;
+      if(attempt<2)await new Promise(function(r){setTimeout(r,400*(attempt+1)*(attempt+1));});
+    }
+    statusPill('warn','Image upload failed · row saved without it',lastErr&&lastErr.message);
+    return '';
+  }catch(e){statusPill('warn','Storage error',e.message);return '';}
 }
 // Walk {mkt:{A,B}} of image refs and return {mkt:{A,B}} of hosted URLs.
 // Pollinations URLs (already public https) are kept as-is. Base64 data URLs
@@ -2754,10 +2801,27 @@ function buildCampaignStrategy(){
   };
 }
 // Refresh strategy whenever state changes. Call before generating canvas / mailer.
+// Memoised: keyed on (prompt, type, market, productHandles, regenCount, manualMode)
+// to avoid 6× recomputes per save flow. Bust cache via S._strategyCacheKey=null.
+function _strategyCacheKey(){
+  var prods=(S.finalProds&&S.finalProds.length?S.finalProds:S.manualProds)||[];
+  return [
+    (S.activePrompt||S.prompt||'').slice(0,200),
+    S.type||'',
+    (S.markets||[S.market||'US']).join(','),
+    prods.map(function(p){return (p.n||'').split(',')[0];}).join('|'),
+    S.regenCount||0,
+    S.manualProds.length?'M':'A'
+  ].join('::');
+}
 function refreshStrategy(){
+  var key=_strategyCacheKey();
+  if(S._strategyCacheKey===key && S.strategy && S.strategy.depth){
+    return S.strategy; // memo hit — saves a full strategy + depth recompute
+  }
   S.strategy=buildCampaignStrategy();
-  // Attach the strategic-depth block (segment / intent / impact / justification)
   S.strategy.depth=buildStrategicDepth(S.strategy);
+  S._strategyCacheKey=key;
   return S.strategy;
 }
 
@@ -4455,8 +4519,7 @@ async function analyzeImageAndBuildEmail(base64DataUrl,prods,prompt,market){
     return html;
   } catch(e){
     setStatus('Could not reach Claude API — using built-in template.',false);
-    // Only warn (not error) — fallback template takes over, no user-visible breakage
-    console.warn('analyzeImageAndBuildEmail (non-critical, fallback used):',e.message);
+    statusPill('warn','Claude vision unavailable · template used',e.message);
     return null;
   }
 }
@@ -5955,6 +6018,15 @@ function saveMailerToDashboard(){
     // ── AUDIT TRAIL ──
     reasoning:st.reasoning||{},
     strategy_full:st,
+    // ── STRATEGIC DEPTH (materialised columns — defensive save retries without these if schema lacks them) ──
+    target_segment:    (st.depth&&st.depth.segment&&st.depth.segment.primary)||null,
+    segment_size:      (st.depth&&st.depth.segment&&st.depth.segment.size)||null,
+    segment_rationale: (st.depth&&st.depth.segment&&st.depth.segment.rationale)||null,
+    campaign_intent:   (st.depth&&st.depth.intent)||null,
+    expected_impact:   (st.depth&&st.depth.expected_impact)||null,
+    justification:     (st.depth&&st.depth.justification)||null,
+    send_window:       (st.depth&&st.depth.send_window)||null,
+    layout_chosen:     (st.depth&&st.depth.layout_variant)||null,
     build_version:window.__VAHDAM_BUILD__||'',
     user_agent:navigator.userAgent||'',
     origin:location.origin||''
@@ -6037,6 +6109,54 @@ function saveMailerToDashboard(){
 }
 var _dashPage=0;
 var _dashPageSize=12;
+// Dashboard filter state — drives the filter chips + search box
+window._dashFilters=window._dashFilters||{type:'',market:'',user:'',q:''};
+function dashSetFilter(field,val){
+  window._dashFilters[field]=(window._dashFilters[field]===val)?'':val;
+  _dashPage=0;
+  renderDashboard(0);
+}
+function dashClearFilters(){
+  window._dashFilters={type:'',market:'',user:'',q:''};
+  _dashPage=0;
+  var sb=document.getElementById('dashSearch');if(sb)sb.value='';
+  renderDashboard(0);
+}
+function dashSearch(val){
+  window._dashFilters.q=(val||'').toLowerCase().trim();
+  _dashPage=0;
+  renderDashboard(0);
+}
+// Regenerate from a saved record — copies the brief + markets + products into
+// Step 1 state and kicks off a fresh generation (without bringing along stale
+// HTML / images from the old run).
+function regenerateFromRecord(logIdx){
+  var e=_getDashEntry(logIdx);if(!e){statusPill('warn','Record not found');return;}
+  // Hard reset — wipe old state to avoid contamination
+  S.markets=e.markets||['US'];
+  S.market=(e.markets||['US'])[0];
+  S.activeMarket=S.market;
+  S.type=e.type||detectType(e.fullPrompt||e.prompt||'');
+  S.prompt=e.fullPrompt||e.prompt||'';
+  S.activePrompt=S.prompt;
+  S.manualProds=(e._full&&e._full.product_full)||[];
+  S.finalProds=[];
+  S.marketMailers={};
+  S.canvasDataUrl='';
+  S.uploadedDesignUrl=null;
+  S.regenCount=0;
+  S.feedbackHistory=[];
+  S._strategyCacheKey=null;
+  // Close modal, switch to create view, jump to Step 1 with prompt prefilled
+  closeDashRecord();
+  switchMainTab('create');
+  showOnly(1);
+  var ta=document.getElementById('promptIn');if(ta)ta.value=S.prompt;
+  // Restore market chips selection
+  try{updateMarketChipsFromS&&updateMarketChipsFromS();}catch(_){}
+  statusPill('info','Loaded saved brief — edit and Generate when ready');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
 async function renderDashboard(page){
   var el=document.getElementById('dashboardList');
   if(!el)return;
@@ -6070,9 +6190,25 @@ async function renderDashboard(page){
     try{logs=JSON.parse(localStorage.getItem('vhd_logs')||'[]');}catch(e){}
   }
   logs.sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+  var allLogs=logs.slice(); // unfiltered universe — used for filter chip facets
+  // ── Apply active filters ──
+  var f=window._dashFilters||{};
+  if(f.type)   logs=logs.filter(function(l){return (l.type||'')===f.type;});
+  if(f.market) logs=logs.filter(function(l){return (l.markets||[]).indexOf(f.market)>=0;});
+  if(f.user)   logs=logs.filter(function(l){return (l.userEmail||l.userName||'Unknown')===f.user;});
+  if(f.q){
+    var q=f.q;
+    logs=logs.filter(function(l){
+      return ((l.prompt||'').toLowerCase().indexOf(q)>=0)||
+             ((l.fullPrompt||'').toLowerCase().indexOf(q)>=0)||
+             ((l.products||[]).join(' ').toLowerCase().indexOf(q)>=0)||
+             ((l.userName||'').toLowerCase().indexOf(q)>=0)||
+             ((l.type||'').toLowerCase().indexOf(q)>=0);
+    });
+  }
   // ── Cache the rendered logs so detail/preview/download functions can index by row ──
   window._dashLogs=logs;
-  if(!logs.length){
+  if(!logs.length && !allLogs.length){
     _dashPage=0;
     el.innerHTML='<div style="text-align:center;padding:32px 16px;color:#bbb"><div style="font-size:32px;margin-bottom:10px">&#128203;</div><div style="font-size:13px">No campaigns yet. Generate your first mailer to see it here.</div></div>';
     return;
@@ -6097,8 +6233,35 @@ async function renderDashboard(page){
       +'<button onclick="renderDashboard('+(_dashPage+1)+')" style="padding:4px 10px;background:rgba(255,255,255,0.15);color:#FBF5EA;border:1px solid rgba(255,255,255,0.3);border-radius:5px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:11px;font-weight:700"'+(_dashPage>=totalPages-1?' disabled style="padding:4px 10px;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.35);border:1px solid rgba(255,255,255,0.15);border-radius:5px;font-family:DM Sans,sans-serif;font-size:11px;font-weight:700"':'')+'>Next &#8594;</button>'
       +'</div>':'<div style="font-size:9px;opacity:0.6">All records &middot; shared across all users on this device</div>')
     +'</div>';
+  // ── Filter bar — chips for type / market / user + free-text search ──
+  var allTypes=[...new Set(allLogs.map(function(l){return l.type||'Campaign';}))].sort();
+  var allMarketsForChips=[...new Set(allLogs.flatMap(function(l){return l.markets||[l.market||'US'];}))].sort();
+  var allUsersForChips=[...new Set(allLogs.map(function(l){return l.userName||'Unknown';}))].filter(function(u){return u && u!=='Unknown';}).sort();
+  var typeColor={Sale:'#c0392b',Launch:'#004A2B',Gift:'#AB8743',Bestseller:'#1a3a28',Discovery:'#1d6fa4',Routine:'#2d6a4f',Story:'#5a3e28',Seasonal:'#7a5c1e',Campaign:'#004A2B'};
+  function chip(label,active,color,onclick){
+    return '<button onclick="'+onclick+'" style="font-size:10.5px;font-weight:700;padding:5px 11px;border-radius:14px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid '+(active?color:'#d6cdb8')+';background:'+(active?color:'#fff')+';color:'+(active?'#fff':'#374151')+';letter-spacing:0.04em;transition:all .15s">'+label+'</button>';
+  }
+  var anyActive=!!(f.type||f.market||f.user||f.q);
+  var filterBar='<div style="background:#fff;border:1.5px solid #ede5d8;border-radius:12px;padding:12px 14px;margin-bottom:14px">'+
+    '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">'+
+      '<span style="font-size:9px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#888">Filters</span>'+
+      '<input id="dashSearch" type="text" placeholder="Search prompts, products, users…" oninput="dashSearch(this.value)" value="'+(f.q||'').replace(/"/g,'&quot;')+'" style="flex:1;min-width:200px;padding:5px 11px;font-size:11.5px;font-family:DM Sans,sans-serif;border:1.5px solid #ede5d8;border-radius:14px;outline:none;color:#1a1a1a">'+
+      (anyActive?'<button onclick="dashClearFilters()" style="font-size:10px;font-weight:700;padding:5px 11px;border-radius:14px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid #b91c1c;background:#fff;color:#b91c1c;letter-spacing:0.04em">✕ Clear</button>':'')+
+    '</div>'+
+    (allTypes.length>1?'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:0.1em;text-transform:uppercase;min-width:50px">Type</span>'+
+      allTypes.map(function(t){return chip(t,f.type===t,typeColor[t]||'#004A2B','dashSetFilter(\'type\',\''+t+'\')');}).join('')+'</div>':'')+
+    (allMarketsForChips.length>1?'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:0.1em;text-transform:uppercase;min-width:50px">Market</span>'+
+      allMarketsForChips.map(function(m){return chip(m,f.market===m,'#1a3a28','dashSetFilter(\'market\',\''+m+'\')');}).join('')+'</div>':'')+
+    (allUsersForChips.length>1?'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:0.1em;text-transform:uppercase;min-width:50px">User</span>'+
+      allUsersForChips.map(function(u){return chip(u,f.user===u,'#AB8743','dashSetFilter(\'user\',\''+u.replace(/'/g,"\\'")+'\')');}).join('')+'</div>':'')+
+    '<div style="font-size:10px;color:#888;margin-top:6px">Showing <strong>'+logs.length+'</strong> of '+allLogs.length+' records</div>'+
+  '</div>';
+  if(!logs.length){
+    el.innerHTML=statsBar+filterBar+'<div style="text-align:center;padding:32px 16px;color:#bbb;background:#fff;border:1.5px solid #ede5d8;border-radius:12px"><div style="font-size:32px;margin-bottom:10px">🔍</div><div style="font-size:13px">No records match your filters.</div></div>';
+    return;
+  }
   // Render only current page logs — clear row demarcation between campaigns
-  el.innerHTML=statsBar+'<div style="display:grid;gap:24px">'+pageLogs.map(function(e,pi){
+  el.innerHTML=statsBar+filterBar+'<div style="display:grid;gap:24px">'+pageLogs.map(function(e,pi){
   var i=pageStart+pi; // real index in logs array for preview/download
   var rowNum=logs.length-i; // human counter: most recent = highest #
     var dt=new Date(e.date);
@@ -6183,6 +6346,7 @@ async function renderDashboard(page){
         +'</div>'
         +'<div style="display:flex;flex-direction:column;gap:6px;min-width:120px">'
         +'<button onclick="viewDashRecord('+i+')" style="font-size:10.5px;font-weight:700;padding:7px 12px;background:linear-gradient(135deg,#004A2B,#1a3a28);color:#FBF5EA;border:none;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;letter-spacing:0.02em">&#128065; View Details</button>'
+        +'<button onclick="regenerateFromRecord('+i+')" style="font-size:10.5px;font-weight:700;padding:7px 12px;background:#fff;color:#004A2B;border:1.5px solid #004A2B;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;letter-spacing:0.02em">&#8635; Regenerate</button>'
         +(mktKeys.length?'<button onclick="downloadDashboardAll('+i+')" style="font-size:10.5px;font-weight:700;padding:7px 12px;background:#AB8743;color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap">&#11015; All Files</button>':'')
         +'</div>'
       +'</div>'
@@ -6232,7 +6396,10 @@ function viewDashRecord(logIdx){
     html+='<div style="font-family:\'Cormorant Garamond\',Georgia,serif;font-size:20px;font-weight:600;color:#FBF5EA;line-height:1.2;margin-bottom:3px">Campaign Record</div>';
     html+='<div style="font-size:10px;color:rgba(251,245,234,0.6)">'+dateStr+(e.userName&&e.userName!=='Unknown'?' &nbsp;·&nbsp; '+e.userName:'')+'</div>';
     html+='</div>';
-    html+='<button onclick="closeDashRecord()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:#FBF5EA;width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:18px;flex-shrink:0;font-family:sans-serif;display:flex;align-items:center;justify-content:center">&#10005;</button>';
+    html+='<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">';
+    html+='<button onclick="regenerateFromRecord('+logIdx+')" style="background:#AB8743;color:#fff;border:none;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:700;font-family:DM Sans,sans-serif;letter-spacing:0.04em;white-space:nowrap">&#8635; Regenerate</button>';
+    html+='<button onclick="closeDashRecord()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:#FBF5EA;width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:18px;font-family:sans-serif;display:flex;align-items:center;justify-content:center">&#10005;</button>';
+    html+='</div>';
     html+='</div>';
     // ── Campaign Brief ───────────────────────────────────────────────────
     html+='<div style="padding:18px 24px;background:#fdfcfa;border-bottom:1px solid #ede5d8">';
