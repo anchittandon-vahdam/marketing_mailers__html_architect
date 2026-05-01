@@ -10,7 +10,7 @@ param(
 )
 
 # -- Config -----------------------------------------------------
-$LiveUrl  = "https://vahdam-marketing-mailer-architect.vercel.app"   # update if Vercel assigns a different domain
+$LiveUrl  = "https://vahdam-marketing-mailers-architect.vercel.app"
 $RepoUrl  = "https://github.com/anchittandon-vahdam/marketing_mailers__html_architect"
 $VercelDashboard = "https://vercel.com/dashboard"
 
