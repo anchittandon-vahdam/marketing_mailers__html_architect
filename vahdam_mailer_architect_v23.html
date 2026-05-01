@@ -950,7 +950,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='hosted-image-urls-v20';
+window.__VAHDAM_BUILD__='insert-first-images-v21';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -5707,28 +5707,46 @@ function saveMailerToDashboard(){
     origin:location.origin||''
   };
   // ── 1. Save to Supabase (cross-device, persistent) ───────────────────────
-  // Upload all images to Storage first → DB row holds only hosted https URLs.
+  // Strategy: INSERT the row FIRST so we never lose a campaign — then upload
+  // images to Storage and UPDATE the row with the hosted https URLs. If image
+  // upload fails the row is still safely saved (with whatever URLs we had).
   if(SUPABASE_CONFIG.enabled){
+    var stamp=Date.now()+'-'+Math.random().toString(36).slice(2,6);
+    // Pre-fill what we already know (hosted Vahdam CDN URL, base64 placeholder)
+    fullRecord.hero_image_url   =fullRecord.hero_product_image||'';
+    fullRecord.canvas_image_url =''; // filled in after upload below
+    fullRecord.thumbnail_url    ='';
+    fullRecord.mailer_image_urls={};
+    // Strip heavy base64 from the row about to be inserted — uploads will
+    // re-populate the URL columns. Keep S.canvasDataUrl in memory for upload.
+    fullRecord.canvas_data_url=''; // never store base64 in DB
     (async function(){
+      var inserted=null;
       try{
-        var stamp=Date.now()+'-'+Math.random().toString(36).slice(2,6);
-        // Hero product image: already a hosted Vahdam CDN URL → keep as-is.
-        fullRecord.hero_image_url=fullRecord.hero_product_image||'';
-        // Canvas snapshot (data URL) → upload → public Storage URL.
+        inserted=await supabaseSaveCampaign(fullRecord);
+      }catch(e){console.warn('[Supabase] insert failed:',e&&e.message);}
+      if(!inserted||!inserted.id){
+        console.warn('[Supabase] no row id — skipping image upload');return;
+      }
+      // Now upload images and PATCH the row with hosted URLs.
+      var patch={};
+      try{
         if(S.canvasDataUrl){
-          fullRecord.canvas_image_url=await supabaseUploadImage(S.canvasDataUrl,'canvas/'+stamp);
-          fullRecord.thumbnail_url   =fullRecord.canvas_image_url;
+          var canvasUrl=await supabaseUploadImage(S.canvasDataUrl,'canvas/'+stamp);
+          if(canvasUrl){patch.canvas_image_url=canvasUrl;patch.thumbnail_url=canvasUrl;}
         }
-        // Per-region per-variant generated images (Pollinations URLs pass through).
-        fullRecord.mailer_image_urls=await supabaseHostImageMatrix(S.generatedImages||{},'mailers/'+stamp);
-        // Replace heavy base64 in the canonical generated_images map with the hosted URLs.
-        if(fullRecord.mailer_image_urls && Object.keys(fullRecord.mailer_image_urls).length){
-          fullRecord.generated_images=fullRecord.mailer_image_urls;
+        var hostedMatrix=await supabaseHostImageMatrix(S.generatedImages||{},'mailers/'+stamp);
+        if(hostedMatrix && Object.keys(hostedMatrix).length){
+          patch.mailer_image_urls=hostedMatrix;
+          patch.generated_images =hostedMatrix; // back-compat mirror
         }
-        // Drop the inline data URL — it's now hosted, no need to bloat the row.
-        fullRecord.canvas_data_url='';
-      }catch(e){console.warn('[Supabase] image hosting failed:',e&&e.message);}
-      supabaseSaveCampaign(fullRecord).catch(function(e){console.warn('[Supabase] async save failed:',e);});
+      }catch(e){console.warn('[Supabase] image upload failed:',e&&e.message);}
+      if(Object.keys(patch).length){
+        var sb=getSupabase();if(!sb)return;
+        var {error}=await sb.from('vahdam_campaigns').update(patch).eq('id',inserted.id);
+        if(error)console.warn('[Supabase] update with hosted URLs failed:',error.message);
+        else console.log('%c[Supabase] hosted URLs attached to row','color:#3ecf8e',inserted.id);
+      }
     })();
     if(user&&user.email)supabaseUpsertUser(user).catch(function(){});
   }
