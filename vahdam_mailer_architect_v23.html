@@ -950,7 +950,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='shared-filter-clean-steps-v19';
+window.__VAHDAM_BUILD__='hosted-image-urls-v20';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -1213,6 +1213,65 @@ async function supabaseUpsertUser(user){
     if(error){console.warn('[Supabase] user upsert failed:',error.message);return null;}
     return data;
   }catch(e){console.warn('[Supabase] user upsert error:',e.message);return null;}
+}
+// ── Image hosting helpers ────────────────────────────────────────────────────
+// All mailer images live in the public Storage bucket `mailer-assets` and are
+// referenced from DB rows as plain https URLs — never as base64.
+const SUPABASE_BUCKET='mailer-assets';
+function _dataUrlToBlob(dataUrl){
+  try{
+    var parts=dataUrl.split(',');
+    var meta=parts[0]; var b64=parts[1];
+    var mime=(meta.match(/data:([^;]+)/)||[])[1]||'image/png';
+    var bin=atob(b64); var n=bin.length; var arr=new Uint8Array(n);
+    for(var i=0;i<n;i++)arr[i]=bin.charCodeAt(i);
+    return new Blob([arr],{type:mime});
+  }catch(e){return null;}
+}
+function _publicStorageUrl(path){
+  return SUPABASE_CONFIG.url.replace(/\/$/,'')+'/storage/v1/object/public/'+SUPABASE_BUCKET+'/'+path;
+}
+// Upload a data URL (or http(s) URL fetched into a blob) → returns hosted https URL
+async function supabaseUploadImage(dataOrUrl,pathHint){
+  var sb=getSupabase();if(!sb||!dataOrUrl)return '';
+  try{
+    var blob=null,ext='png';
+    if(typeof dataOrUrl==='string' && dataOrUrl.indexOf('data:')===0){
+      blob=_dataUrlToBlob(dataOrUrl);
+      ext=((dataOrUrl.match(/data:image\/([a-z0-9]+)/i)||[])[1]||'png').toLowerCase();
+    }else if(typeof dataOrUrl==='string' && /^https?:\/\//.test(dataOrUrl)){
+      // Already hosted — pass URL straight through, no upload needed.
+      return dataOrUrl;
+    }else{
+      return '';
+    }
+    if(!blob)return '';
+    var ts=Date.now(), rand=Math.random().toString(36).slice(2,8);
+    var safeHint=(pathHint||'asset').replace(/[^a-z0-9_\-\/]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase();
+    var path=safeHint+'/'+ts+'-'+rand+'.'+ext;
+    var {error}=await sb.storage.from(SUPABASE_BUCKET).upload(path,blob,{contentType:blob.type,upsert:false,cacheControl:'31536000'});
+    if(error){console.warn('[Storage] upload failed:',error.message);return '';}
+    var url=_publicStorageUrl(path);
+    console.log('%c[Storage] uploaded:','color:#3ecf8e',url);
+    return url;
+  }catch(e){console.warn('[Storage] upload error:',e.message);return '';}
+}
+// Walk {mkt:{A,B}} of image refs and return {mkt:{A,B}} of hosted URLs.
+// Pollinations URLs (already public https) are kept as-is. Base64 data URLs
+// are uploaded to storage. Falsy entries become ''.
+async function supabaseHostImageMatrix(matrix,prefix){
+  if(!matrix||typeof matrix!=='object')return {};
+  var out={}, mkts=Object.keys(matrix);
+  for(var i=0;i<mkts.length;i++){
+    var m=mkts[i], entry=matrix[m]||{}, hosted={};
+    var keys=Object.keys(entry);
+    for(var j=0;j<keys.length;j++){
+      var k=keys[j], v=entry[k];
+      hosted[k]=await supabaseUploadImage(v,(prefix||'mailer')+'/'+m+'/'+k);
+    }
+    out[m]=hosted;
+  }
+  return out;
 }
 const MARKET_BASE={US:'https://www.vahdam.com',UK:'https://www.vahdam.co.uk',IN:'https://www.vahdam.in',Global:'https://www.vahdam.global',ME:'https://www.vahdam.global',AU:'https://www.vahdam.global',EU:'https://www.vahdam.global'};
 function getBase(m){return MARKET_BASE[m]||MARKET_BASE.US;}
@@ -5648,8 +5707,29 @@ function saveMailerToDashboard(){
     origin:location.origin||''
   };
   // ── 1. Save to Supabase (cross-device, persistent) ───────────────────────
+  // Upload all images to Storage first → DB row holds only hosted https URLs.
   if(SUPABASE_CONFIG.enabled){
-    supabaseSaveCampaign(fullRecord).catch(function(e){console.warn('[Supabase] async save failed:',e);});
+    (async function(){
+      try{
+        var stamp=Date.now()+'-'+Math.random().toString(36).slice(2,6);
+        // Hero product image: already a hosted Vahdam CDN URL → keep as-is.
+        fullRecord.hero_image_url=fullRecord.hero_product_image||'';
+        // Canvas snapshot (data URL) → upload → public Storage URL.
+        if(S.canvasDataUrl){
+          fullRecord.canvas_image_url=await supabaseUploadImage(S.canvasDataUrl,'canvas/'+stamp);
+          fullRecord.thumbnail_url   =fullRecord.canvas_image_url;
+        }
+        // Per-region per-variant generated images (Pollinations URLs pass through).
+        fullRecord.mailer_image_urls=await supabaseHostImageMatrix(S.generatedImages||{},'mailers/'+stamp);
+        // Replace heavy base64 in the canonical generated_images map with the hosted URLs.
+        if(fullRecord.mailer_image_urls && Object.keys(fullRecord.mailer_image_urls).length){
+          fullRecord.generated_images=fullRecord.mailer_image_urls;
+        }
+        // Drop the inline data URL — it's now hosted, no need to bloat the row.
+        fullRecord.canvas_data_url='';
+      }catch(e){console.warn('[Supabase] image hosting failed:',e&&e.message);}
+      supabaseSaveCampaign(fullRecord).catch(function(e){console.warn('[Supabase] async save failed:',e);});
+    })();
     if(user&&user.email)supabaseUpsertUser(user).catch(function(){});
   }
   // ── 2. Save to localStorage (offline fallback / per-device) ──────────────
@@ -5704,6 +5784,11 @@ async function renderDashboard(page){
           products:r.product_names||[],
           fullMailers:r.market_mailers||{},
           feedbackHistory:r.feedback_history||[],
+          // Hosted image URLs (preferred — direct fetch, no base64 decode) ---
+          heroImageUrl:r.hero_image_url||r.hero_product_image||'',
+          canvasImageUrl:r.canvas_image_url||'',
+          thumbnailUrl:r.thumbnail_url||r.canvas_image_url||'',
+          mailerImageUrls:r.mailer_image_urls||r.generated_images||{},
           _full:r
         };
       });
