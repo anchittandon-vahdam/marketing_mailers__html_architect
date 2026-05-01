@@ -943,7 +943,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='kb-backed-v23';
+window.__VAHDAM_BUILD__='renamed-tables-v24';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -970,8 +970,8 @@ const SUPABASE_CONFIG={
   enabled:true
 };
 /* ═══ REQUIRED SQL — paste into Supabase SQL Editor ══════════════════════════
--- Table 1: Campaigns (every generated mailer)
-CREATE TABLE IF NOT EXISTS public.vahdam_campaigns (
+-- Table 1: mailers_generated (every generated mailer)
+CREATE TABLE IF NOT EXISTS public.mailers_generated (
   id BIGSERIAL PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT now(),
   user_name TEXT,
@@ -1006,11 +1006,12 @@ CREATE TABLE IF NOT EXISTS public.vahdam_campaigns (
   user_agent TEXT,
   origin TEXT
 );
-CREATE INDEX IF NOT EXISTS vc_created_idx ON public.vahdam_campaigns(created_at DESC);
-CREATE INDEX IF NOT EXISTS vc_user_email_idx ON public.vahdam_campaigns(user_email);
+CREATE INDEX IF NOT EXISTS mg_created_idx    ON public.mailers_generated(created_at DESC);
+CREATE INDEX IF NOT EXISTS mg_user_email_idx ON public.mailers_generated(user_email);
 
--- Table 2: Users (signup/signin tracking — optional, for cross-device)
-CREATE TABLE IF NOT EXISTS public.vahdam_users (
+-- Table 2: app_users (signup/signin tracking for THIS app — distinct from
+-- the future vahdam_users table that will hold Vahdam customer segments)
+CREATE TABLE IF NOT EXISTS public.app_users (
   id BIGSERIAL PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   name TEXT,
@@ -1019,13 +1020,14 @@ CREATE TABLE IF NOT EXISTS public.vahdam_users (
 );
 
 -- Row Level Security: allow all reads, all inserts (anon key safe)
-ALTER TABLE public.vahdam_campaigns ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.vahdam_users ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "anon read campaigns" ON public.vahdam_campaigns FOR SELECT USING (true);
-CREATE POLICY "anon insert campaigns" ON public.vahdam_campaigns FOR INSERT WITH CHECK (true);
-CREATE POLICY "anon read users" ON public.vahdam_users FOR SELECT USING (true);
-CREATE POLICY "anon insert users" ON public.vahdam_users FOR INSERT WITH CHECK (true);
-CREATE POLICY "anon update users" ON public.vahdam_users FOR UPDATE USING (true);
+ALTER TABLE public.mailers_generated ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_users         ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon read mailers"    ON public.mailers_generated FOR SELECT USING (true);
+CREATE POLICY "anon insert mailers"  ON public.mailers_generated FOR INSERT WITH CHECK (true);
+CREATE POLICY "anon update mailers"  ON public.mailers_generated FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "anon read app_users"  ON public.app_users FOR SELECT USING (true);
+CREATE POLICY "anon insert app_users" ON public.app_users FOR INSERT WITH CHECK (true);
+CREATE POLICY "anon update app_users" ON public.app_users FOR UPDATE USING (true);
 ══════════════════════════════════════════════════════════════════════════ */
 
 // ── Initialize Supabase client lazily ────────────────────────────────────────
@@ -1179,21 +1181,42 @@ function getRegionalCatalog(market){return REGIONAL_CATALOG[market]||REGIONAL_CA
 window.REGIONAL_CATALOG=REGIONAL_CATALOG;
 window.getRegionalCatalog=getRegionalCatalog;
 
+// ── Table-name resolver (safe across the rename window) ───────────────────────
+// Canonical names are mailers_generated + app_users. We probe once at boot and
+// fall back to the legacy names (vahdam_campaigns / vahdam_users) if the new
+// ones don't yet exist on this project — keeps the app working during the
+// rename rollout.
+window._sbTables={mailers:null,users:null,probed:false};
+async function _resolveTables(){
+  if(window._sbTables.probed)return window._sbTables;
+  var sb=getSupabase();if(!sb){window._sbTables.probed=true;return window._sbTables;}
+  // Probe mailers
+  var probe1=await sb.from('mailers_generated').select('id',{count:'exact',head:true}).limit(1);
+  window._sbTables.mailers=probe1.error?'vahdam_campaigns':'mailers_generated';
+  // Probe users
+  var probe2=await sb.from('app_users').select('id',{count:'exact',head:true}).limit(1);
+  window._sbTables.users=probe2.error?'vahdam_users':'app_users';
+  window._sbTables.probed=true;
+  console.log('%c[Supabase] tables:','color:#3ecf8e','mailers='+window._sbTables.mailers,'users='+window._sbTables.users);
+  return window._sbTables;
+}
 // ── Supabase: save a campaign record ──────────────────────────────────────────
 async function supabaseSaveCampaign(record){
   var sb=getSupabase();if(!sb)return null;
+  var t=await _resolveTables();
   try{
-    var {data,error}=await sb.from('vahdam_campaigns').insert([record]).select().single();
+    var {data,error}=await sb.from(t.mailers).insert([record]).select().single();
     if(error){console.warn('[Supabase] insert failed:',error.message);return null;}
-    console.log('%c[Supabase] Saved campaign id:','color:#3ecf8e',data.id);
+    console.log('%c[Supabase] Saved mailer id:','color:#3ecf8e',data.id);
     return data;
   }catch(e){console.warn('[Supabase] save error:',e.message);return null;}
 }
 // ── Supabase: fetch dashboard records (most recent first, all users) ──────────
 async function supabaseFetchCampaigns(limit){
   var sb=getSupabase();if(!sb)return null;
+  var t=await _resolveTables();
   try{
-    var {data,error}=await sb.from('vahdam_campaigns').select('*').order('created_at',{ascending:false}).limit(limit||500);
+    var {data,error}=await sb.from(t.mailers).select('*').order('created_at',{ascending:false}).limit(limit||500);
     if(error){console.warn('[Supabase] fetch failed:',error.message);return null;}
     return data;
   }catch(e){console.warn('[Supabase] fetch error:',e.message);return null;}
@@ -1201,8 +1224,9 @@ async function supabaseFetchCampaigns(limit){
 // ── Supabase: upsert user record ──────────────────────────────────────────────
 async function supabaseUpsertUser(user){
   var sb=getSupabase();if(!sb)return null;
+  var t=await _resolveTables();
   try{
-    var {data,error}=await sb.from('vahdam_users').upsert({email:user.email,name:user.name,last_seen_at:new Date().toISOString()},{onConflict:'email'}).select().single();
+    var {data,error}=await sb.from(t.users).upsert({email:user.email,name:user.name,last_seen_at:new Date().toISOString()},{onConflict:'email'}).select().single();
     if(error){console.warn('[Supabase] user upsert failed:',error.message);return null;}
     return data;
   }catch(e){console.warn('[Supabase] user upsert error:',e.message);return null;}
@@ -5785,7 +5809,8 @@ function saveMailerToDashboard(){
       }catch(e){console.warn('[Supabase] image upload failed:',e&&e.message);}
       if(Object.keys(patch).length){
         var sb=getSupabase();if(!sb)return;
-        var {error}=await sb.from('vahdam_campaigns').update(patch).eq('id',inserted.id);
+        var t=await _resolveTables();
+        var {error}=await sb.from(t.mailers).update(patch).eq('id',inserted.id);
         if(error)console.warn('[Supabase] update with hosted URLs failed:',error.message);
         else console.log('%c[Supabase] hosted URLs attached to row','color:#3ecf8e',inserted.id);
       }

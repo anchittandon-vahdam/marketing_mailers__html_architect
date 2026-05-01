@@ -7,7 +7,7 @@
 -- ── Table 1: Campaigns ──────────────────────────────────────────────────────
 -- Every generated mailer is recorded here. JSONB columns enable rich queries
 -- (e.g. analytics on hero category, market preference, regen patterns).
-CREATE TABLE IF NOT EXISTS public.vahdam_campaigns (
+CREATE TABLE IF NOT EXISTS public.mailers_generated (
   id BIGSERIAL PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
@@ -81,40 +81,40 @@ RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS vahdam_campaigns_updated ON public.vahdam_campaigns;
-CREATE TRIGGER vahdam_campaigns_updated
-  BEFORE UPDATE ON public.vahdam_campaigns
+DROP TRIGGER IF EXISTS mailers_generated_updated ON public.mailers_generated;
+CREATE TRIGGER mailers_generated_updated
+  BEFORE UPDATE ON public.mailers_generated
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
-CREATE INDEX IF NOT EXISTS vc_created_idx        ON public.vahdam_campaigns(created_at DESC);
-CREATE INDEX IF NOT EXISTS vc_user_email_idx     ON public.vahdam_campaigns(user_email);
-CREATE INDEX IF NOT EXISTS vc_campaign_type_idx  ON public.vahdam_campaigns(campaign_type);
-CREATE INDEX IF NOT EXISTS vc_primary_market_idx ON public.vahdam_campaigns(primary_market);
-CREATE INDEX IF NOT EXISTS vc_hero_category_idx  ON public.vahdam_campaigns(hero_category);
-CREATE INDEX IF NOT EXISTS vc_canvas_variant_idx ON public.vahdam_campaigns(canvas_variant);
+CREATE INDEX IF NOT EXISTS vc_created_idx        ON public.mailers_generated(created_at DESC);
+CREATE INDEX IF NOT EXISTS vc_user_email_idx     ON public.mailers_generated(user_email);
+CREATE INDEX IF NOT EXISTS vc_campaign_type_idx  ON public.mailers_generated(campaign_type);
+CREATE INDEX IF NOT EXISTS vc_primary_market_idx ON public.mailers_generated(primary_market);
+CREATE INDEX IF NOT EXISTS vc_hero_category_idx  ON public.mailers_generated(hero_category);
+CREATE INDEX IF NOT EXISTS vc_canvas_variant_idx ON public.mailers_generated(canvas_variant);
 
 -- ── Table 2: Users (sign-up tracking) ───────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.vahdam_users (
+CREATE TABLE IF NOT EXISTS public.app_users (
   id BIGSERIAL PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   name TEXT,
   joined_at TIMESTAMPTZ DEFAULT now(),
   last_seen_at TIMESTAMPTZ DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS vu_last_seen_idx ON public.vahdam_users(last_seen_at DESC);
+CREATE INDEX IF NOT EXISTS vu_last_seen_idx ON public.app_users(last_seen_at DESC);
 
 -- ── Row Level Security ──────────────────────────────────────────────────────
-ALTER TABLE public.vahdam_campaigns ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.vahdam_users     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mailers_generated ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_users     ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "anon read campaigns"   ON public.vahdam_campaigns;
-DROP POLICY IF EXISTS "anon insert campaigns" ON public.vahdam_campaigns;
-CREATE POLICY "anon read campaigns"   ON public.vahdam_campaigns FOR SELECT USING (true);
-CREATE POLICY "anon insert campaigns" ON public.vahdam_campaigns FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "anon read campaigns"   ON public.mailers_generated;
+DROP POLICY IF EXISTS "anon insert campaigns" ON public.mailers_generated;
+CREATE POLICY "anon read campaigns"   ON public.mailers_generated FOR SELECT USING (true);
+CREATE POLICY "anon insert campaigns" ON public.mailers_generated FOR INSERT WITH CHECK (true);
 
-DROP POLICY IF EXISTS "anon read users"   ON public.vahdam_users;
-DROP POLICY IF EXISTS "anon insert users" ON public.vahdam_users;
-DROP POLICY IF EXISTS "anon update users" ON public.vahdam_users;
-CREATE POLICY "anon read users"   ON public.vahdam_users FOR SELECT USING (true);
-CREATE POLICY "anon insert users" ON public.vahdam_users FOR INSERT WITH CHECK (true);
-CREATE POLICY "anon update users" ON public.vahdam_users FOR UPDATE USING (true);
+DROP POLICY IF EXISTS "anon read users"   ON public.app_users;
+DROP POLICY IF EXISTS "anon insert users" ON public.app_users;
+DROP POLICY IF EXISTS "anon update users" ON public.app_users;
+CREATE POLICY "anon read users"   ON public.app_users FOR SELECT USING (true);
+CREATE POLICY "anon insert users" ON public.app_users FOR INSERT WITH CHECK (true);
+CREATE POLICY "anon update users" ON public.app_users FOR UPDATE USING (true);
