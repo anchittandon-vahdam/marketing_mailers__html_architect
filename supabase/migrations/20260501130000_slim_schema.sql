@@ -15,4 +15,8 @@ DROP VIEW  IF EXISTS public.vahdam_campaigns_by_regen  CASCADE;
 -- Remove catalog snapshots table — no client writes ever happened here
 DROP TABLE IF EXISTS public.vahdam_catalog_snapshots CASCADE;
 
+-- Remove legacy duplicate tables (replaced by vahdam_users / vahdam_campaigns)
+DROP TABLE IF EXISTS public.app_users        CASCADE;
+DROP TABLE IF EXISTS public.campaign_history CASCADE;
+
 -- (vahdam_campaigns and vahdam_users remain unchanged with all their data)
