@@ -955,7 +955,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='auto-concept-diversity-v68';
+window.__VAHDAM_BUILD__='dash-all-chips-v69';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -8293,12 +8293,23 @@ async function renderDashboard(page){
       +'</div>':'<div style="font-size:9px;opacity:0.6">All records &middot; shared across all users on this device</div>')
     +'</div>';
   // ── Filter bar — chips for type / market / user + free-text search ──
-  var allTypes=[...new Set(allLogs.map(function(l){return l.type||'Campaign';}))].sort();
-  var allMarketsForChips=[...new Set(allLogs.flatMap(function(l){return l.markets||[l.market||'US'];}))].sort();
+  // Canonical type + market lists — always show ALL options regardless of which
+  // values currently exist in the logs. Lets users filter to "Story" even when
+  // no Story records exist yet, and gives them visibility into what types are
+  // available system-wide.
+  var CANONICAL_TYPES=['Sale','Story','Gift','Launch','Bestseller','Discovery','Routine','Seasonal','Campaign'];
+  var CANONICAL_MARKETS=['US','UK','IN','Global','ME','AU','EU'];
+  var typesInLogs=new Set(allLogs.map(function(l){return l.type||'Campaign';}));
+  var marketsInLogs=new Set(allLogs.flatMap(function(l){return l.markets||[l.market||'US'];}));
+  var allTypes=CANONICAL_TYPES.slice();
+  var allMarketsForChips=CANONICAL_MARKETS.slice();
   var allUsersForChips=[...new Set(allLogs.map(function(l){return l.userName||'Unknown';}))].filter(function(u){return u && u!=='Unknown';}).sort();
   var typeColor={Sale:'#c0392b',Launch:'#0f2a1c',Gift:'#d4873a',Bestseller:'#1a3a28',Discovery:'#1d6fa4',Routine:'#2d6a4f',Story:'#5a3e28',Seasonal:'#7a5c1e',Campaign:'#0f2a1c'};
-  function chip(label,active,color,onclick){
-    return '<button onclick="'+onclick+'" style="font-size:10.5px;font-weight:700;padding:5px 11px;border-radius:14px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid '+(active?color:'#d6cdb8')+';background:'+(active?color:'#fff')+';color:'+(active?'#fff':'#374151')+';letter-spacing:0.04em;transition:all .15s">'+label+'</button>';
+  function chip(label,active,color,onclick,empty){
+    var bg = active?color:'#fff';
+    var bd = active?color:(empty?'#ede5d8':'#d6cdb8');
+    var fg = active?'#fff':(empty?'#aaa':'#374151');
+    return '<button onclick="'+onclick+'" style="font-size:10.5px;font-weight:'+(empty?'500':'700')+';padding:5px 11px;border-radius:14px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid '+bd+';background:'+bg+';color:'+fg+';letter-spacing:0.04em;transition:all .15s;'+(empty?'opacity:0.6':'')+'" title="'+(empty?'No records yet — click to filter anyway':'Filter by '+label)+'">'+label+'</button>';
   }
   var anyActive=!!(f.type||f.market||f.user||f.q||(f.mineOnly===false));
   var hasMe=window._currentUser && window._currentUser.email;
@@ -8312,9 +8323,9 @@ async function renderDashboard(page){
       (anyActive?'<button onclick="dashClearFilters()" aria-label="Clear all filters" style="font-size:10px;font-weight:700;padding:5px 11px;border-radius:14px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid #b91c1c;background:#fff;color:#b91c1c;letter-spacing:0.04em">✕ Clear</button>':'')+
     '</div>'+
     (allTypes.length>1?'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:0.1em;text-transform:uppercase;min-width:50px">Type</span>'+
-      allTypes.map(function(t){return chip(t,f.type===t,typeColor[t]||'#0f2a1c','dashSetFilter(\'type\',\''+t+'\')');}).join('')+'</div>':'')+
+      allTypes.map(function(t){return chip(t,f.type===t,typeColor[t]||'#0f2a1c','dashSetFilter(\'type\',\''+t+'\')',!typesInLogs.has(t));}).join('')+'</div>':'')+
     (allMarketsForChips.length>1?'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px"><span style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:0.1em;text-transform:uppercase;min-width:50px">Market</span>'+
-      allMarketsForChips.map(function(m){return chip(m,f.market===m,'#1a3a28','dashSetFilter(\'market\',\''+m+'\')');}).join('')+'</div>':'')+
+      allMarketsForChips.map(function(m){return chip(m,f.market===m,'#1a3a28','dashSetFilter(\'market\',\''+m+'\')',!marketsInLogs.has(m));}).join('')+'</div>':'')+
     (allUsersForChips.length>1?'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:9px;font-weight:700;color:#bbb;letter-spacing:0.1em;text-transform:uppercase;min-width:50px">User</span>'+
       allUsersForChips.map(function(u){return chip(u,f.user===u,'#d4873a','dashSetFilter(\'user\',\''+u.replace(/'/g,"\\'")+'\')');}).join('')+'</div>':'')+
     '<div style="font-size:10px;color:#888;margin-top:6px">Showing <strong>'+logs.length+'</strong> of '+allLogs.length+' records</div>'+
