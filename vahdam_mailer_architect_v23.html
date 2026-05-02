@@ -956,7 +956,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='openai-server-side-v74';
+window.__VAHDAM_BUILD__='openai-everywhere-v75';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -4280,20 +4280,44 @@ async function _autoConceptThenBuild(uploadedImg){
       if(typeof renderConceptSelector==='function')renderConceptSelector(cached.allConcepts);
       return;
     }
-    // ── Try LLM if key present
-    var key = (document.getElementById('claudeKeyIn')&&document.getElementById('claudeKeyIn').value||'').trim();
+    // ── v75: PROVIDER WATERFALL
+    //   1. Try server-side OpenAI via /api/ai/generate (no browser key needed — uses Vercel env)
+    //   2. Fall back to client-side Claude only if user typed a key
+    //   3. Fall back to client-side heuristic
     var concepts = null;
-    if(key){
-      if(typeof statusPill==='function')statusPill('loading','Drafting director brief — Claude Haiku...');
-      try{ concepts = await generateConcepts({}); }catch(e){ console.warn('[autoConcept] LLM error',e); }
-    }
-    // ── Fall back to smart heuristic if LLM unavailable
+    var providerUsed = null;
+    if(typeof statusPill==='function')statusPill('loading','Drafting director brief via OpenAI (server-side)...');
+    try{
+      var srvProducts = products.slice(0,30).map(function(p){return {handle:p.handle,name:p.n,category:p.category,price:p.price,compare_at:p.compare_at,image_url:p.i};});
+      var srvRes = await fetch('/api/ai/generate',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({mode:'concepts',market:markets[0],theme:type,campaign_brief:prompt,selected_products:srvProducts,variant:'A',regenerate_counter:regenCounter})
+      });
+      if(srvRes.ok){
+        var srvData = await srvRes.json();
+        if(srvData && srvData.data && Array.isArray(srvData.data.concepts) && srvData.data.concepts.length){
+          concepts = srvData.data.concepts;
+          providerUsed = 'openai_server·'+(srvData.model||'gpt-4o-mini');
+        }
+      }
+    }catch(e){ console.warn('[autoConcept] server-side OpenAI error',e); }
+    // ── Fallback 2: client-side Claude (only if user typed a key — optional)
     if(!concepts || !concepts.length){
-      if(key && typeof statusPill==='function')statusPill('warn','LLM call failed — using smart heuristic');
-      else if(typeof statusPill==='function')statusPill('ok','Using smart heuristic concept (add Claude key for top-tier output)');
+      var claudeKey = (document.getElementById('claudeKeyIn')&&document.getElementById('claudeKeyIn').value||'').trim();
+      if(claudeKey){
+        if(typeof statusPill==='function')statusPill('loading','OpenAI server unavailable — falling back to Claude...');
+        try{ concepts = await generateConcepts({}); if(concepts && concepts.length) providerUsed = 'claude_haiku_client'; }catch(e){ console.warn('[autoConcept] Claude error',e); }
+      }
+    }
+    // ── Fallback 3: smart heuristic (always works — zero deps)
+    if(!concepts || !concepts.length){
+      if(typeof statusPill==='function')statusPill('warn','Using smart heuristic concept (server + Claude unavailable)');
       var heur = _heuristicConcept(prompt, type, markets[0], products);
       concepts = [heur];
+      providerUsed = 'heuristic_client';
     }
+    window._lastProviderUsed = providerUsed;
     // ── Auto-pick best
     var best = pickBestConcept(concepts, type, markets[0]) || concepts[0];
     if(!best)return;
