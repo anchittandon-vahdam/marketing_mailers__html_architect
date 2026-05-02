@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='title-fix-v33';
+window.__VAHDAM_BUILD__='real-fixes-v34';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -3723,11 +3723,16 @@ function approveAndBuild(){
   var mkts=S.markets&&S.markets.length>0?S.markets:['US'];
   refreshStrategy();
   S.activeVariant=S.strategy.primaryVariant||'A';
-  // Build BOTH variants for the ACTIVE market only — others build lazily on click
   S.activeMarket=mkts[0];
-  mkts.forEach(function(mkt){S.marketMailers[mkt]=S.marketMailers[mkt]||{};});
-  _ensureMailerBuilt(S.activeMarket,'A');
-  _ensureMailerBuilt(S.activeMarket,'B');
+  // Pre-build BOTH variants for EVERY selected market — every region gets
+  // A (Editorial Hero) AND B (Narrative Story) consistently. The save flow
+  // and dashboard rely on this being complete before saveMailerToDashboard fires.
+  mkts.forEach(function(mkt){
+    S.marketMailers[mkt]={
+      A: buildEmail(null, mkt),
+      B: buildEmailVariantB(null, mkt)
+    };
+  });
   S.finalHTML=(S.marketMailers[S.activeMarket]||{})[S.activeVariant]||'';
   var frEl=document.getElementById('emailFr');if(frEl)frEl.srcdoc=S.finalHTML;
   var rawEl2=document.getElementById('htmlRaw');if(rawEl2)rawEl2.textContent=S.finalHTML;
@@ -4177,6 +4182,35 @@ window.regenerateHeroImage=function(){
   showCopyToast('Re-generating '+m+' hero image…');
 };
 
+// ── Device preview state — Mobile (360) / Tablet (600) / Desktop (800) ────
+window._mailerDevice=window._mailerDevice||'desktop';
+function setMailerDevice(d){
+  window._mailerDevice=d;
+  document.querySelectorAll('iframe.vhd-mailer-frame').forEach(function(f){
+    var w=({mobile:360,tablet:600,desktop:800})[d]||800;
+    f.style.maxWidth=w+'px';
+    f.style.transition='max-width 0.25s ease';
+  });
+  document.querySelectorAll('.vhd-device-btn').forEach(function(b){
+    var on=b.getAttribute('data-device')===d;
+    b.style.background=on?'#004A2B':'#fff';
+    b.style.color=on?'#FBF5EA':'#374151';
+    b.style.borderColor=on?'#004A2B':'#ede5d8';
+  });
+}
+function _deviceToggleHTML(){
+  var d=window._mailerDevice||'desktop';
+  function btn(key,label,icon){
+    var on=d===key;
+    return '<button aria-label="Preview at '+label+' size" data-device="'+key+'" onclick="setMailerDevice(\''+key+'\')" class="vhd-device-btn" style="font-size:10.5px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid '+(on?'#004A2B':'#ede5d8')+';background:'+(on?'#004A2B':'#fff')+';color:'+(on?'#FBF5EA':'#374151')+';letter-spacing:0.04em;display:inline-flex;align-items:center;gap:5px">'+icon+'<span>'+label+'</span></button>';
+  }
+  return '<div role="group" aria-label="Device preview size" style="display:flex;gap:6px;align-items:center;justify-content:center;padding:10px 14px;background:#fafaf6;border-bottom:1px solid #ede5d8">'+
+    '<span style="font-size:9px;font-weight:700;color:#888;letter-spacing:0.12em;text-transform:uppercase;margin-right:6px">View as</span>'+
+    btn('mobile','Mobile','📱')+
+    btn('tablet','Tablet','📲')+
+    btn('desktop','Desktop','🖥')+
+  '</div>';
+}
 // ── Step 5: unified Region → Variant → Preview + Download panel ──
 // ── Strategic Brief panel — the elite layer rendered in Step 5 ────────────
 function renderStrategicBrief(){
@@ -4261,9 +4295,11 @@ function renderStep5UnifiedPanel(){
       var entry=entries[mkt];
       var html=typeof entry==='string'?entry:(entry[v]||entry.A||entry.B||'');
       var safeHtml=(html||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      return '<div style="max-width:600px;width:100%;border:1px solid #e8e3da;border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.08)">'+
-        '<iframe srcdoc="'+safeHtml+'" style="width:100%;height:540px;border:0;display:block;background:#fff"></iframe>'+
-      '</div>';
+      var deviceWidth=({mobile:360,tablet:600,desktop:800})[window._mailerDevice||'desktop']||800;
+      return _deviceToggleHTML()+
+        '<div style="display:flex;justify-content:center;padding:14px 0">'+
+          '<iframe class="vhd-mailer-frame" srcdoc="'+safeHtml+'" style="width:100%;max-width:'+deviceWidth+'px;height:640px;border:0;display:block;background:#fff;border-radius:8px;box-shadow:0 4px 18px rgba(0,0,0,0.1);transition:max-width 0.25s ease"></iframe>'+
+        '</div>';
     }
   });
 }
@@ -4781,16 +4817,16 @@ function buildEmailVariantB(uploadedDesignImg,mktOverride){
       '<p style="font-family:Lao MN,Georgia,serif;font-size:32px;font-weight:bold;letter-spacing:0.22em;color:#004A2B;margin:0 0 6px">VAHDAM&reg;</p>'+
       '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;color:#888;letter-spacing:0.16em;margin:0;text-transform:uppercase">Premium Indian Teas · Direct From Source</p>'+
     '</td></tr>\n'+
-    // S3 — Full-width editorial hero IMAGE (no side-by-side)
+    // S3 — Full-width editorial hero IMAGE — taller, more cinematic
     (uploadedDesignImg?'<tr><td style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><img src="'+uploadedDesignImg+'" alt="'+(hero.n||'').replace(/"/g,'&quot;')+'" width="598" border="0" style="width:100%;max-width:598px;height:auto;display:block;border:0;outline:none;text-decoration:none"></td></tr>\n'
-    :'<tr><td style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><img src="'+heroVisualPath+'" alt="'+(hero.n||'').replace(/"/g,'&quot;')+'" width="598" border="0" style="width:100%;max-width:598px;height:380px;object-fit:cover;display:block;border:0;outline:none;text-decoration:none;background:#e8f0e8"></td></tr>\n')+
+    :'<tr><td style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><img src="'+heroVisualPath+'" alt="'+(hero.n||'').replace(/"/g,'&quot;')+'" width="598" border="0" style="width:100%;max-width:598px;height:460px;object-fit:cover;display:block;border:0;outline:none;text-decoration:none;background:#e8f0e8"></td></tr>\n')+
     // S4 — Centered editorial headline + sub + CTA (BELOW image, not beside)
-    '<tr><td class="pd20" style="background:#FBF5EA;padding:42px 48px 34px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
-      (ot?'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:0.28em;color:#AB8743;margin:0 0 14px;text-transform:uppercase">— '+ot+' —</p>':'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:0.28em;color:#AB8743;margin:0 0 14px;text-transform:uppercase">— '+st.type.toUpperCase()+' —</p>')+
-      '<p style="font-family:Lao MN,Georgia,serif;font-size:36px;font-weight:bold;color:#004A2B;margin:0 0 6px;line-height:1.1;letter-spacing:-0.005em">'+hl[0]+'</p>'+
-      (hl[1]?'<p style="font-family:Lao MN,Georgia,serif;font-size:36px;font-weight:bold;color:#AB8743;margin:0 0 18px;line-height:1.1;font-style:italic">'+hl[1]+'</p>':'')+
-      '<div style="width:48px;height:2px;background:#AB8743;margin:18px auto 22px;border-radius:1px"></div>'+
-      '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:14px;color:#555;margin:0 0 26px;line-height:1.7;max-width:440px;display:inline-block">'+(sc||'').substring(0,180)+'</p>'+
+    '<tr><td class="pd20" style="background:#FBF5EA;padding:54px 52px 42px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
+      (ot?'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;font-weight:800;letter-spacing:0.32em;color:#AB8743;margin:0 0 18px;text-transform:uppercase">— '+ot+' —</p>':'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;font-weight:800;letter-spacing:0.32em;color:#AB8743;margin:0 0 18px;text-transform:uppercase">— '+st.type.toUpperCase()+' —</p>')+
+      '<p style="font-family:Lao MN,Georgia,serif;font-size:44px;font-weight:bold;color:#004A2B;margin:0 0 8px;line-height:1.05;letter-spacing:-0.012em">'+hl[0]+'</p>'+
+      (hl[1]?'<p style="font-family:Lao MN,Georgia,serif;font-size:42px;font-weight:bold;color:#AB8743;margin:0 0 22px;line-height:1.05;font-style:italic;letter-spacing:-0.005em">'+hl[1]+'</p>':'')+
+      '<div style="width:56px;height:2px;background:#AB8743;margin:22px auto 26px;border-radius:1px"></div>'+
+      '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:15px;color:#444;margin:0 0 30px;line-height:1.75;max-width:460px;display:inline-block">'+(sc||'').substring(0,200)+'</p>'+
       '<br>'+btn(collUrl,cta,'#004A2B','#FBF5EA')+
       (oc?'<div style="margin:14px 0 0;display:inline-block">'+
         '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;color:#AB8743;margin:0 0 4px;letter-spacing:0.2em;text-transform:uppercase">Use code at checkout</p>'+
@@ -6757,8 +6793,10 @@ function _renderDashRecordPanel(){
       var stored=entry.fullMailers[mkt];
       var html=typeof stored==='string'?stored:(stored[v]||stored.A||stored.B||'');
       var safeHtml=(html||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-      return '<div style="max-width:600px;width:100%;border:1px solid #e8e3da;border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.08)">'+
-        '<iframe srcdoc="'+safeHtml+'" style="width:100%;height:400px;border:0;display:block;background:#fff"></iframe>'+
+      var deviceWidth=({mobile:360,tablet:600,desktop:800})[window._mailerDevice||'desktop']||800;
+      return _deviceToggleHTML()+
+        '<div style="max-width:'+deviceWidth+'px;width:100%;margin:0 auto;border:1px solid #e8e3da;border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,0.08);transition:max-width 0.25s ease">'+
+        '<iframe class="vhd-mailer-frame" srcdoc="'+safeHtml+'" style="width:100%;height:540px;border:0;display:block;background:#fff"></iframe>'+
       '</div>';
     }
   });
