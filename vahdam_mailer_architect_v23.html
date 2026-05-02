@@ -947,7 +947,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='gif-anywhere-v58';
+window.__VAHDAM_BUILD__='cors-const-fix-v59';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -5367,9 +5367,16 @@ async function analyzeImageAndBuildEmail(base64DataUrl,prods,prompt,market){
     const offer2=offerText(prompt);const code2=offerCode(prompt);const cta2=ctaText(prompt);const hl2=heroHeadline(prompt);const sc2=subCopy(prompt);
     const userText='You are looking at a VAHDAM(R) India email campaign design. Study every section, colour, font size, spacing, layout hierarchy, and copy block precisely.\n\nReproduce it as a complete standalone production-ready HTML email that ALSO reflects the campaign brief below.\n\n====================================================\nCAMPAIGN BRIEF (CRITICAL — every headline and CTA must reflect this)\n====================================================\nDescription: '+prompt.substring(0,350)+'\nMarket: '+market+(code2?' | Promo Code: "'+code2+'" (must appear prominently)':'')+(offer2?' | Offer: '+offer2:'')+'\nSuggested Hero Headline: "'+hl2[0]+(hl2[1]?' / '+hl2[1]:'')+'"'+'\nSuggested Sub-copy: "'+sc2.substring(0,120)+'"\nSuggested CTA: "'+cta2+'"\n====================================================\n\nEXACT PRODUCT IMAGE TAGS TO USE (copy src URLs verbatim):\n'+prodImgTags+'\n\nMARKET-SPECIFIC LINKS (use these exact URLs):\n- Base URL: '+base+'\n- Main Collection CTA: '+collUrl+'\n'+prodLinks+'\n- Unsubscribe: mailto:hello@vahdam.com?subject=Unsubscribe&body=Please%20unsubscribe%20me%20from%20VAHDAM%20emails\n- Privacy Policy: '+base+'/pages/privacy-policy\n\nTECHNICAL SPEC:\n- Email width: 600px, tables use explicit width="600"\n- All <img>: border="0" style="display:block;border:0;outline:none;text-decoration:none"\n- CTA buttons: bulletproof VML method for Outlook + standard <a>\n- Include MSO conditional comments in <head>\n- Preheader div immediately after <body>\n- Output ONLY the complete HTML starting with <!DOCTYPE html>';
     setStatus('Claude is analysing your design and writing the HTML email...');
+    var claudeKey=(document.getElementById('claudeKeyIn')&&document.getElementById('claudeKeyIn').value||'').trim();
+    if(!claudeKey){setStatus('No Claude API key — using built-in template.',false);return null;}
     const response=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':claudeKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
       body:JSON.stringify({
         model:'claude-opus-4-5',
         max_tokens:8000,
@@ -6377,7 +6384,7 @@ function buildEmail(uploadedDesignImg,mktOverride){
     // 6-section trimmed editorial (uploaded-image path) — was 10 sections, now 6.
     // Drops: 3-col trust strip, separate product-section-title row, 5-col badge row,
     // multi-line social-grid footer. Total HTML payload reduced ~45%.
-    const html='<!DOCTYPE html>\n<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<meta http-equiv="X-UA-Compatible" content="IE=edge">\n<title>VAHDAM® -- '+p.substring(0,60)+'</title>\n'+msoHead+'\n<style>@media only screen and (max-width:600px){.email-wrap{width:100%!important;max-width:100%!important}.pcol{display:block!important;width:100%!important}.vhd-h1{font-size:28px!important;line-height:1.15!important}.vhd-sub{font-size:13px!important}.vhd-hero-img{height:260px!important;object-fit:cover!important}.vhd-logo{font-size:22px!important}.editorial-pad{padding:24px 18px!important}.vhd-cta{font-size:11px!important;padding:14px 24px!important}}</style>\n</head>\n<body style="margin:0;padding:0;background:#f0ebe0;-webkit-text-size-adjust:100%">\n<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#f0ebe0">'+sc.substring(0,100)+'</div>\n<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0ebe0;border-collapse:collapse"><tr><td align="center" style="padding:20px 10px">\n<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse">\n'+
+    let html='<!DOCTYPE html>\n<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<meta http-equiv="X-UA-Compatible" content="IE=edge">\n<title>VAHDAM® -- '+p.substring(0,60)+'</title>\n'+msoHead+'\n<style>@media only screen and (max-width:600px){.email-wrap{width:100%!important;max-width:100%!important}.pcol{display:block!important;width:100%!important}.vhd-h1{font-size:28px!important;line-height:1.15!important}.vhd-sub{font-size:13px!important}.vhd-hero-img{height:260px!important;object-fit:cover!important}.vhd-logo{font-size:22px!important}.editorial-pad{padding:24px 18px!important}.vhd-cta{font-size:11px!important;padding:14px 24px!important}}</style>\n</head>\n<body style="margin:0;padding:0;background:#f0ebe0;-webkit-text-size-adjust:100%">\n<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#f0ebe0">'+sc.substring(0,100)+'</div>\n<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0ebe0;border-collapse:collapse"><tr><td align="center" style="padding:20px 10px">\n<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse">\n'+
     // S1 — combined ann-bar + brand mark (single row)
     '<tr><td style="background:#004A2B;padding:8px 20px;text-align:center;border-radius:6px 6px 0 0"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:#FBF5EA;margin:0">'+annBarLine(p,mt)+'</p></td></tr>\n<tr><td style="background:#ffffff;padding:14px 30px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:24px;font-weight:bold;letter-spacing:0.22em;color:#004A2B;margin:0">VAHDAM®</p></td></tr>\n'+
     // S2 — hero image
