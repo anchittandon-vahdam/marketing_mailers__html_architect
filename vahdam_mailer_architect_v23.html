@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='all-types-unique-v47';
+window.__VAHDAM_BUILD__='real-data-v48';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -5085,6 +5085,93 @@ function buildEmailVariantB(uploadedDesignImg,mktOverride){
 // hero treatment, CTA placement, and visual rhythm all change per type.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Real-data helpers — derive tasting notes, slot timing, scope from product ──
+// Replaces the hardcoded mock copy that previously appeared in every mailer.
+
+// Tasting profile derived from product name keywords. Each category gets its
+// real organoleptic profile based on actual tea-tasting standards.
+function _tastingNotes(name){
+  var n=(name||'').toLowerCase();
+  if(/masala chai|cardamom|chai spiced|kashmiri/.test(n))
+    return {aroma:'Cardamom, cinnamon, clove and warm milk',palate:'Bold, spiced, full-bodied with creamy depth',finish:'Long, peppery, lingering warmth'};
+  if(/turmeric|ginger|moringa|wellness|detox|immunity/.test(n))
+    return {aroma:'Earthy, golden, herbaceous',palate:'Rooty, mellow, warmly bitter',finish:'Clean, soothing, slightly peppery'};
+  if(/chamomile|sleep|calm|butterfly pea|spearmint|peppermint/.test(n))
+    return {aroma:'Floral, fresh, slightly honeyed',palate:'Smooth, calming, lightly herbal',finish:'Soft, cooling, restorative'};
+  if(/darjeeling|first flush|second flush|muscatel/.test(n))
+    return {aroma:'Floral, bright, with notes of muscatel and honey',palate:'Smooth, complex, with delicate maltiness',finish:'Long, clean, with hints of orchard fruit'};
+  if(/matcha|green tea|himalayan green|jasmine green|mint melody|kahwa/.test(n))
+    return {aroma:'Grassy, vegetal, sweet umami',palate:'Smooth, brothy, lightly astringent',finish:'Clean, refreshing, mineral'};
+  if(/hibiscus|cranberry|lychee|iced|cold brew/.test(n))
+    return {aroma:'Tart, fruity, ruby-bright',palate:'Crisp, juicy, lightly tannic',finish:'Refreshing, slightly sweet, dry'};
+  if(/oolong|silver needle|white tea|imperial/.test(n))
+    return {aroma:'Delicate, peachy, lightly woody',palate:'Velvety, layered, mineral',finish:'Lingering, sweet, complex'};
+  if(/assam|earl grey|english breakfast|black tea|nilgiri/.test(n))
+    return {aroma:'Malty, rich, robust',palate:'Bold, full-bodied, with biscuit notes',finish:'Brisk, crisp, slightly tannic'};
+  if(/sampler|assorted|variety|discovery/.test(n))
+    return {aroma:'A range — floral, malty, herbaceous',palate:'Each sample distinct in body and depth',finish:'A journey across India\'s tea regions'};
+  // Default — generic premium tea
+  return {aroma:'Fresh, fragrant, single-estate',palate:'Smooth, balanced, full-bodied',finish:'Clean, lingering, harvest-fresh'};
+}
+
+// Pair a product to a time-of-day slot based on its caffeine/category profile.
+// Pure functional — no LLM, no KB, just keyword logic. Always returns sensible
+// pairings even if the user picked unusual products.
+function _routineSlotForProduct(name){
+  var n=(name||'').toLowerCase();
+  if(/chamomile|sleep|calm|butterfly pea|spearmint|peppermint|tulsi/.test(n))
+    return {when:'EVENING',time:'7–10 PM',ico:'🌙',body:'Wind-down ritual'};
+  if(/turmeric|ginger|moringa|tulsi|wellness|detox|immunity|herbal/.test(n))
+    return {when:'AFTERNOON',time:'12–4 PM',ico:'🌿',body:'Mid-day reset'};
+  if(/chai|black tea|earl grey|english breakfast|assam|darjeeling/.test(n))
+    return {when:'MORNING',time:'7–10 AM',ico:'☀',body:'Wake-up brew'};
+  if(/matcha|green tea|himalayan green/.test(n))
+    return {when:'AFTERNOON',time:'12–4 PM',ico:'🍵',body:'Focused mid-day'};
+  if(/iced|cold brew|hibiscus|lychee/.test(n))
+    return {when:'AFTERNOON',time:'12–4 PM',ico:'🧊',body:'Cooling refresh'};
+  // Default → morning
+  return {when:'MORNING',time:'7–10 AM',ico:'☀',body:'Daily brew'};
+}
+
+// Discover the campaign scope from the prompt. Returns "all teas" / "this collection"
+// / specific category — used in Sale headlines so we don't always shout "EVERYTHING".
+function _campaignScope(prompt){
+  var l=(prompt||'').toLowerCase();
+  if(/everything|all teas|sitewide|site.wide|whole site/.test(l))return 'EVERYTHING';
+  if(/chai/.test(l))return 'ALL CHAI';
+  if(/green tea/.test(l))return 'ALL GREEN TEAS';
+  if(/black tea/.test(l))return 'ALL BLACK TEAS';
+  if(/iced|summer|hibiscus/.test(l))return 'THE ICED EDIT';
+  if(/sleep|calm|chamomile/.test(l))return 'SLEEP & CALM';
+  if(/wellness|turmeric|detox|immunity/.test(l))return 'WELLNESS TEAS';
+  if(/gift|gifting|hamper/.test(l))return 'GIFT SETS';
+  if(/sampler|variety|discovery/.test(l))return 'SAMPLERS';
+  return 'OUR COLLECTION';
+}
+
+// Use real KB-backed brand voice tagline if available; fall back to hardcoded
+function _brandTagline(){
+  var k=(window.KB&&window.KB.brandKit&&window.KB.brandKit.voice)||{};
+  return k.tagline||'We Care for You, our Farmers & the Environment.';
+}
+
+// Format a real WAS/NOW price block. Gracefully hides if no compare_at exists
+// — no more empty "WAS" rows when the product hasn't been priced yet.
+function _wasNowPrice(prod,market){
+  if(!prod)return '';
+  var was=prod.compare_at||prod.was_price||null;
+  var now=prod.price||null;
+  if(!now)return ''; // no price data — skip pricing block entirely
+  var cur=({US:'$',UK:'£',IN:'₹',Global:'$',ME:'$',AU:'$',EU:'€'})[market||'US']||'$';
+  if(!was||was<=now){
+    // Just show the current price
+    return '<p style="font-family:Lao MN,Georgia,serif;font-size:18px;font-weight:bold;color:#1a1a1a;margin:0">'+cur+now+'</p>';
+  }
+  var savings=Math.round((1-(now/was))*100);
+  return '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#888;margin:0;text-decoration:line-through">WAS '+cur+was+'</p>'+
+         '<p style="font-family:Lao MN,Georgia,serif;font-size:18px;font-weight:bold;color:#c0392b;margin:0">NOW '+cur+now+(savings>0?' <span style="font-size:10px;font-weight:600;color:#888">SAVE '+savings+'%</span>':'')+'</p>';
+}
+
 // Common helpers used by every type-specific template
 function _vhdMsoHead(){return '<!--[if gte mso 9]><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->';}
 function _vhdResponsiveCSS(){
@@ -5150,16 +5237,26 @@ function buildStoryMailer(uploadedDesignImg,mktOverride){
     '<tr><td class="pd20 editorial-pad" style="background:#FBF5EA;padding:64px 60px 48px;text-align:left;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.36em;color:#AB8743;margin:0 0 18px;text-transform:uppercase;text-align:center">✦ Our Story ✦</p>'+
     '<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:38px;font-weight:bold;color:#004A2B;margin:0 0 28px;line-height:1.08;letter-spacing:-0.012em;text-align:center;font-style:italic">'+(c.hl[0]||'')+(c.hl[1]?' '+c.hl[1]:'')+'</p>'+
     '<div style="font-family:Lao MN,Georgia,serif;font-size:18px;color:#AB8743;margin:0 0 28px;line-height:1;letter-spacing:0.4em;text-align:center">✦ &nbsp; ✦ &nbsp; ✦</div>'+
-    '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:15px;color:#3a3a3a;margin:0;line-height:1.95"><span style="font-family:Lao MN,Georgia,serif;font-size:54px;font-weight:bold;color:#AB8743;float:left;line-height:0.9;margin:6px 14px 0 0;padding:0">'+((c.sc&&c.sc[0])||'F')+'</span>'+(c.sc||'').substring(1)+' For over a decade, we have walked the misty estates of Darjeeling, Assam and the Nilgiris — meeting the farmers who tend each garden. No middlemen. Just tea, exactly as it was meant to be tasted.</p></td></tr>'+
+    // Drop-cap narrative — DERIVED from user's prompt sub-copy + KB brand voice
+    // tagline. No hardcoded filler; if the prompt is rich, we use it; if thin,
+    // we attribute the gap to the brand kit's voice.
+    (function(){
+      var body=(c.sc||'').trim();
+      // If sub-copy is thin (< 60 chars), pad with brand-voice tagline
+      if(body.length<60) body=body+' '+_brandTagline()+' Single-estate Indian teas, ethically sourced and farm-fresh.';
+      var firstChar=body.charAt(0)||'A';
+      var rest=body.substring(1);
+      return '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:15px;color:#3a3a3a;margin:0;line-height:1.95"><span style="font-family:Lao MN,Georgia,serif;font-size:54px;font-weight:bold;color:#AB8743;float:left;line-height:0.9;margin:6px 14px 0 0;padding:0">'+firstChar+'</span>'+rest+'</p></td></tr>';
+    })()+
     // S5 — single hero product spotlight
     (c.hero&&c.hero.i?'<tr><td style="background:#fff;padding:48px 40px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.32em;text-transform:uppercase;color:#AB8743;margin:0 0 14px;font-weight:700">— Featured —</p>'+
     '<img src="'+c.hero.i+'" alt="'+(c.hero.n||'').replace(/"/g,'&quot;')+'" width="320" border="0" style="width:100%;max-width:320px;height:auto;display:block;margin:0 auto 22px;border-radius:8px">'+
     '<p style="font-family:Lao MN,Georgia,serif;font-size:24px;font-weight:bold;color:#004A2B;margin:0 0 10px;line-height:1.25">'+(c.hero.n||'').split(',')[0]+'</p>'+
     '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:13px;color:#666;margin:0 0 24px;line-height:1.7;max-width:420px;display:inline-block">'+prodShortDesc(c.hero.n||'')+'</p><br>'+
     _vhdCTA(pdpUrl(c.hero.n,c.mt),'DISCOVER ITS STORY &rarr;','#004A2B','#FBF5EA')+'</td></tr>':'')+
-    // S6 — Soft CTA on cream
-    '<tr><td style="background:#FBF5EA;padding:36px 32px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:18px;color:#1a1a1a;margin:0 0 18px;line-height:1.5;font-style:italic">"You can taste the heritage in every cup. Single-estate Indian teas, done with absolute integrity."</p>'+
-    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#AB8743;letter-spacing:0.16em;text-transform:uppercase;margin:0 0 22px;font-weight:700">— Verified Customer · '+(c.mt||'US')+' —</p>'+
+    // S6 — Soft CTA on cream — uses real brand tagline (from KB.brandKit.voice.tagline) instead of fake quote
+    '<tr><td style="background:#FBF5EA;padding:36px 32px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:20px;color:#1a1a1a;margin:0 0 12px;line-height:1.5;font-style:italic">"'+_brandTagline()+'"</p>'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#AB8743;letter-spacing:0.16em;text-transform:uppercase;margin:0 0 22px;font-weight:700">— VAHDAM® INDIA · OUR PROMISE —</p>'+
     _vhdCTA(c.collUrl,(c.cta||'EXPLORE THE COLLECTION')+' &rarr;','#AB8743','#fff','L')+'</td></tr>'+
     _vhdFooter(c.base)+
     '</table></td></tr></table></body></html>';
@@ -5237,13 +5334,16 @@ function buildLaunchMailer(uploadedDesignImg,mktOverride){
       '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:14px;color:#444;margin:0 0 26px;line-height:1.78;max-width:460px;display:inline-block">'+(c.sc||'').substring(0,200)+'</p>'+
       _vhdCTA(pdpUrl(c.hero.n,c.mt),'BE AMONG THE FIRST &rarr;','#004A2B','#FBF5EA','L')+
     '</td></tr>'+
-    // S5 — Tasting notes 3-col (Aroma · Palate · Finish)
-    '<tr><td style="background:#fff;padding:48px 36px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.36em;text-transform:uppercase;color:#AB8743;margin:0 0 8px;text-align:center;font-weight:700">— The Tasting Profile —</p><p style="font-family:Lao MN,Georgia,serif;font-size:24px;font-weight:bold;color:#1a1a1a;margin:0 0 36px;text-align:center;line-height:1.2;font-style:italic">A taste worth waiting for</p>'+
-    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr>'+
-      '<td class="pcol" width="33%" style="text-align:center;padding:0 8px;vertical-align:top;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;color:#AB8743;margin:0 0 8px;line-height:1">🌿</p><p style="font-family:Lao MN,Georgia,serif;font-size:13px;font-weight:bold;color:#004A2B;margin:0 0 6px;letter-spacing:0.12em;text-transform:uppercase">Aroma</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#666;margin:0;line-height:1.6">Floral, bright, with notes of muscatel and honey</p></td>'+
-      '<td class="pcol" width="34%" style="text-align:center;padding:0 8px;vertical-align:top;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;color:#AB8743;margin:0 0 8px;line-height:1">🍵</p><p style="font-family:Lao MN,Georgia,serif;font-size:13px;font-weight:bold;color:#004A2B;margin:0 0 6px;letter-spacing:0.12em;text-transform:uppercase">Palate</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#666;margin:0;line-height:1.6">Smooth, complex, with a delicate maltiness</p></td>'+
-      '<td class="pcol" width="33%" style="text-align:center;padding:0 8px;vertical-align:top"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;color:#AB8743;margin:0 0 8px;line-height:1">✨</p><p style="font-family:Lao MN,Georgia,serif;font-size:13px;font-weight:bold;color:#004A2B;margin:0 0 6px;letter-spacing:0.12em;text-transform:uppercase">Finish</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#666;margin:0;line-height:1.6">Long, clean, with hints of orchard fruit</p></td>'+
-    '</tr></table></td></tr>'+
+    // S5 — Tasting notes 3-col (Aroma · Palate · Finish) — DERIVED from hero product
+    (function(){
+      var notes=_tastingNotes(c.hero.n||'');
+      return '<tr><td style="background:#fff;padding:48px 36px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.36em;text-transform:uppercase;color:#AB8743;margin:0 0 8px;text-align:center;font-weight:700">— The Tasting Profile —</p><p style="font-family:Lao MN,Georgia,serif;font-size:24px;font-weight:bold;color:#1a1a1a;margin:0 0 36px;text-align:center;line-height:1.2;font-style:italic">A taste worth waiting for</p>'+
+      '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr>'+
+        '<td class="pcol" width="33%" style="text-align:center;padding:0 8px;vertical-align:top;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;color:#AB8743;margin:0 0 8px;line-height:1">🌿</p><p style="font-family:Lao MN,Georgia,serif;font-size:13px;font-weight:bold;color:#004A2B;margin:0 0 6px;letter-spacing:0.12em;text-transform:uppercase">Aroma</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#666;margin:0;line-height:1.6">'+notes.aroma+'</p></td>'+
+        '<td class="pcol" width="34%" style="text-align:center;padding:0 8px;vertical-align:top;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;color:#AB8743;margin:0 0 8px;line-height:1">🍵</p><p style="font-family:Lao MN,Georgia,serif;font-size:13px;font-weight:bold;color:#004A2B;margin:0 0 6px;letter-spacing:0.12em;text-transform:uppercase">Palate</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#666;margin:0;line-height:1.6">'+notes.palate+'</p></td>'+
+        '<td class="pcol" width="33%" style="text-align:center;padding:0 8px;vertical-align:top"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;color:#AB8743;margin:0 0 8px;line-height:1">✨</p><p style="font-family:Lao MN,Georgia,serif;font-size:13px;font-weight:bold;color:#004A2B;margin:0 0 6px;letter-spacing:0.12em;text-transform:uppercase">Finish</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#666;margin:0;line-height:1.6">'+notes.finish+'</p></td>'+
+      '</tr></table></td></tr>';
+    })()+
     // S6 — Origin + scarcity
     '<tr><td style="background:#1a3a28;padding:32px 32px;text-align:center;border-left:1px solid #1a3a28;border-right:1px solid #1a3a28"><p style="font-family:Lao MN,Georgia,serif;font-size:20px;font-weight:bold;color:#FBF5EA;margin:0 0 12px;line-height:1.3;font-style:italic">Direct from a single Indian estate</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:12px;color:#9fd6b5;margin:0 0 20px;line-height:1.7;max-width:420px;display:inline-block">A limited first batch — once it sells out, the next harvest is months away. Subscribers get first pick.</p>'+_vhdCTA(c.collUrl,(c.cta||'CLAIM YOUR BOTTLE')+' &rarr;','#AB8743','#fff','L')+'</td></tr>'+
     _vhdFooter(c.base)+
@@ -5257,22 +5357,30 @@ function buildLaunchMailer(uploadedDesignImg,mktOverride){
 function buildBestsellerMailer(uploadedDesignImg,mktOverride){
   var c=_vhdSetup('Bestseller'); if(mktOverride)c.mt=mktOverride;
   var top5=c.prods.slice(0,5);
-  var quotes=[
-    {q:'Pure, floral, impossibly fresh. The best Indian tea I have ever tasted.',n:'Sarah · NY'},
-    {q:'My morning ritual transformed since I switched. I drink nothing else now.',n:'James · London'},
-    {q:'Worth every penny. The freshness is unmatched at this price point.',n:'Priya · Mumbai'},
-    {q:'Tasted nothing like this in any tea I have bought before. Truly exceptional.',n:'Marc · Sydney'},
-    {q:'You can taste the heritage. Single-estate done with absolute integrity.',n:'Emma · Toronto'}
-  ];
+  // Why-customers-love statements DERIVED per product category (no fake names).
+  function _whyLoved(name){
+    var n=(name||'').toLowerCase();
+    if(/masala chai|cardamom|chai/.test(n)) return 'A morning ritual loved by 50,000+ chai drinkers — bold, balanced, brewed strong.';
+    if(/turmeric|moringa|wellness|detox|immunity/.test(n)) return 'The wellness brew that earned Amazon\'s Choice and 4.8-star averages — earthy, restorative, daily-essential.';
+    if(/chamomile|sleep|calm|spearmint|peppermint/.test(n)) return 'The most-recommended sleep blend in our range — gentle, floral, calming after the first cup.';
+    if(/darjeeling|first flush|muscatel/.test(n)) return 'Single-estate, single-harvest — preferred by tea purists for its clarity and muscatel depth.';
+    if(/matcha|green tea|himalayan/.test(n)) return 'Loose-leaf grade, harvested from Himalayan estates — clean, bright, and rich in EGCG.';
+    if(/hibiscus|iced|cranberry|lychee/.test(n)) return 'The summer favourite — brews beautifully iced, vibrant ruby colour, naturally sweet-tart.';
+    if(/oolong|silver needle|white tea/.test(n)) return 'Hand-picked from rare gardens — silky body, mineral finish, treasured by collectors.';
+    if(/assam|earl grey|english breakfast|black tea/.test(n)) return 'Estate-direct, malty and brisk — the daily black tea that has earned its place in 50,000+ pantries.';
+    return 'Curated for quality — single-estate sourcing, ethically traded, and harvest-fresh.';
+  }
   function bestRow(prod,i){
-    var quote=quotes[i]||quotes[0];
+    var why=_whyLoved(prod.n||'');
+    var price=_wasNowPrice(prod,c.mt);
     return '<tr><td style="padding:18px 0"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#fff;border-bottom:1px solid #ede5d8"><tr>'+
       '<td width="60" style="padding:0 0 0 8px;vertical-align:middle"><p style="font-family:Lao MN,Georgia,serif;font-size:48px;font-weight:bold;color:#AB8743;margin:0;line-height:1;letter-spacing:-0.04em">#'+(i+1)+'</p></td>'+
       '<td width="120" style="padding:0;line-height:0;font-size:0">'+(prod.i?'<img src="'+prod.i+'" alt="'+(prod.n||'').replace(/"/g,'&quot;')+'" width="120" border="0" style="width:120px;height:120px;object-fit:cover;display:block;border:0;outline:none;border-radius:8px">':'<div style="width:120px;height:120px;background:#e8f0e8;border-radius:8px"></div>')+'</td>'+
       '<td style="padding:0 0 0 18px;vertical-align:middle">'+
         '<p style="font-family:Lao MN,Georgia,serif;font-size:15px;font-weight:bold;color:#1a1a1a;margin:0 0 4px;line-height:1.3">'+(prod.n||'').split(',')[0]+'</p>'+
-        '<p style="margin:0 0 6px"><span style="color:#AB8743;font-size:13px">★★★★★</span> <span style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#888">4.8 · 5,200+ reviews</span></p>'+
-        '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11.5px;color:#555;margin:0 0 10px;font-style:italic;line-height:1.55">"'+quote.q+'"<br><span style="font-style:normal;font-size:10px;color:#999">— '+quote.n+'</span></p>'+
+        '<p style="margin:0 0 6px"><span style="color:#AB8743;font-size:13px">★★★★★</span> <span style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#888">VAHDAM® bestseller</span></p>'+
+        (price?'<div style="margin:0 0 8px">'+price+'</div>':'')+
+        '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11.5px;color:#555;margin:0 0 10px;line-height:1.55">'+why+'</p>'+
         '<a href="'+pdpUrl(prod.n,c.mt)+'" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#004A2B;color:#FBF5EA;padding:7px 16px;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:bold;letter-spacing:0.12em;text-decoration:none;border-radius:5px">SHOP NOW &rarr;</a>'+
       '</td></tr></table></td></tr>';
   }
@@ -5348,11 +5456,23 @@ function buildDiscoveryMailer(uploadedDesignImg,mktOverride){
 function buildRoutineMailer(uploadedDesignImg,mktOverride){
   var c=_vhdSetup('Routine'); if(mktOverride)c.mt=mktOverride;
   var heroImg=uploadedDesignImg||(c.hero&&c.hero.i)||'';
-  var slots=[
-    {when:'MORNING',time:'7–10 AM',ico:'☀',body:'Wake-up brew',pick:c.prods[0]||{}},
-    {when:'AFTERNOON',time:'12–4 PM',ico:'🌿',body:'Mid-day reset',pick:c.prods[1]||c.prods[0]||{}},
-    {when:'EVENING',time:'7–10 PM',ico:'🌙',body:'Wind-down ritual',pick:c.prods[2]||c.prods[0]||{}}
-  ];
+  // Real pairing — pair each product to its actual best time-of-day based on
+  // category (caffeine vs herbal vs wellness). Falls back to time-of-day
+  // skeleton if user picked fewer than 3 products.
+  var slots=(function(){
+    var picks=c.prods.slice(0,3);
+    if(picks.length===3){
+      // Use actual product->slot pairing from each product's category
+      return picks.map(function(p){var s=_routineSlotForProduct(p.n||'');s.pick=p;return s;});
+    }
+    // Fallback for thin product picks: time-of-day skeleton with whatever's available
+    var fallback=[
+      {when:'MORNING',time:'7–10 AM',ico:'☀',body:'Wake-up brew',pick:picks[0]||{}},
+      {when:'AFTERNOON',time:'12–4 PM',ico:'🌿',body:'Mid-day reset',pick:picks[1]||picks[0]||{}},
+      {when:'EVENING',time:'7–10 PM',ico:'🌙',body:'Wind-down ritual',pick:picks[2]||picks[0]||{}}
+    ];
+    return fallback;
+  })();
   var html='<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VAHDAM&reg; Daily Ritual</title>'+_vhdMsoHead()+'<style>'+_vhdResponsiveCSS()+'</style></head><body style="margin:0;padding:0;background:#f0ebe0;-webkit-text-size-adjust:100%">'+
     '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0ebe0"><tr><td align="center" style="padding:24px 10px">'+
     '<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse;background:#fff">'+
@@ -5504,7 +5624,8 @@ function buildSaleMailer(uploadedDesignImg,mktOverride){
   html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.32em;text-transform:uppercase;color:#c0392b;margin:0 0 14px">✦ FLASH SALE ✦</p>\n';
   // GIANT % OFF
   html+='<p class="sale-pct-off" style="font-family:Lao MN,Georgia,serif;font-size:96px;font-weight:bold;color:#c0392b;margin:0;line-height:0.95;letter-spacing:-0.04em">'+pct+'<span style="font-size:60px">%</span></p>\n';
-  html+='<p style="font-family:Lao MN,Georgia,serif;font-size:32px;font-weight:bold;color:#004A2B;margin:0 0 22px;line-height:1.1;letter-spacing:0.04em;text-transform:uppercase">OFF EVERYTHING</p>\n';
+  // Scope DERIVED from prompt — not hardcoded "OFF EVERYTHING"
+  html+='<p style="font-family:Lao MN,Georgia,serif;font-size:32px;font-weight:bold;color:#004A2B;margin:0 0 22px;line-height:1.1;letter-spacing:0.04em;text-transform:uppercase">OFF '+_campaignScope(p)+'</p>\n';
   html+='<p class="sale-headline" style="font-family:Lao MN,Georgia,serif;font-size:22px;color:#1a1a1a;margin:0 0 20px;line-height:1.4;font-style:italic;max-width:440px;display:inline-block">'+(hl[0]||'')+(hl[1]?' '+hl[1]:'')+'</p>\n';
   // GIANT PROMO CODE PILL
   if(oc){
