@@ -901,20 +901,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
     <div id="variantSwitcher"></div>
     <!-- mktTabBar kept for backward compat but hidden — region tabs now live inside variantSwitcher -->
     <div id="mktTabBar" class="mkt-tab-bar" style="display:none!important"></div>
-    <div class="tab-bar">
-      <button class="tab on" onclick="switchTab('preview',this)">&#128065; Live Preview</button>
-      <button class="tab" onclick="switchTab('html',this)">&lt;/&gt; HTML Source Code</button>
-    </div>
-    <div id="tabPreview" class="preview-wrap">
+    <!-- Live Preview / HTML Source Code panel removed in v32 — redundant with the
+         "All Market Mailers" matrix and the unified Step 5 panel below. The
+         emailFr iframe + htmlRaw div are kept as hidden state holders so existing
+         code paths that set srcdoc / textContent don't crash. -->
+    <div style="display:none" aria-hidden="true">
       <iframe id="emailFr" src="about:blank" sandbox="allow-scripts allow-popups allow-forms allow-top-navigation-by-user-activation allow-popups-to-escape-sandbox"></iframe>
-    </div>
-    <div id="tabHtml" style="display:none">
-      <p style="font-size:11px;color:#6b7280;margin-bottom:8px;line-height:1.5">This is the raw HTML code for your email. Copy it to paste into your ESP (Mailchimp, Klaviyo etc.), or download as an <code>.html</code> file.</p>
-      <div class="html-raw-wrap"><div class="html-raw" id="htmlRaw"></div></div>
-      <div class="copy-row">
-        <button class="btn btn-outline btn-sm" onclick="copyHTML()" title="Copy the full HTML source code to your clipboard — paste into your ESP (Mailchimp, Klaviyo, etc.)">&#128203; Copy HTML to Clipboard</button>
-        <button class="btn btn-gold btn-sm" onclick="downloadHTML()" title="Download this HTML source as a .html file to your computer">&#11015; Download HTML File (.html)</button>
-      </div>
+      <div id="htmlRaw"></div>
     </div>
     <!-- ★ Strategic Brief — segment, intent, expected impact, justification -->
     <div id="step5StrategicBrief" style="margin-top:18px"></div>
@@ -939,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='unblock-iframe-v31';
+window.__VAHDAM_BUILD__='no-redundant-preview-v32';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -1860,15 +1853,17 @@ function renderMarketTabs(){
     +mkts.map(function(mkt){
       return '<button class="mkt-tab-btn'+(mkt===S.activeMarket?' on':'')+'" onclick="showMarketMailer(\''+mkt+'\')">'+(mktLabels[mkt]||mkt)+'</button>';
     }).join('')+'</div>';
-  // Second row: download-all grid
+  // Second row: per-market grid — Preview (HTML render) + View HTML (source) + Download
   var dlRow='<div style="background:#f0faf5;border:1px solid #b7e3c9;border-radius:10px;padding:12px 14px;margin-bottom:8px">'
-    +'<div style="font-size:11px;font-weight:700;color:#004A2B;margin-bottom:10px;letter-spacing:0.05em">&#128230; All '+mkts.length+' Market Mailers Generated — Preview or Download Each:</div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +'<div style="font-size:11px;font-weight:700;color:#004A2B;margin-bottom:10px;letter-spacing:0.05em">&#128230; All '+mkts.length+' Market Mailers Generated — Preview, View HTML or Download Each:</div>'
+    +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
     +mkts.map(function(mkt){
-      return '<div style="display:flex;flex-direction:column;gap:4px;align-items:center">'
+      var isActive=mkt===S.activeMarket;
+      return '<div style="display:flex;flex-direction:column;gap:4px;align-items:stretch;min-width:128px">'
         +'<div style="font-size:9px;font-weight:700;color:#555;text-align:center;letter-spacing:0.06em;margin-bottom:2px">'+(mktLabels[mkt]||mkt)+'</div>'
-        +'<button onclick="showMarketMailer(\''+mkt+'\')" style="font-size:10px;font-weight:700;padding:5px 12px;background:'+(mkt===S.activeMarket?'var(--g)':'#fff')+';color:'+(mkt===S.activeMarket?'var(--cream)':'var(--g)')+';border:1.5px solid var(--g);border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap">&#128065; Preview</button>'
-        +'<button onclick="downloadMarketMailer(\''+mkt+'\')" style="font-size:10px;font-weight:700;padding:5px 12px;background:var(--gold);color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap">&#11015; Download</button>'
+        +'<button aria-label="Preview '+mkt+' rendered mailer" onclick="showMarketMailer(\''+mkt+'\');previewMailerInModal(\''+mkt+'\')" style="font-size:10px;font-weight:700;padding:6px 12px;background:'+(isActive?'#004A2B':'#fff')+';color:'+(isActive?'#FBF5EA':'#004A2B')+';border:1.5px solid #004A2B;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap">&#128065; Preview</button>'
+        +'<button aria-label="View '+mkt+' HTML source code" onclick="viewMarketHtml(\''+mkt+'\')" style="font-size:10px;font-weight:700;padding:6px 12px;background:#fff;color:#1a3a28;border:1.5px solid #1a3a28;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap">&lt;/&gt; View HTML</button>'
+        +'<button aria-label="Download '+mkt+' mailer .html file" onclick="downloadMarketMailer(\''+mkt+'\')" style="font-size:10px;font-weight:700;padding:6px 12px;background:#AB8743;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap">&#11015; Download</button>'
         +'</div>';
     }).join('')
     +'</div></div>';
@@ -1893,6 +1888,43 @@ function downloadMarketMailer(mkt){
   URL.revokeObjectURL(a.href);
   showCopyToast(mkt+' mailer (Variant '+v+') downloaded!');
 }
+// Open the rendered mailer in a new tab — replaces the now-hidden Live Preview pane
+window.previewMailerInModal=function(mkt){
+  _ensureMailerBuilt&&_ensureMailerBuilt(mkt,S.activeVariant||'A');
+  var html=_resolveMailerHtml(S.marketMailers[mkt],S.activeVariant||'A');
+  if(!html){statusPill&&statusPill('warn','No mailer for '+mkt);return;}
+  var w=window.open('','_blank');
+  if(w){w.document.open();w.document.write(html);w.document.close();}
+  else statusPill&&statusPill('warn','Pop-up blocked — allow pop-ups to preview');
+};
+// View HTML source for a market — opens a modal with copy + download buttons
+window.viewMarketHtml=function(mkt){
+  _ensureMailerBuilt&&_ensureMailerBuilt(mkt,S.activeVariant||'A');
+  var html=_resolveMailerHtml(S.marketMailers[mkt],S.activeVariant||'A');
+  if(!html){statusPill&&statusPill('warn','No HTML for '+mkt);return;}
+  var existing=document.getElementById('vhdHtmlViewerModal');if(existing)existing.remove();
+  var v=S.activeVariant||'A';
+  var modal=document.createElement('div');
+  modal.id='vhdHtmlViewerModal';
+  modal.setAttribute('role','dialog');modal.setAttribute('aria-label','HTML source code for '+mkt);
+  modal.style.cssText='position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);padding:20px 10px;overflow-y:auto;display:flex;align-items:flex-start;justify-content:center;font-family:DM Sans,sans-serif';
+  var safeHtml=String(html).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  modal.innerHTML=
+    '<div style="background:#fff;border-radius:14px;max-width:1100px;width:100%;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.3);display:flex;flex-direction:column;max-height:calc(100vh - 40px)">'+
+      '<div style="background:linear-gradient(135deg,#004A2B,#1a3a28);padding:14px 20px;display:flex;align-items:center;gap:10px;color:#FBF5EA">'+
+        '<span style="font-size:9px;font-weight:800;letter-spacing:0.18em;text-transform:uppercase;color:#9fd6b5">HTML Source</span>'+
+        '<span style="font-family:\'Lao MN\',Georgia,serif;font-size:18px;font-weight:600">'+(({US:'🇺🇸 US',UK:'🇬🇧 UK',IN:'🇮🇳 IN',Global:'🌍 Global',ME:'🇦🇪 ME',AU:'🇦🇺 AU',EU:'🇪🇺 EU'})[mkt]||mkt)+' · Variant '+v+'</span>'+
+        '<span style="flex:1"></span>'+
+        '<button onclick="(function(){navigator.clipboard&&navigator.clipboard.writeText(window.__vhdViewerHtml||\'\').then(function(){statusPill&&statusPill(\'ok\',\'HTML copied to clipboard\');});})()" style="padding:7px 14px;background:rgba(255,255,255,0.14);color:#FBF5EA;border:1px solid rgba(255,255,255,0.3);border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.04em">📋 Copy</button>'+
+        '<button onclick="downloadMarketMailer(\''+mkt+'\')" style="padding:7px 14px;background:#AB8743;color:#fff;border:none;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.04em">⬇ Download</button>'+
+        '<button onclick="document.getElementById(\'vhdHtmlViewerModal\').remove()" aria-label="Close" style="background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.25);color:#FBF5EA;width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:18px">✕</button>'+
+      '</div>'+
+      '<div style="flex:1;overflow:auto;background:#0d1117"><pre style="margin:0;padding:18px 20px;color:#c9d1d9;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.55;white-space:pre-wrap;word-break:break-word">'+safeHtml+'</pre></div>'+
+    '</div>';
+  document.body.appendChild(modal);
+  window.__vhdViewerHtml=html;
+  modal.addEventListener('click',function(e){if(e.target===modal)modal.remove();});
+};
 function showMarketMailer(mkt){
   if(!S.marketMailers[mkt])return;
   S.activeMarket=mkt;
