@@ -32,3 +32,12 @@ build/
 # Local downloads / generated artefacts
 *.html.bak
 test-output/
+
+# Reference projects / accidental nested clones — never commit these
+vahdam-tea-architect/
+marketing_mailers__html_architect/
+
+# Credentials and PATs
+*.pat
+*.token
+.tokens/
