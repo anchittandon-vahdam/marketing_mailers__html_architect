@@ -315,6 +315,13 @@ body{font-family:DM Sans,sans-serif;background:var(--bg);background-image:radial
   display:grid;grid-template-columns:repeat(2,1fr);gap:10px;
   padding:14px 14px 16px;background:#fdfcfa
 }
+/* ── Deliverables panel attention pulse (renders once per generation cycle) ── */
+@keyframes dlPanelPulse {
+  0%   { box-shadow: 0 6px 20px rgba(212,135,58,0.18); transform: scale(1); }
+  20%  { box-shadow: 0 8px 32px rgba(212,135,58,0.55); transform: scale(1.012); }
+  60%  { box-shadow: 0 8px 32px rgba(212,135,58,0.55); transform: scale(1.012); }
+  100% { box-shadow: 0 6px 20px rgba(212,135,58,0.18); transform: scale(1); }
+}
 /* ── Skeleton shimmer for loading states (used by dashboard / KB hydration) ── */
 @keyframes vhdShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 .vhd-skel{display:block;background:linear-gradient(90deg,#ede5d8 0%,#f6f1e6 50%,#ede5d8 100%);background-size:200% 100%;animation:vhdShimmer 1.4s ease-in-out infinite;border-radius:6px}
@@ -947,7 +954,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='hooks-surfaced-v64';
+window.__VAHDAM_BUILD__='deliverables-unmissable-v65';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -1883,21 +1890,52 @@ function renderMarketTabs(){
     +mkts.map(function(mkt){
       return '<button class="mkt-tab-btn'+(mkt===S.activeMarket?' on':'')+'" onclick="showMarketMailer(\''+mkt+'\')">'+(mktLabels[mkt]||mkt)+'</button>';
     }).join('')+'</div>';
-  // Second row: per-market grid — Preview (HTML render) + View HTML (source) + Download
-  var dlRow='<div style="background:#f0faf5;border:1px solid #b7e3c9;border-radius:10px;padding:12px 14px;margin-bottom:8px">'
-    +'<div style="font-size:11px;font-weight:700;color:#0f2a1c;margin-bottom:10px;letter-spacing:0.05em">&#128230; All '+mkts.length+' Market Mailers Generated — Preview, View HTML or Download Each:</div>'
-    +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+  // ── DELIVERABLES SECTION — the part users were missing. Now it's a big,
+  //     unmissable, gold-bordered "your work is ready" panel with scroll-to.
+  var dlRow='<div id="mailerDeliverablesPanel" style="background:linear-gradient(180deg,#fdf6e8 0%,#fffbf2 100%);border:3px solid #d4873a;border-radius:14px;padding:20px 22px;margin:22px 0 14px;box-shadow:0 6px 20px rgba(212,135,58,0.18);position:relative;overflow:hidden">'
+    // Top-right "ready" tag
+    +'<div style="position:absolute;top:0;right:0;background:#0f2a1c;color:#fdf6e8;padding:6px 16px;font-size:9px;font-weight:800;letter-spacing:0.22em;text-transform:uppercase;border-bottom-left-radius:10px;font-family:DM Sans,sans-serif">✓ Ready</div>'
+    // Eyebrow
+    +'<div style="font-size:9.5px;font-weight:800;color:#d4873a;letter-spacing:0.28em;text-transform:uppercase;margin-bottom:8px;font-family:DM Sans,sans-serif">— Your Mailers Are Ready —</div>'
+    // Headline
+    +'<div style="font-family:Cormorant Garamond,Lao MN,Georgia,serif;font-size:24px;font-weight:600;color:#0f2a1c;margin-bottom:6px;line-height:1.2">'+mkts.length+' '+(mkts.length===1?'mailer':'mailers')+' generated · one per market</div>'
+    // Sub-instruction
+    +'<div style="font-size:12.5px;color:#6a5e4e;margin-bottom:18px;line-height:1.5;font-family:DM Sans,sans-serif">Preview the rendered email · view the production HTML · or download the .html file ready to paste into Klaviyo / WebEngage.</div>'
+    // The action grid — each market gets a labeled card with 3 buttons
+    +'<div style="display:flex;gap:12px;flex-wrap:wrap">'
     +mkts.map(function(mkt){
       var isActive=mkt===S.activeMarket;
-      return '<div style="display:flex;flex-direction:column;gap:4px;align-items:stretch;min-width:128px">'
-        +'<div style="font-size:9px;font-weight:700;color:#555;text-align:center;letter-spacing:0.06em;margin-bottom:2px">'+(mktLabels[mkt]||mkt)+'</div>'
-        +'<button aria-label="Preview '+mkt+' rendered mailer" onclick="showMarketMailer(\''+mkt+'\');previewMailerInModal(\''+mkt+'\')" style="font-size:10px;font-weight:700;padding:6px 12px;background:'+(isActive?'#0f2a1c':'#fff')+';color:'+(isActive?'#fdf6e8':'#0f2a1c')+';border:1.5px solid #0f2a1c;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap">&#128065; Preview</button>'
-        +'<button aria-label="View '+mkt+' HTML source code" onclick="viewMarketHtml(\''+mkt+'\')" style="font-size:10px;font-weight:700;padding:6px 12px;background:#fff;color:#1a3a28;border:1.5px solid #1a3a28;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap">&lt;/&gt; View HTML</button>'
-        +'<button aria-label="Download '+mkt+' mailer .html file" onclick="downloadMarketMailer(\''+mkt+'\')" style="font-size:10px;font-weight:700;padding:6px 12px;background:#d4873a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap">&#11015; Download</button>'
+      var entry=S.marketMailers&&S.marketMailers[mkt];
+      var hasIt=!!(entry && (typeof entry==='string'?entry.length:(entry.A||entry.B)));
+      return '<div style="flex:1;min-width:160px;display:flex;flex-direction:column;gap:6px;background:#fff;border:'+(isActive?'2px solid #0f2a1c':'1px solid #ede5d8')+';border-radius:10px;padding:12px 12px 14px;align-items:stretch;'+(isActive?'box-shadow:0 3px 12px rgba(15,42,28,0.18)':'')+'">'
+        +'<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:4px">'
+          +'<span style="font-family:Cormorant Garamond,Lao MN,Georgia,serif;font-size:15px;font-weight:600;color:#0f2a1c;letter-spacing:0.04em">'+(mktLabels[mkt]||mkt)+'</span>'
+          +(isActive?'<span style="font-size:8px;font-weight:800;padding:2px 6px;background:#0f2a1c;color:#fdf6e8;border-radius:3px;letter-spacing:0.14em">ACTIVE</span>':'')
+          +(hasIt?'':'<span style="font-size:8px;font-weight:700;padding:2px 6px;background:#fdeaea;color:#c0392b;border-radius:3px;letter-spacing:0.1em">PENDING</span>')
+        +'</div>'
+        +'<button aria-label="Preview '+mkt+' rendered mailer" onclick="showMarketMailer(\''+mkt+'\');previewMailerInModal(\''+mkt+'\')" style="font-size:11px;font-weight:700;padding:9px 12px;background:'+(isActive?'#0f2a1c':'#fff')+';color:'+(isActive?'#fdf6e8':'#0f2a1c')+';border:1.5px solid #0f2a1c;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;letter-spacing:0.04em">&#128065; Preview</button>'
+        +'<button aria-label="View '+mkt+' HTML source code" onclick="viewMarketHtml(\''+mkt+'\')" style="font-size:11px;font-weight:700;padding:9px 12px;background:#fff;color:#1a3a28;border:1.5px solid #1a3a28;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;letter-spacing:0.04em">&lt;/&gt; View HTML</button>'
+        +'<button aria-label="Download '+mkt+' mailer .html file" onclick="downloadMarketMailer(\''+mkt+'\')" style="font-size:11px;font-weight:700;padding:9px 12px;background:#d4873a;color:#fff;border:1.5px solid #d4873a;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;white-space:nowrap;letter-spacing:0.04em">&#11015; Download .html</button>'
         +'</div>';
     }).join('')
-    +'</div></div>';
+    +'</div>'
+    // "Download all" power-action below the per-market cards (only useful when 2+ markets)
+    +(mkts.length>1?'<div style="margin-top:14px;text-align:center"><button onclick="(function(){window.S&&S.markets&&S.markets.forEach(function(m){if(typeof downloadMarketMailer===\'function\')downloadMarketMailer(m);});})()" style="font-size:11.5px;font-weight:700;padding:10px 22px;background:#0f2a1c;color:#fdf6e8;border:none;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;letter-spacing:0.08em">&#11015; Download all '+mkts.length+' .html files</button></div>':'')
+    +'</div>';
   bar.innerHTML=tabRow+dlRow;
+  // Auto-scroll the deliverables panel into view the first time it renders for
+  // this generation cycle, so users never miss it.
+  try{
+    if(!window._dlPanelScrolledFor || window._dlPanelScrolledFor!==(S.markets||[]).join('|')){
+      window._dlPanelScrolledFor=(S.markets||[]).join('|');
+      setTimeout(function(){
+        var p=document.getElementById('mailerDeliverablesPanel');
+        if(p&&p.scrollIntoView)p.scrollIntoView({behavior:'smooth',block:'center'});
+        // Pulse animation to draw attention
+        if(p){p.style.animation='dlPanelPulse 2.5s ease-out';setTimeout(function(){p.style.animation='';},2600);}
+      },300);
+    }
+  }catch(_){}
 }
 // Helper: handles both legacy (string) and new variant-aware ({A,B}) storage
 function _resolveMailerHtml(entry,variant){
