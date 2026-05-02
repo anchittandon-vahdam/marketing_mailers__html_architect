@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='both-variants-elite-v41';
+window.__VAHDAM_BUILD__='contextual-layouts-v42';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -2944,6 +2944,73 @@ function generateCampaignTitle(prompt,type,products,market){
   if(first.length) first=first[0].toUpperCase()+first.slice(1);
   return first;
 }
+// ── Layout flavor mapper — drives section order, emphasis, eyebrow text ──────
+// Every campaign type maps to one of 4 visual flavors so a Sale looks visibly
+// different from a Story which looks different from a Gift. The flavor flag
+// is read inside buildEmail / buildEmailVariantB to gate sections, swap
+// eyebrow labels, and add type-specific moments (urgency banner, gift-wrap
+// callout, narrative-only section, "first access" treatment).
+function layoutFlavor(type){
+  if(type==='Sale'||type==='Bestseller'||type==='Discovery')return 'conversion';
+  if(type==='Gift'||type==='Seasonal')return 'gift';
+  if(type==='Story'||type==='Routine')return 'story';
+  if(type==='Launch')return 'launch';
+  return 'standard';
+}
+function flavorEyebrow(type,offerText){
+  // The eyebrow is the small caps label above the hero headline. Changes per type.
+  switch(type){
+    case 'Sale':       return offerText? '✦ LIMITED-TIME OFFER ✦' : '✦ FLASH SALE ✦';
+    case 'Launch':     return '✦ FIRST ACCESS · NEW ARRIVAL ✦';
+    case 'Bestseller': return '✦ 50,000+ FIVE-STAR REVIEWS ✦';
+    case 'Gift':       return '✦ A GIFT WORTH GIVING ✦';
+    case 'Discovery':  return '✦ DISCOVER YOUR NEXT FAVOURITE ✦';
+    case 'Routine':    return '✦ YOUR DAILY RITUAL ✦';
+    case 'Story':      return '✦ FROM THE INDIAN HILLS ✦';
+    case 'Seasonal':   return '✦ SEASONALLY CRAFTED ✦';
+    default:           return offerText? '✦ '+offerText+' ✦' : '✦ FOR YOU ✦';
+  }
+}
+function flavorUrgencyBanner(type,offerText,offerCode){
+  // Sale & Bestseller get a red urgency strip between announcement bar and hero.
+  if(type!=='Sale' && type!=='Bestseller')return '';
+  var msg=type==='Sale'
+    ? (offerText? '⏳ ENDS SOON · '+offerText+(offerCode?' · CODE '+offerCode:'') : '⏳ LIMITED-TIME OFFER · DON\'T MISS OUT')
+    : '⭐ TOP-RATED BY 50,000+ TEA LOVERS · LIMITED STOCK';
+  return '<tr><td style="background:#c0392b;padding:9px 22px;text-align:center;border-bottom:1px solid #a8331e">'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10.5px;letter-spacing:0.22em;text-transform:uppercase;color:#fff;margin:0;font-weight:700">'+msg+'</p>'+
+  '</td></tr>\n';
+}
+function flavorGiftCallout(type){
+  // Gift flavor adds a callout below the CTA: "Free gift wrapping · Personal note included"
+  if(type!=='Gift' && type!=='Seasonal')return '';
+  return '<div style="margin:18px 0 0;padding:12px 18px;background:rgba(171,135,67,0.08);border:1px solid rgba(171,135,67,0.3);border-radius:8px;display:inline-block">'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10.5px;font-weight:700;color:#AB8743;margin:0;letter-spacing:0.12em;text-transform:uppercase">🎁 Free Gift Wrapping &middot; Handwritten Note Included</p>'+
+  '</div>';
+}
+function flavorLaunchBadge(type){
+  // Launch flavor adds an "EXCLUSIVE FOR SUBSCRIBERS" pill near the headline
+  if(type!=='Launch')return '';
+  return '<div style="margin:0 0 14px;display:inline-block">'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:0.28em;text-transform:uppercase;color:#fff;margin:0;background:#1a3a28;display:inline-block;padding:6px 14px;border-radius:20px;border:1px solid #AB8743">⭐ Exclusive for Subscribers</p>'+
+  '</div>';
+}
+function flavorStoryNarrative(type,sectionTitle,storyText){
+  // Story / Routine flavor adds a long-form narrative section between hero and products
+  if(type!=='Story' && type!=='Routine')return '';
+  var narratives={
+    Story:'For over a decade, we\'ve walked the misty estates of Darjeeling, Assam and the Nilgiris — meeting the farmers who tend each garden, choosing each leaf at its peak. No middlemen. No compromises. Just tea, exactly as it was meant to be tasted, delivered farm-fresh from our country to yours.',
+    Routine:'A morning routine becomes ritual when it starts with intention. The kettle whistles. Steam rises. The first sip clears your mind. Whatever the day demands, your cup gets you there — calm, sharp, present. Build the habit. Feel the difference.'
+  };
+  var bodyText=narratives[type]||narratives.Story;
+  return '<tr><td style="background:#fff;padding:48px 56px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
+    '<p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.32em;color:#AB8743;margin:0 0 16px;text-transform:uppercase">✦ '+(type==='Story'?'OUR STORY':'THE RITUAL')+' ✦</p>'+
+    '<p class="vhd-h2" style="font-family:Lao MN,Georgia,serif;font-size:30px;font-weight:bold;color:#004A2B;margin:0 0 22px;line-height:1.15;font-style:italic">'+(sectionTitle||(type==='Story'?'From farm to your cup':'A daily anchor for body and mind'))+'</p>'+
+    '<div style="font-family:Lao MN,Georgia,serif;font-size:14px;color:#AB8743;margin:0 auto 22px;line-height:1;letter-spacing:0.4em">✦ &nbsp; ✦ &nbsp; ✦</div>'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:14px;color:#3a3a3a;margin:0 auto;line-height:1.85;max-width:480px">'+bodyText+'</p>'+
+  '</td></tr>\n';
+}
+
 // Refresh strategy whenever state changes. Call before generating canvas / mailer.
 // Memoised: keyed on (prompt, type, market, productHandles, regenCount, manualMode)
 // to avoid 6× recomputes per save flow. Bust cache via S._strategyCacheKey=null.
@@ -5058,6 +5125,8 @@ function buildEmail(uploadedDesignImg,mktOverride){
   const annLine=annBarLine(p,mt,campaignType);
   html+='<tr><td style="background:linear-gradient(90deg,#003d24 0%,#004A2B 50%,#003d24 100%);padding:13px 24px;text-align:center;border-radius:8px 8px 0 0;border-bottom:1px solid #AB8743">\n';
   html+='<p class="ann-bar-text" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10.5px;letter-spacing:0.26em;text-transform:uppercase;color:#FBF5EA;margin:0;font-weight:600"><span style="color:#AB8743;font-weight:bold">✦</span> &nbsp;'+annLine+'&nbsp; <span style="color:#AB8743;font-weight:bold">✦</span></p>\n</td></tr>\n';
+  // S1.5 — Type-specific urgency banner (Sale / Bestseller only)
+  html+=flavorUrgencyBanner(campaignType,ot,oc);
   // S2 — Logo / header — refined editorial monogram with hairline gold accent
   html+='<tr><td class="pd20" style="background:#ffffff;padding:30px 32px 18px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">\n';
   html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;letter-spacing:0.36em;text-transform:uppercase;color:#AB8743;margin:0 0 12px;font-weight:700">— EST. 2015 &middot; NEW DELHI &middot; INDIA —</p>\n';
@@ -5073,9 +5142,10 @@ function buildEmail(uploadedDesignImg,mktOverride){
   html+='<tr><td style="padding:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">\n';
   html+='<table width="600" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#FBF5EA"><tr>\n';
   html+='<td class="hero-left" width="300" valign="middle" style="width:300px;padding:42px 28px 42px 34px;vertical-align:middle;background:linear-gradient(180deg,#FBF5EA 0%,#f6efde 100%)">\n';
-  if(ot){
-    html+='<p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:0.32em;text-transform:uppercase;color:#AB8743;margin:0 0 14px">✦ '+ot+' ✦</p>\n';
-  }
+  // Launch flavor: "Exclusive for Subscribers" badge above eyebrow
+  html+=flavorLaunchBadge(campaignType);
+  // Type-specific eyebrow — every campaign type has a tailored label
+  html+='<p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:0.32em;text-transform:uppercase;color:#AB8743;margin:0 0 14px">'+flavorEyebrow(campaignType,ot)+'</p>\n';
   html+='<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:46px;font-weight:bold;color:#004A2B;margin:0 0 6px;line-height:1.02;letter-spacing:-0.018em">'+hl[0]+'</p>\n';
   if(hl[1]) html+='<p class="vhd-h2" style="font-family:Lao MN,Georgia,serif;font-size:42px;font-weight:bold;color:#AB8743;margin:0 0 16px;line-height:1.02;font-style:italic;letter-spacing:-0.012em">'+hl[1]+'</p>\n';
   // Ornate triple-motif divider
@@ -5092,6 +5162,8 @@ function buildEmail(uploadedDesignImg,mktOverride){
   // VALUE SUMMARY — % off + code + free shipping at a glance (the visible-offer fix)
   var valueLine=valueSummaryLine(p,mt);
   if(valueLine)html+='\n<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;font-weight:700;color:#c0392b;margin:14px 0 0;letter-spacing:0.04em;line-height:1.5">&#9889; '+valueLine+'</p>\n';
+  // Gift / Seasonal flavor: gift-wrapping callout below the CTA
+  html+=flavorGiftCallout(campaignType);
   html+='<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border-top:1px solid #e4dbd0;margin-top:16px"><tr>\n';
   feats.forEach(function(f,i){
     var sp=f.indexOf(' ');var icon=sp>0?f.substring(0,sp):f;var lbl=sp>0?f.substring(sp+1):f;
@@ -5126,6 +5198,8 @@ function buildEmail(uploadedDesignImg,mktOverride){
   // S5 — Social proof bar
   html+='<tr><td style="background:#1a3a28;padding:13px 24px;text-align:center;border-left:1px solid #1a3a28;border-right:1px solid #1a3a28">\n';
   html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#9fd6b5;margin:0;letter-spacing:0.05em"><span style="color:#AB8743">&#9733;&#9733;&#9733;&#9733;&#9733;</span> &nbsp;'+mktIntel.social+' &nbsp;&middot;&nbsp; &#127807; 100% Natural &nbsp;&middot;&nbsp; '+mktIntel.trustBar+'</p>\n</td></tr>\n';
+  // S5.5 — Story / Routine flavor: narrative section between social proof and product grid
+  html+=flavorStoryNarrative(campaignType,secTitle,sc);
   // S6 — Product grid (all products, multi-row, 4 per row)
   _prodIdx=0;
   html+='<tr><td class="pd20" style="background:#f8f4ee;padding:28px 20px 16px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">\n';
