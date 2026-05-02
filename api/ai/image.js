@@ -41,11 +41,12 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'server_misconfigured', detail: 'OPENAI_API_KEY not set in Vercel env' });
-  }
-  const imageModel = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
+  // PROVIDER WATERFALL: OpenAI → Pollinations (free, no auth, unlimited)
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const provider = openaiKey ? 'openai' : 'pollinations';
+  const imageModel = openaiKey
+    ? (process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1')
+    : 'flux'; // pollinations default model
 
   let body = req.body;
   if (typeof body === 'string') {
@@ -67,49 +68,60 @@ module.exports = async function handler(req, res) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 90000); // image gen takes longer
   try {
-    const fetchRes = await fetch(OPENAI_BASE + '/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey
-      },
-      body: JSON.stringify({
-        model: imageModel,
-        prompt: finalPrompt,
-        n: 1,
-        size: size,
-        quality: quality
-      }),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-    if (!fetchRes.ok) {
-      const errBody = await fetchRes.text().catch(() => '');
-      return res.status(fetchRes.status).json({ error: 'openai_image_error', status: fetchRes.status, detail: errBody.substring(0, 500) });
-    }
-    const data = await fetchRes.json();
-    const imgEntry = data.data && data.data[0];
-    if (!imgEntry) return res.status(502).json({ error: 'no_image_returned' });
-
     let dataUrl = '';
-    if (imgEntry.b64_json) {
-      dataUrl = 'data:image/png;base64,' + imgEntry.b64_json;
-    } else if (imgEntry.url) {
-      // gpt-image-1 returns b64 by default; URL fallback for older models
-      try {
-        const imgFetch = await fetch(imgEntry.url);
-        const buf = await imgFetch.arrayBuffer();
-        const b64 = Buffer.from(buf).toString('base64');
-        dataUrl = 'data:image/png;base64,' + b64;
-      } catch (e) {
-        return res.status(502).json({ error: 'fetch_image_url_failed', url: imgEntry.url });
+    if (provider === 'openai') {
+      const fetchRes = await fetch(OPENAI_BASE + '/images/generations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + openaiKey },
+        body: JSON.stringify({ model: imageModel, prompt: finalPrompt, n: 1, size, quality }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!fetchRes.ok) {
+        const errBody = await fetchRes.text().catch(() => '');
+        return res.status(fetchRes.status).json({ error: 'openai_image_error', status: fetchRes.status, detail: errBody.substring(0, 500) });
+      }
+      const data = await fetchRes.json();
+      const imgEntry = data.data && data.data[0];
+      if (!imgEntry) return res.status(502).json({ error: 'no_image_returned', provider });
+      if (imgEntry.b64_json) {
+        dataUrl = 'data:image/png;base64,' + imgEntry.b64_json;
+      } else if (imgEntry.url) {
+        try {
+          const imgFetch = await fetch(imgEntry.url);
+          const buf = await imgFetch.arrayBuffer();
+          dataUrl = 'data:image/png;base64,' + Buffer.from(buf).toString('base64');
+        } catch (e) {
+          return res.status(502).json({ error: 'fetch_image_url_failed', provider, url: imgEntry.url });
+        }
+      } else {
+        return res.status(502).json({ error: 'unrecognised_image_response', provider });
       }
     } else {
-      return res.status(502).json({ error: 'unrecognised_image_response' });
+      // Pollinations.ai — free, no auth, FLUX model. Returns image directly.
+      // Map our size -> pollinations dimensions
+      const sizeMap = { '1024x1024': { w: 1024, h: 1024 }, '1024x1536': { w: 1024, h: 1536 }, '1536x1024': { w: 1536, h: 1024 } };
+      const dim = sizeMap[size] || sizeMap['1024x1536'];
+      const seed = Math.floor(Math.random() * 1000000);
+      const url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(finalPrompt.substring(0, 1500))
+        + '?width=' + dim.w + '&height=' + dim.h + '&seed=' + seed + '&nologo=true&model=' + imageModel + '&enhance=true';
+      try {
+        const imgFetch = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (!imgFetch.ok) {
+          return res.status(imgFetch.status).json({ error: 'pollinations_error', provider, status: imgFetch.status });
+        }
+        const buf = await imgFetch.arrayBuffer();
+        const contentType = imgFetch.headers.get('content-type') || 'image/jpeg';
+        dataUrl = 'data:' + contentType + ';base64,' + Buffer.from(buf).toString('base64');
+      } catch (e) {
+        clearTimeout(timeout);
+        return res.status(502).json({ error: 'pollinations_fetch_failed', provider, detail: String(e.message || e).substring(0, 200) });
+      }
     }
-    return res.status(200).json({ ok: true, model: imageModel, size, quality, image_data_url: dataUrl });
+    return res.status(200).json({ ok: true, provider, model: imageModel, size, quality, image_data_url: dataUrl });
   } catch (e) {
     clearTimeout(timeout);
-    return res.status(500).json({ error: 'server_error', detail: String(e && e.message || e).substring(0, 300) });
+    return res.status(500).json({ error: 'server_error', provider, detail: String(e && e.message || e).substring(0, 300) });
   }
 };

@@ -13,6 +13,7 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 const OPENAI_BASE = 'https://api.openai.com/v1';
+const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 // ────────────────────────────────────────────────────────────────────────────
 // MASTER PROMPTS (production-grade, embedded server-side so they cannot be
@@ -70,11 +71,16 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'server_misconfigured', detail: 'OPENAI_API_KEY not set in Vercel env' });
+  // PROVIDER WATERFALL: OpenAI → Gemini (free) → heuristic (client-side, handled separately)
+  const openaiKey = process.env.OPENAI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!openaiKey && !geminiKey) {
+    return res.status(500).json({ error: 'server_misconfigured', detail: 'Neither OPENAI_API_KEY nor GEMINI_API_KEY set in Vercel env. Get a free Gemini key at https://aistudio.google.com/app/apikey' });
   }
-  const textModel = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
+  const provider = openaiKey ? 'openai' : 'gemini';
+  const textModel = provider === 'openai'
+    ? (process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini')
+    : (process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash');
 
   let body = req.body;
   if (typeof body === 'string') {
@@ -111,49 +117,73 @@ module.exports = async function handler(req, res) {
     userMessage = `SEED IDEA: ${campaign_brief || '(no seed — invent a strong one for the inputs below)'}\nCAMPAIGN TYPE: ${theme}\nMARKETS: ${market}${productsLine}\n\nWrite the brief now.`;
   }
 
-  // ── OpenAI Chat Completions call with timeout + retry ──
+  // ── Provider-specific call ──
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
+  const temperature = 0.7 + Math.min(0.3, regenerate_counter * 0.1);
+  const max_tokens = mode === 'mailer_full' ? 6000 : (mode === 'concepts' ? 4500 : 1500);
   try {
-    const fetchRes = await fetch(OPENAI_BASE + '/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey
-      },
-      body: JSON.stringify({
-        model: textModel,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        max_tokens: mode === 'mailer_full' ? 6000 : (mode === 'concepts' ? 4500 : 1500),
-        temperature: 0.7 + Math.min(0.3, regenerate_counter * 0.1),
-        ...(response_format ? { response_format } : {})
-      }),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-    if (!fetchRes.ok) {
-      const errBody = await fetchRes.text().catch(() => '');
-      return res.status(fetchRes.status).json({ error: 'openai_error', status: fetchRes.status, detail: errBody.substring(0, 500) });
+    let text = '';
+    if (provider === 'openai') {
+      const fetchRes = await fetch(OPENAI_BASE + '/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + openaiKey },
+        body: JSON.stringify({
+          model: textModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage }
+          ],
+          max_tokens, temperature,
+          ...(response_format ? { response_format } : {})
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!fetchRes.ok) {
+        const errBody = await fetchRes.text().catch(() => '');
+        return res.status(fetchRes.status).json({ error: 'openai_error', status: fetchRes.status, detail: errBody.substring(0, 500) });
+      }
+      const data = await fetchRes.json();
+      text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    } else {
+      // Gemini call — free tier, 1500 req/day on gemini-1.5-flash
+      // System prompt becomes part of the user message since Gemini has different message shape
+      const geminiPrompt = systemPrompt + '\n\n---\nUSER REQUEST:\n' + userMessage;
+      const fetchRes = await fetch(GEMINI_BASE + '/models/' + encodeURIComponent(textModel) + ':generateContent?key=' + encodeURIComponent(geminiKey), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: geminiPrompt }] }],
+          generationConfig: {
+            temperature,
+            maxOutputTokens: max_tokens,
+            ...(response_format ? { responseMimeType: 'application/json' } : {})
+          }
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!fetchRes.ok) {
+        const errBody = await fetchRes.text().catch(() => '');
+        return res.status(fetchRes.status).json({ error: 'gemini_error', status: fetchRes.status, detail: errBody.substring(0, 500) });
+      }
+      const data = await fetchRes.json();
+      text = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
     }
-    const data = await fetchRes.json();
-    const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
     if (mode === 'concepts' || mode === 'mailer_full') {
       let parsed;
       try { parsed = JSON.parse(text); } catch (e) {
-        // strip code fences and retry
         const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
         try { parsed = JSON.parse(stripped); } catch (e2) {
-          return res.status(502).json({ error: 'json_parse_failed', raw: text.substring(0, 600) });
+          return res.status(502).json({ error: 'json_parse_failed', provider, raw: text.substring(0, 600) });
         }
       }
-      return res.status(200).json({ ok: true, mode, model: textModel, data: parsed });
+      return res.status(200).json({ ok: true, mode, provider, model: textModel, data: parsed });
     }
-    return res.status(200).json({ ok: true, mode, model: textModel, text });
+    return res.status(200).json({ ok: true, mode, provider, model: textModel, text });
   } catch (e) {
     clearTimeout(timeout);
-    return res.status(500).json({ error: 'server_error', detail: String(e && e.message || e).substring(0, 300) });
+    return res.status(500).json({ error: 'server_error', provider, detail: String(e && e.message || e).substring(0, 300) });
   }
 };
