@@ -956,7 +956,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='no-duplicate-chrome-v73';
+window.__VAHDAM_BUILD__='openai-server-side-v74';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -1661,31 +1661,34 @@ function toggleMarket(m,el){
 async function createPromptWithAI(){
   var ta=document.getElementById('promptIn');
   var seed=(ta?ta.value:'').trim();
-  var key=(document.getElementById('claudeKeyIn')&&document.getElementById('claudeKeyIn').value||'').trim();
-  if(!key){
-    if(typeof statusPill==='function')statusPill('warn','Add your Claude API key in the AI Tools tab','Create with AI uses Claude Haiku 4.5 — paste your key in p4-claude tab');
-    else showCopyToast('Add your Claude API key in the AI Tools tab');
-    return;
-  }
   var type=(window.S&&S.type)?S.type:'Campaign';
   var mkts=(window.S&&S.markets&&S.markets.length>0)?S.markets:['US'];
   var primaryMkt=mkts[0]||'US';
-  var prods=(window.S&&S.finalProds&&S.finalProds.length)?S.finalProds.slice(0,5).map(function(p){return p.n;}).filter(Boolean):[];
+  var prods=(window.S&&S.finalProds&&S.finalProds.length)?S.finalProds.slice(0,5).map(function(p){return {name:p.n,handle:p.handle,category:p.category,price:p.price,compare_at:p.compare_at};}):[];
   var btn=event&&event.target;
   if(btn){btn.disabled=true;btn.dataset._origText=btn.innerHTML;btn.innerHTML='⏳ Creating...';}
-  if(typeof statusPill==='function')statusPill('loading','Claude is drafting a director-grade brief...');
-  var system='You are a D2C growth director and creative lead at a premium tea brand agency. Your job: take a thin campaign idea and write a SINGLE production-ready brief that the downstream concept + image + HTML pipeline can render perfectly.\n\nThe brief MUST contain (in plain prose, NOT bullets):\n  1. Campaign goal in one sentence (what business outcome).\n  2. Audience segment (new / repeat / lapsed) with one-line emotional state.\n  3. PRIMARY HOOK explicit: offer | benefit | origin-freshness — and what specifically (e.g. \"20% off iced teas\", \"calm focus\", \"single-estate Darjeeling harvested 6 weeks ago\").\n  4. SECONDARY HOOK reinforcing the primary.\n  5. Hero scene direction — specific photographic instruction (\"overhead of dry hibiscus petals on raw linen\", not \"product image\").\n  6. Headline angle — sensory OR benefit-led OR offer-integrated, with 1-2 example phrasings.\n  7. CTA verb pattern (Discover/Begin/Claim/Steep) aligned to the angle.\n  8. Mood + tone descriptor (calm-confident-premium).\n\nVAHDAM brand foundation to honor: premium Indian heritage tea, ritual not regimen, single-estate ethical sourcing, US-primary audience.\nBANNED phrases (never include): \"wellness journey\", \"transform\", \"liquid gold\", \"game-changer\", \"LIMITED TIME\" caps, \"You won\'t believe\", \"Hurry\", \"Don\'t miss out\", \"Last chance\".\nPREFERRED vocabulary: ritual, restore, balance, origin, single-estate, hand-picked, steep, heritage, crafted.\n\nOUTPUT: 180-280 words plain prose. No headings, no bullets, no markdown. Reads like a senior growth director briefing a creative team. The downstream concept ideation system will parse it.';
-  var userMsg='SEED IDEA: '+(seed||'(no seed — invent a strong one for the inputs below)')+'\nCAMPAIGN TYPE: '+type+'\nMARKETS: '+mkts.join(', ')+' (primary: '+primaryMkt+')\n'+(prods.length?'PRODUCTS PICKED: '+prods.join('; ')+'\n':'')+'\nWrite the brief now.';
+  if(typeof statusPill==='function')statusPill('loading','Drafting director-grade brief via OpenAI...');
+  // ── v74: SERVER-SIDE call — no API key required from user.
+  //    Falls through to /api/ai/generate which uses OPENAI_API_KEY from Vercel env.
   try{
-    var res=await fetch('https://api.anthropic.com/v1/messages',{
+    var res=await fetch('/api/ai/generate',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:1500,system:system,messages:[{role:'user',content:userMsg}]})
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        mode:'create_brief',
+        market:primaryMkt,
+        theme:type,
+        campaign_brief:seed,
+        selected_products:prods
+      })
     });
-    if(!res.ok){var err=await res.json().catch(function(){return {};});throw new Error((err.error&&err.error.message)||'Claude error '+res.status);}
+    if(!res.ok){
+      var errBody=await res.json().catch(function(){return {};});
+      throw new Error((errBody.error||'server_error')+(errBody.detail?': '+errBody.detail:''));
+    }
     var data=await res.json();
-    var text=((data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('')).trim();
-    if(!text){throw new Error('Empty response');}
+    var text=(data&&data.text||'').trim();
+    if(!text){throw new Error('Empty response from server');}
     if(ta){
       ta.value=text;
       ta.style.minHeight='260px';
@@ -1693,12 +1696,14 @@ async function createPromptWithAI(){
       ta.focus();
       ta.setSelectionRange(0,0);
     }
-    if(typeof statusPill==='function')statusPill('ok','Brief created — review and Generate when ready','Director-grade brief from Claude');
+    if(typeof statusPill==='function')statusPill('ok','Brief created — review and Generate when ready','Director-grade brief from OpenAI · '+(data.model||'gpt-4o-mini'));
     else showCopyToast('✓ Created — review and Generate');
   }catch(e){
     console.warn('[createPromptWithAI] error:',e);
-    if(typeof statusPill==='function')statusPill('err','Create failed — falling back to Enhance',e.message);
+    if(typeof statusPill==='function')statusPill('err','Create failed — using heuristic Enhance',String(e.message||e));
     else showCopyToast('Create failed — try Enhance instead');
+    // Graceful fallback: trigger heuristic enhance so the user gets SOMETHING usable
+    if(typeof enhancePrompt==='function')try{enhancePrompt();}catch(_){}
   }finally{
     if(btn){btn.disabled=false;if(btn.dataset._origText)btn.innerHTML=btn.dataset._origText;}
   }
@@ -3998,35 +4003,21 @@ function openClaudeAI(){openExternalTool('Claude.ai','https://claude.ai/','Paste
 function openGemini(){openExternalTool('Google Gemini','https://gemini.google.com/','Paste your prompt into Gemini for image generation.');}
 function openGoogleSearch(query){openExternalTool('Google Search','https://www.google.com/search?q='+encodeURIComponent(query||'VAHDAM India tea email design inspiration'),'Opening search results in a new tab.');}
 async function generateWithOpenAI(){
-  var key=(document.getElementById('openaiKeyIn').value||'').trim();
-  if(!key){
-    switchP4Tab('chatgpt',document.getElementById('tab-chatgpt'));
-    showCopyToast('No OpenAI key — use the AI tools tab to generate an image');
-    return;
-  }
+  // v74: SERVER-SIDE call via /api/ai/image — uses OPENAI_API_KEY from Vercel env.
+  // Browser key input (openaiKeyIn) is now optional; if present we still use server.
   var prompt=S.lastImagePrompt||document.getElementById('promptMono').textContent;
-  showCopyToast('Generating image via OpenAI gpt-image-1...');
+  showCopyToast('Generating image via OpenAI gpt-image-1 (server-side)...');
+  if(typeof statusPill==='function')statusPill('loading','OpenAI image generation in progress (~15-30s)');
   try{
-    var res=await fetch('https://api.openai.com/v1/images/generations',{
+    var res=await fetch('/api/ai/image',{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-      body:JSON.stringify({model:'gpt-image-1',prompt:prompt.substring(0,4000)+'\n\nRender at maximum sharpness: razor-crisp product surfaces, gallery-print resolution, every typography character cleanly anti-aliased, no soft-focus haze, no AI smear artifacts.',n:1,size:'1024x1536',quality:'high'})
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({prompt:prompt.substring(0,3500),size:'1024x1536',quality:'high'})
     });
-    if(!res.ok){var err=await res.json().catch(function(){return {};});throw new Error((err.error&&err.error.message)||'OpenAI error '+res.status);}
+    if(!res.ok){var err=await res.json().catch(function(){return {};});throw new Error((err.error||'image_error')+(err.detail?': '+err.detail:''));}
     var data=await res.json();
-    var imgData=data.data&&data.data[0];
-    if(!imgData)throw new Error('No image returned');
-    var dataUrl;
-    if(imgData.b64_json){
-      dataUrl='data:image/png;base64,'+imgData.b64_json;
-    } else if(imgData.url){
-      // Fetch and convert to data URL
-      var imgRes=await fetch(imgData.url);
-      var blob=await imgRes.blob();
-      dataUrl=await new Promise(function(r){var reader=new FileReader();reader.onload=function(e){r(e.target.result);};reader.readAsDataURL(blob);});
-    } else {
-      throw new Error('Unrecognised image response format');
-    }
+    var dataUrl=data&&data.image_data_url;
+    if(!dataUrl)throw new Error('No image returned by server');
     // Load into upload tab and auto-switch
     S.uploadedDesignUrl=dataUrl;
     var img=document.getElementById('uploadedImg');
