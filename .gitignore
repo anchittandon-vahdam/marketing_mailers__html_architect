@@ -37,6 +37,12 @@ test-output/
 vahdam-tea-architect/
 marketing_mailers__html_architect/
 
+# Supabase CLI runtime files
+supabase/.temp/
+
+# Claude Code local config
+.claude/
+
 # Credentials and PATs
 *.pat
 *.token
