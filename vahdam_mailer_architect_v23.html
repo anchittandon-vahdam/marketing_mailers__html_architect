@@ -939,7 +939,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='deliver-not-claim-v28';
+window.__VAHDAM_BUILD__='enhance-final-only-v29';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -1632,12 +1632,18 @@ function enhancePrompt(){
   var enhanced=buildEnhancedPrompt(raw);
   if(ta){
     ta.value=enhanced;
-    ta.style.minHeight='200px';
-    // Highlight the original idea line in the textarea (show it's preserved)
-    ta.setSelectionRange(0,raw.length);
+    ta.style.minHeight='240px';
+    // Scroll the textarea to the top so the user reads the final brief in order
+    ta.scrollTop=0;
     ta.focus();
+    // Place the cursor at the very top — no auto-selection, prevents accidental overwrite
+    ta.setSelectionRange(0,0);
   }
-  showCopyToast('✓ Enhanced with D2C growth brief — your idea ('+type+' · '+mkts+') is preserved at the top. Review before generating.');
+  if(typeof statusPill==='function'){
+    statusPill('ok','Enhanced with D2C growth brief','This is the final prompt — review and Generate when ready');
+  } else {
+    showCopyToast('✓ Enhanced — this is the final prompt that will be sent to generation');
+  }
 }
 function updatePromptPlaceholder(){
   var ta=document.getElementById('promptIn');
@@ -1727,12 +1733,15 @@ function buildEnhancedPrompt(raw){
   // ── MULTI-MARKET NOTE ─────────────────────────────────────────────────────
   var multiNote=isMultiMkt?'MULTI-MARKET DEPLOYMENT: This campaign deploys across '+mkts.join(', ')+'. Each market version should adapt: currency, shipping threshold, British vs American English (UK vs US), and culturally resonant hooks. Core campaign theme and visual identity stay consistent across all markets.':'';
 
-  // ── ASSEMBLE ENHANCED BRIEF ───────────────────────────────────────────────
-  // User's original prompt is ALWAYS first — never modified
+  // ── ASSEMBLE THE FINAL ENHANCED BRIEF ─────────────────────────────────────
+  // Single coherent document — the user's idea is folded in as the BRIEF field
+  // (not duplicated above). What the textarea shows IS what downstream gets.
   var lines=[];
-  lines.push(raw.trim());
-  lines.push('');
   lines.push('── D2C GROWTH BRIEF (Director of Growth & Marketing) ──────────────────');
+  lines.push('CAMPAIGN: '+type+' · MARKETS: '+mkts.join(', '));
+  lines.push('');
+  lines.push('BRIEF: '+raw.trim());
+  lines.push('');
   lines.push('CAMPAIGN OBJECTIVE: '+objective);
   lines.push('');
   lines.push('TARGET AUDIENCE: '+audience);
