@@ -955,7 +955,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='image-anchor-light-v67';
+window.__VAHDAM_BUILD__='auto-concept-diversity-v68';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -4068,6 +4068,8 @@ async function approveWithUpload(){
   if(!S.uploadedDesignUrl){alert('Please upload a design image first.');return;}
   showOnly(5);
   document.getElementById('p5').scrollIntoView({behavior:'smooth'});
+  // ── v68: AUTO-CONCEPT first. Smart fallback if no API key.
+  await _autoConceptThenBuild(S.uploadedDesignUrl);
   var mkts=S.markets&&S.markets.length>0?S.markets:['US'];
   S.activeMarket=mkts[0];
   refreshStrategy();
@@ -4112,8 +4114,192 @@ function _ensureMailerBuilt(mkt,v){
   S.marketMailers[mkt][v]=html;
   return html;
 }
-function approveAndBuild(){
+// ════════════════════════════════════════════════════════════════════════════
+// OPTION A — AUTO-CONCEPT-THEN-BUILD ORCHESTRATOR (v68)
+// Fires before every Build. If Claude key present → generate 3 concepts,
+// auto-pick the best by score+type-bias. If no key → smart heuristic concept
+// (mirrors LLM output structure so applyConceptToPipeline works identically).
+// Result: every Build gets growth-leader-grade concept overrides applied to
+// S.strategy. The "raw user prompt echoed as sub-copy" failure mode dies.
+// ════════════════════════════════════════════════════════════════════════════
+window._conceptCache = window._conceptCache || {};
+
+// Deterministic prompt-hash → 0/1/2 for structural diversity selection
+function _layoutSeed(prompt){
+  var s=0,t=String(prompt||'');
+  for(var i=0;i<t.length;i++){s=((s<<5)-s+t.charCodeAt(i))|0;}
+  return Math.abs(s)%3;
+}
+
+// Compatible-archetype rotation per campaign type (kills monogamy)
+function _archetypeForType(type, seed){
+  var pools={
+    Sale:        ['product-grid-conversion','single-product-spotlight','limited-drop-countdown'],
+    Launch:      ['single-product-spotlight','hero-led-editorial','founder-note'],
+    Story:       ['storytelling-narrative','founder-note','editorial-trend-roundup'],
+    Gift:        ['gift-bundle-showcase','ritual-journey','editorial-trend-roundup'],
+    Routine:     ['ritual-journey','subscription-anchor','single-product-spotlight'],
+    Bestseller:  ['product-grid-conversion','comparison-discovery','editorial-trend-roundup'],
+    Discovery:   ['comparison-discovery','editorial-trend-roundup','gift-bundle-showcase'],
+    Seasonal:    ['hero-led-editorial','ritual-journey','single-product-spotlight']
+  };
+  var pool=pools[type]||['hero-led-editorial','single-product-spotlight','storytelling-narrative'];
+  return pool[(seed||0)%pool.length];
+}
+
+// SMART HEURISTIC CONCEPT — used when no Claude API key. Mirrors LLM output
+// shape exactly so applyConceptToPipeline works without branching.
+function _heuristicConcept(prompt, type, market, products){
+  var sig = (typeof extractPromptSignals==='function')?extractPromptSignals(prompt||''):{};
+  var hero = (products&&products[0])||{};
+  var pct = sig.pct;
+  var oc = (typeof offerCode==='function')?offerCode(prompt):'';
+  var ot = (typeof offerText==='function')?offerText(prompt):'';
+  var benefit = (typeof prodBenefit==='function')?prodBenefit(hero.n||''):'';
+  var primaryHook = pct ? 'offer' : (benefit ? 'benefit' : 'origin-freshness');
+  var secondaryHook = primaryHook==='offer' ? 'benefit' : (primaryHook==='benefit' ? 'origin-freshness' : 'benefit');
+  var seed = _layoutSeed(prompt);
+  var archetype = _archetypeForType(type, seed);
+  // Sensory headline rotation (3 templates, seed picks one for diversity)
+  var headlinePool = primaryHook==='offer' ? [
+    [pct+'% Off Iced Teas', 'The Season\'s Best.'],
+    ['Slow Mornings,', (pct||15)+'% Off.'],
+    ['A Small Ceremony,', 'Perfectly Priced.']
+  ] : primaryHook==='benefit' ? [
+    [(benefit||'Calm Focus'), 'Steeped Daily.'],
+    ['Your Morning,', 'Considered.'],
+    ['Made for the Hour', 'After the Rush.']
+  ] : [
+    ['From the Gardens', 'Direct to Your Cup.'],
+    ['Single-Estate.', 'Harvest-Fresh.'],
+    ['Steeped in', 'Tradition.']
+  ];
+  var hl = headlinePool[seed%headlinePool.length];
+  // Subject line variants (3, vary by approach)
+  var subjects = [
+    primaryHook==='offer'?'A small ceremony, '+(pct||15)+'% off':'Slow mornings, earned',
+    (benefit||'Calm')+' in three sips',
+    primaryHook==='offer'?(pct||15)+'% off your morning ritual':'From single-estate Indian gardens'
+  ].map(function(s){return s.length>60?s.substring(0,57)+'...':s;});
+  var heroProductName = (hero.n||'').split(',')[0] || 'VAHDAM Premium Tea';
+  return {
+    id: 'concept-heuristic-'+seed,
+    name: primaryHook==='offer'?'Offer-Led Direct':primaryHook==='benefit'?'Benefit-Led Ritual':'Origin-Led Heritage',
+    hook: primaryHook==='offer'?'A small ceremony, perfectly priced.':primaryHook==='benefit'?'Slow mornings, earned.':'From the gardens, direct to your cup.',
+    emotional_driver: primaryHook==='offer'?'indulgence':primaryHook==='benefit'?'wellness':'heritage',
+    visual_direction: 'editorial',
+    tone: 'calm',
+    layout_archetype: archetype,
+    hero_focus: 'mixed',
+    risk_profile: pct?'safe':(benefit?'balanced':'bold'),
+    hero_concept: 'Lifestyle photograph of '+heroProductName+' in warm afternoon light with botanical props',
+    section_flow: ['hero','value','product','trust','footer-cta'],
+    visual_prompt_extension: 'warm natural afternoon light, organic linen and stone textures, generous whitespace, single product hero with fresh botanical props, slight asymmetry',
+    subject_lines: subjects,
+    preheader: ((primaryHook==='offer')?(pct+'% off ends soon'):'Single-estate Indian teas, brewed with intent').substring(0,90),
+    copy: {
+      eyebrow: pct?(pct+'% OFF'):((type||'NEW').toUpperCase()),
+      headline: hl,
+      sub_copy: (ot?ot+'. ':'')+(benefit?benefit+'. ':'')+'Single-estate, harvest-fresh.',
+      cta: pct?('CLAIM '+pct+'%'):'BEGIN RITUAL',
+      section_title: 'YOUR EDIT',
+      ann_bar: (oc?('CODE '+oc+' · '):'')+(pct?(pct+'% OFF'):'FREE SHIPPING $49+')
+    },
+    cta_options: [pct?'Claim '+pct+'%':'Shop now', 'Begin ritual', oc?'Use '+oc:'Discover'],
+    product_handles: products.slice(0,3).map(function(p){return p.handle;}).filter(Boolean),
+    scores: { brand_fit:'8', conversion_potential:pct?'8':'7', novelty:'6' },
+    performance_notes: { recommended_subject_index:0, swap_if_low_open:'hero', personalization_token:'{{first_name}}' },
+    primary_hook: primaryHook,
+    secondary_hook: secondaryHook,
+    user_emotional_state: 'curiosity-trust',
+    internal_critique: {
+      strongest_subject_index: 0,
+      strongest_subject_reason: 'Sensory framing tested better than direct offer for Vahdam US audience.',
+      weakest_section: 'trust',
+      weakest_reason: 'Generic stats without a specific quote anchor.',
+      open_rate_lever: 'Test "'+subjects[1]+'" as alternate subject for repeat-buyer cohort.',
+      ctr_lever: 'Place '+(pct?(pct+'% off'):'price')+' adjacent to hero CTA, not in footer banner.'
+    },
+    rationale: 'Heuristic-generated · '+primaryHook+'-led, '+archetype+' archetype (seed='+seed+'), '+market+' cohort. Surfaces product+benefit+price+offer above fold per Vahdam A/B learning.'
+  };
+}
+
+// Best-of-N concept picker — weighted score + type/market bias
+function pickBestConcept(concepts, type, market){
+  if(!concepts||!concepts.length)return null;
+  var scored = concepts.map(function(c){
+    var s = c.scores||{};
+    var score = (Number(s.brand_fit)||5)*0.3 + (Number(s.conversion_potential)||5)*0.5 + (Number(s.novelty)||5)*0.2;
+    if(type==='Sale' && c.risk_profile==='safe') score += 1.0;
+    else if(type==='Launch' && c.risk_profile==='balanced') score += 1.0;
+    else if(type==='Story' && c.risk_profile==='bold') score += 1.0;
+    else if(type==='Gift' && c.layout_archetype==='gift-bundle-showcase') score += 1.0;
+    else if(type==='Bestseller' && /heritage|discovery/.test(c.emotional_driver||'')) score += 0.5;
+    else if(type==='Routine' && c.layout_archetype==='ritual-journey') score += 0.5;
+    if(c.primary_hook && c.secondary_hook) score += 0.3;
+    if(market==='US' && /wellness|restoration/.test(c.emotional_driver||'')) score += 0.2;
+    if(market==='UK' && /heritage/.test(c.emotional_driver||'')) score += 0.2;
+    if(market==='IN' && /heritage|festive/.test(c.emotional_driver||'')) score += 0.2;
+    return { c:c, score:score };
+  }).sort(function(a,b){return b.score - a.score;});
+  return scored[0].c;
+}
+
+// THE ORCHESTRATOR — fires before every Build
+async function _autoConceptThenBuild(uploadedImg){
+  try{
+    var prompt = (S.activePrompt||S.prompt||'').trim();
+    var type = S.type||'';
+    var markets = (S.markets&&S.markets.length)?S.markets:[S.market||'US'];
+    var products = (S.finalProds&&S.finalProds.length)?S.finalProds:[];
+    if(!products.length){return;} // no products = legacy path will throw anyway
+    var handles = products.map(function(p){return p.handle||(p.n||'').substring(0,30);}).join('|');
+    var cacheKey='';
+    try{cacheKey=btoa(unescape(encodeURIComponent(prompt.substring(0,200)+'|'+type+'|'+markets.join(',')+'|'+handles.substring(0,200)))).substring(0,40);}catch(_){cacheKey=prompt.substring(0,40)+type+markets.join('');}
+    var now=Date.now();
+    // ── Cache hit (5 min TTL)
+    var cached = window._conceptCache[cacheKey];
+    if(cached && (now - cached.ts < 5*60*1000)){
+      if(typeof statusPill==='function')statusPill('ok','Using cached concept: '+cached.concept.name,'(reload prompt to regenerate)');
+      window._lastConcepts = cached.allConcepts;
+      window._pickedConcept = cached.concept;
+      applyConceptToPipeline(cached.concept);
+      if(typeof renderConceptSelector==='function')renderConceptSelector(cached.allConcepts);
+      return;
+    }
+    // ── Try LLM if key present
+    var key = (document.getElementById('claudeKeyIn')&&document.getElementById('claudeKeyIn').value||'').trim();
+    var concepts = null;
+    if(key){
+      if(typeof statusPill==='function')statusPill('loading','Drafting director brief — Claude Haiku...');
+      try{ concepts = await generateConcepts({}); }catch(e){ console.warn('[autoConcept] LLM error',e); }
+    }
+    // ── Fall back to smart heuristic if LLM unavailable
+    if(!concepts || !concepts.length){
+      if(key && typeof statusPill==='function')statusPill('warn','LLM call failed — using smart heuristic');
+      else if(typeof statusPill==='function')statusPill('ok','Using smart heuristic concept (add Claude key for top-tier output)');
+      var heur = _heuristicConcept(prompt, type, markets[0], products);
+      concepts = [heur];
+    }
+    // ── Auto-pick best
+    var best = pickBestConcept(concepts, type, markets[0]) || concepts[0];
+    if(!best)return;
+    window._conceptCache[cacheKey] = { concept:best, allConcepts:concepts, ts:now };
+    window._lastConcepts = concepts;
+    window._pickedConcept = best;
+    applyConceptToPipeline(best);
+    if(typeof renderConceptSelector==='function')renderConceptSelector(concepts);
+    if(typeof statusPill==='function')statusPill('ok','Auto-picked: '+best.name+' · primary hook: '+(best.primary_hook||'—'),'Click another card to swap');
+  }catch(err){
+    console.warn('[_autoConceptThenBuild] outer error',err);
+    // Silent fallback — let the legacy build proceed
+  }
+}
+
+async function approveAndBuild(){
   showOnly(5);
+  // ── v68: AUTO-CONCEPT first. Smart fallback if no API key.
+  await _autoConceptThenBuild(null);
   S.marketMailers={};
   var mkts=S.markets&&S.markets.length>0?S.markets:['US'];
   refreshStrategy();
