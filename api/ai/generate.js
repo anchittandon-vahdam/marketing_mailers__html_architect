@@ -80,7 +80,7 @@ module.exports = async function handler(req, res) {
   const provider = openaiKey ? 'openai' : 'gemini';
   const textModel = provider === 'openai'
     ? (process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini')
-    : (process.env.GEMINI_TEXT_MODEL || 'gemini-1.5-flash');
+    : (process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash');
 
   let body = req.body;
   if (typeof body === 'string') {
