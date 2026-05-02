@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='sale-everywhere-v45';
+window.__VAHDAM_BUILD__='correct-device-sizes-v46';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -4259,10 +4259,16 @@ window.regenerateHeroImage=function(){
 // content always fits visibly — no scrollbars, no missed @media queries.
 window._mailerDevice=window._mailerDevice||'desktop';
 var MAILER_NATURAL_W=600;   // email's intrinsic design width
+// Real-world device viewport widths (CSS pixels, portrait orientation):
+//   Mobile  → iPhone SE / iPhone 14/15 base width — 375px is the most common
+//             smallest viewport email subscribers actually see
+//   Tablet  → iPad portrait (mini, 9.7", 10.2") — 768px is standard iPad CSS width
+//   Desktop → typical laptop / desktop browser window — 1280px (MacBook 13" base)
+// Heights match Apple's published device viewport sizes for each.
 var _DEVICE_SIZES={
-  mobile: { w:375,  label:'Mobile · 375px' },
-  tablet: { w:768,  label:'Tablet · 768px' },
-  desktop:{ w:1024, label:'Desktop · 1024px' }
+  mobile: { w:375,  h:667,  device:'iPhone SE / 14',     label:'Mobile · 375 × 667' },
+  tablet: { w:768,  h:1024, device:'iPad portrait',       label:'Tablet · 768 × 1024' },
+  desktop:{ w:1280, h:800,  device:'Laptop · MacBook 13', label:'Desktop · 1280 × 800' }
 };
 function _scaleFor(deviceWidth){
   // Cap visible width at email's natural width (never upscale beyond 600px)
@@ -4302,8 +4308,10 @@ function _deviceToggleHTML(){
   var d=window._mailerDevice||'desktop';
   function btn(key,label,icon){
     var on=d===key;
-    return '<button aria-label="Preview at '+label+' size" data-device="'+key+'" onclick="setMailerDevice(\''+key+'\')" class="vhd-device-btn" style="font-size:11px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid '+(on?'#004A2B':'#ede5d8')+';background:'+(on?'#004A2B':'#fff')+';color:'+(on?'#FBF5EA':'#374151')+';letter-spacing:0.04em;display:inline-flex;align-items:center;gap:6px;'+(on?'box-shadow:0 2px 6px rgba(0,74,43,0.25);':'')+'transition:all 0.18s">'+
-      '<span style="font-size:13px;line-height:1">'+icon+'</span><span>'+label+' &middot; '+_DEVICE_SIZES[key].w+'px</span></button>';
+    var size=_DEVICE_SIZES[key];
+    return '<button title="'+size.device+' · '+size.w+'×'+size.h+' viewport" aria-label="Preview at '+label+' size: '+size.device+'" data-device="'+key+'" onclick="setMailerDevice(\''+key+'\')" class="vhd-device-btn" style="font-size:11px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid '+(on?'#004A2B':'#ede5d8')+';background:'+(on?'#004A2B':'#fff')+';color:'+(on?'#FBF5EA':'#374151')+';letter-spacing:0.04em;display:inline-flex;flex-direction:column;align-items:center;gap:2px;'+(on?'box-shadow:0 2px 6px rgba(0,74,43,0.25);':'')+'transition:all 0.18s;line-height:1.2">'+
+      '<span style="display:inline-flex;align-items:center;gap:5px"><span style="font-size:13px">'+icon+'</span><span>'+label+'</span></span>'+
+      '<span style="font-size:9px;font-weight:600;letter-spacing:0.06em;opacity:0.85">'+size.w+' × '+size.h+'</span></button>';
   }
   return '<div role="group" aria-label="Device preview size" style="display:flex;gap:8px;align-items:center;justify-content:center;padding:14px 16px;background:linear-gradient(180deg,#fafaf6 0%,#f0ebe0 100%);border-bottom:1.5px solid #ede5d8;flex-wrap:wrap">'+
     '<span style="font-size:9.5px;font-weight:800;color:#666;letter-spacing:0.18em;text-transform:uppercase;margin-right:4px">📐 View as</span>'+
