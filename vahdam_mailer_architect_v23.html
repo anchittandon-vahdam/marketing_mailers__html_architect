@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='no-redundant-preview-v32';
+window.__VAHDAM_BUILD__='title-fix-v33';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -2880,18 +2880,47 @@ function buildCampaignStrategy(){
   };
 }
 // ── User-idea + smart title extractors (used by dashboard / save) ──────────
-// extractUserIdea strips the D2C-brief wrapper and returns ONLY the line the
-// user actually typed. Works on both enhanced briefs (BRIEF: …) and the legacy
-// "raw on top, brief below" format. If nothing matches, returns the input.
+// extractUserIdea strips the D2C-brief wrapper and returns ONLY what the user
+// actually typed. Works on:
+//   • v29+ enhanced format:  starts with "── D2C GROWTH BRIEF" then has a
+//                            "BRIEF: <idea>" section before "CAMPAIGN OBJECTIVE:"
+//   • ≤v28 legacy enhanced:  raw idea on first lines, then "\n──" separator
+//   • plain prompt:          return as-is
 function extractUserIdea(prompt){
   if(!prompt)return '';
   var p=String(prompt).trim();
-  // Enhanced format (v29+): "BRIEF: <idea>" line — pluck it out
-  var m=p.match(/^\s*BRIEF:\s*(.+?)\s*(?:\n\s*\n|$)/m);
-  if(m && m[1]) return m[1].trim();
-  // Legacy enhanced format (≤v28): raw idea on line 1, brief separator below
+  // v29+ format — find the BRIEF: section and stop at the next ALL-CAPS header
+  // ("CAMPAIGN OBJECTIVE:", "TARGET AUDIENCE:", etc.) or a blank line.
+  var lines=p.split(/\r?\n/);
+  var briefIdx=-1;
+  for(var i=0;i<lines.length;i++){
+    if(/^\s*BRIEF:\s*/i.test(lines[i])){briefIdx=i;break;}
+  }
+  if(briefIdx>=0){
+    var collected=[lines[briefIdx].replace(/^\s*BRIEF:\s*/i,'').trim()];
+    for(var j=briefIdx+1;j<lines.length;j++){
+      var ln=lines[j];
+      // Stop at next section header (e.g. "CAMPAIGN OBJECTIVE:", "MARKET INTELLIGENCE (US):")
+      if(/^\s*[A-Z][A-Z &/()0-9-]{2,}:\s*/.test(ln))break;
+      // Stop at the brand-voice closing line, footer separator, or blank+blank
+      if(/^\s*[─━=*]{3,}/.test(ln))break;
+      if(ln.trim()==='' && (j+1>=lines.length || lines[j+1].trim()==='' || /^\s*[A-Z][A-Z &/()0-9-]{2,}:/.test(lines[j+1]||'')))break;
+      collected.push(ln);
+    }
+    var idea=collected.join(' ').replace(/\s+/g,' ').trim();
+    if(idea) return idea;
+  }
+  // Legacy enhanced (≤v28): raw idea on top, then "\n──" separator
   var sep=p.indexOf('\n──');
   if(sep>0) return p.slice(0,sep).trim();
+  // If the prompt starts with "── D2C GROWTH BRIEF" but has no BRIEF: line
+  // (degenerate case), strip the header lines and use whatever remains.
+  if(/^\s*──.*GROWTH BRIEF/i.test(p)){
+    var stripped=lines.filter(function(ln){
+      return ln.trim() && !/^\s*──/.test(ln) && !/^\s*[A-Z][A-Z &/()0-9-]{2,}:/.test(ln);
+    }).join(' ').trim();
+    if(stripped) return stripped.substring(0,300);
+  }
   // Plain prompt — return as-is
   return p;
 }
@@ -6843,6 +6872,21 @@ function previewDashboardSideBySide(logIdx,mkt){
       _truthy(d.send_window,'send_window missing');
       return true;
     });
+  });
+  // extractUserIdea — must pull the BRIEF: line out of the v29+ enhanced format
+  _t('extractUserIdea: v29+ enhanced brief returns user idea',function(){
+    var enhanced='── D2C GROWTH BRIEF (Director of Growth & Marketing) ──\nCAMPAIGN: Sale · MARKETS: US, UK\n\nBRIEF: Launch the summer iced tea collection for UK customers featuring Hibiscus Cranberry and Lychee Rose.\n\nCAMPAIGN OBJECTIVE: Drive immediate conversion.\n\nTARGET AUDIENCE: Premium tea drinkers.';
+    var idea=extractUserIdea(enhanced);
+    return _truthy(/Hibiscus Cranberry|summer iced tea/i.test(idea) && !/D2C GROWTH BRIEF/i.test(idea), 'idea was: '+idea);
+  });
+  _t('extractUserIdea: plain prompt returns input unchanged',function(){
+    var raw='Just a simple campaign idea';
+    return _eq(extractUserIdea(raw),raw);
+  });
+  _t('generateCampaignTitle: produces title without "D2C GROWTH BRIEF" prefix',function(){
+    var enhanced='── D2C GROWTH BRIEF (Director of Growth & Marketing) ──\nCAMPAIGN: Sale\n\nBRIEF: Launch the summer iced tea collection for UK customers.\n\nCAMPAIGN OBJECTIVE: Drive conversion.';
+    var title=generateCampaignTitle(enhanced,'Sale',['Hibiscus Cranberry'],'UK');
+    return _truthy(!/GROWTH BRIEF/i.test(title), 'title was: '+title);
   });
   // table resolver — must default safely when probe untested
   _t('_sbTables initial state has probed flag',function(){return _truthy('probed' in window._sbTables);});
