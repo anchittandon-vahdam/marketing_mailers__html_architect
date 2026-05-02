@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='no-404s-v49';
+window.__VAHDAM_BUILD__='kb-driven-products-v50';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -1478,8 +1478,23 @@ var PROD_HANDLES={
   "herbal tea variety pack, 36 infusion bags":"herbal-tea-variety-pack-36-infusion-bags"
 };
 function pdpUrl(n,m){
-  var handle=PROD_HANDLES[n.toLowerCase()];
-  if(!handle)handle=toHandle(n);
+  // KB-FIRST: if the product is in the live Vahdam KB, use its REAL Shopify handle
+  // (already verified to resolve to a 200 PDP). This avoids 404s from name-based
+  // handle inference on the in-code fallback.
+  if(window.KB && window.KB.products && window.KB.products.length){
+    var nl=(n||'').toLowerCase();
+    var market=m||'US';
+    var match=window.KB.products.find(function(p){
+      return p.market===market && p.name && p.name.toLowerCase()===nl;
+    }) || window.KB.products.find(function(p){
+      return p.market===market && p.name && p.name.toLowerCase().includes(nl);
+    });
+    if(match && match.pdp_url) return match.pdp_url;
+    if(match && match.handle)  return getBase(m)+'/products/'+match.handle;
+  }
+  // Fallback: in-code PROD_HANDLES map → derived handle (legacy path)
+  var handle=PROD_HANDLES[(n||'').toLowerCase()];
+  if(!handle)handle=toHandle(n||'');
   return getBase(m)+'/products/'+handle;
 }
 function collectionUrl(theme,m){
@@ -2188,28 +2203,82 @@ function autoPickProducts(prompt,type){
   // Layer 5 — default
   if(!best)best='bestseller';
   var pool=typeMap[best]||typeMap.bestseller;
+  var market=(S&&S.market)||'US';
+
+  // ── KB-FIRST product lookup ──────────────────────────────────────────────
+  // If the knowledge base is hydrated, prefer real Vahdam catalog rows over
+  // the in-code CAT array. KB rows carry: name, image_url, price, compare_at,
+  // currency, sku, handle, pdp_url, description, vendor, category — all real
+  // Shopify-scraped data per market.
+  var kbPool=(window.KB && window.KB.products)||[];
+  var kbForMarket=kbPool.filter(function(p){return p.market===market && p.is_active!==false;});
+  function _normalizeKbRow(row,role){
+    return {
+      n:row.name,
+      i:row.image_url,
+      // Pass-through real Shopify fields so templates can use them directly
+      price:row.price, compare_at:row.compare_at, currency:row.currency,
+      handle:row.handle, pdp_url:row.pdp_url, sku:row.sku,
+      description:row.description, vendor:row.vendor, category:row.category,
+      _kb:true, // marker so we know this came from real KB data
+      role:role,
+      t:row.tags||[]
+    };
+  }
+  function _findInKb(needle){
+    var nl=needle.toLowerCase();
+    // Try exact-match first, then includes
+    var exact=kbForMarket.find(function(r){return r.name && r.name.toLowerCase()===nl;});
+    if(exact)return exact;
+    return kbForMarket.find(function(r){return r.name && r.name.toLowerCase().includes(nl);});
+  }
+  function _findInCat(needle){
+    return CAT.find(function(c){return c.n.toLowerCase().includes(needle.toLowerCase());});
+  }
+
   var picked=[];
   for(var i=0;i<pool.length&&picked.length<idealCount;i++){
     var name=pool[i];
-    var match=CAT.find(function(c){return c.n.toLowerCase().includes(name.toLowerCase());});
-    if(match&&!picked.some(function(x){return x.n===match.n;})){
-      picked.push(Object.assign({},match,{role:picked.length===0?'hero':picked.length<=2?'featured':'grid'}));
+    var role=picked.length===0?'hero':picked.length<=2?'featured':'grid';
+    // Try KB first (real data), fall back to in-code CAT
+    var kbMatch=kbForMarket.length?_findInKb(name):null;
+    if(kbMatch && !picked.some(function(x){return x.n===kbMatch.name;})){
+      picked.push(_normalizeKbRow(kbMatch,role));
+      continue;
+    }
+    var catMatch=_findInCat(name);
+    if(catMatch && !picked.some(function(x){return x.n===catMatch.n;})){
+      picked.push(Object.assign({},catMatch,{role:role}));
     }
   }
   // Pad from bestsellers if we didn't reach idealCount
   if(picked.length<idealCount){
     var fallbacks=typeMap.bestseller;
     for(var j=0;j<fallbacks.length&&picked.length<idealCount;j++){
-      var fb=CAT.find(function(c){return c.n.toLowerCase().includes(fallbacks[j].toLowerCase());});
-      if(fb&&!picked.some(function(x){return x.n===fb.n;})){
-        picked.push(Object.assign({},fb,{role:picked.length===0?'hero':picked.length<=2?'featured':'grid'}));
+      var role2=picked.length===0?'hero':picked.length<=2?'featured':'grid';
+      var kbFb=kbForMarket.length?_findInKb(fallbacks[j]):null;
+      if(kbFb && !picked.some(function(x){return x.n===kbFb.name;})){
+        picked.push(_normalizeKbRow(kbFb,role2));
+        continue;
+      }
+      var catFb=_findInCat(fallbacks[j]);
+      if(catFb && !picked.some(function(x){return x.n===catFb.n;})){
+        picked.push(Object.assign({},catFb,{role:role2}));
       }
     }
   }
-  // Last resort: pull any from CAT
+  // Last resort: pull KB rows directly (if any), else CAT
   if(picked.length===0){
-    for(var k=0;k<CAT.length&&picked.length<idealCount;k++){
-      picked.push(Object.assign({},CAT[k],{role:picked.length===0?'hero':picked.length<=2?'featured':'grid'}));
+    if(kbForMarket.length){
+      // Take featured/bestseller first, then any
+      var ranked=kbForMarket.slice().sort(function(a,b){return (b.is_bestseller?1:0)+(b.is_featured?1:0)-(a.is_bestseller?1:0)-(a.is_featured?1:0);});
+      for(var k=0;k<ranked.length&&picked.length<idealCount;k++){
+        picked.push(_normalizeKbRow(ranked[k],picked.length===0?'hero':picked.length<=2?'featured':'grid'));
+      }
+    } else {
+      for(var m=0;m<CAT.length&&picked.length<idealCount;m++){
+        picked.push(Object.assign({},CAT[m],{role:picked.length===0?'hero':picked.length<=2?'featured':'grid'}));
+      }
     }
   }
   return picked;
