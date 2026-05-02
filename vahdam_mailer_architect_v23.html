@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='iframe-viewport-fix-v39';
+window.__VAHDAM_BUILD__='editorial-polish-v40';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -4903,24 +4903,31 @@ function buildEmailVariantB(uploadedDesignImg,mktOverride){
     '<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#f0ebe0">'+(sc||'').substring(0,100)+' &mdash; VAHDAM&reg; '+( ot||cta)+' today.</div>\n'+
     '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0ebe0;border-collapse:collapse"><tr><td align="center" style="padding:24px 10px">\n'+
     '<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse;background:#fff">\n'+
-    // S1 — Announcement bar (cream on green)
-    '<tr><td style="background:#004A2B;padding:10px 22px;text-align:center"><p class="ann-bar-text" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#FBF5EA;margin:0;font-weight:600">'+st.annBar+'</p></td></tr>\n'+
-    // S2 — Compact brand header (centered, refined)
-    '<tr><td style="background:#fff;padding:24px 22px 18px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
-      '<p class="vhd-hide-mobile" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:8.5px;color:#AB8743;letter-spacing:0.24em;margin:0 0 8px;text-transform:uppercase">EST. 2015 · NEW DELHI · INDIA</p>'+
-      '<p class="vhd-logo" style="font-family:Lao MN,Georgia,serif;font-size:32px;font-weight:bold;letter-spacing:0.22em;color:#004A2B;margin:0 0 6px">VAHDAM&reg;</p>'+
-      '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;color:#888;letter-spacing:0.16em;margin:0;text-transform:uppercase">Premium Indian Teas · Direct From Source</p>'+
+    // S1 — Announcement bar (cream on deep green, gold accents on either side)
+    '<tr><td style="background:linear-gradient(90deg,#004A2B 0%,#1a3a28 50%,#004A2B 100%);padding:12px 22px;text-align:center;border-bottom:1px solid #AB8743"><p class="ann-bar-text" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10.5px;letter-spacing:0.24em;text-transform:uppercase;color:#FBF5EA;margin:0;font-weight:600"><span style="color:#AB8743;font-weight:bold">✦</span> &nbsp;'+st.annBar+'&nbsp; <span style="color:#AB8743;font-weight:bold">✦</span></p></td></tr>\n'+
+    // S2 — Brand header — refined, monogram-feel, with hairline gold accent
+    '<tr><td style="background:#fff;padding:30px 22px 22px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
+      '<p class="vhd-hide-mobile" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;color:#AB8743;letter-spacing:0.32em;margin:0 0 12px;text-transform:uppercase;font-weight:700">— EST. 2015 · NEW DELHI · INDIA —</p>'+
+      '<p class="vhd-logo" style="font-family:Lao MN,Georgia,serif;font-size:36px;font-weight:bold;letter-spacing:0.24em;color:#004A2B;margin:0 0 8px;text-indent:0.24em">VAHDAM&reg;</p>'+
+      '<div style="display:inline-block;width:80px;height:1px;background:#AB8743;margin:8px 0 10px"></div>'+
+      '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;color:#666;letter-spacing:0.2em;margin:0;text-transform:uppercase;font-weight:600">Premium Indian Teas · Direct From Source</p>'+
     '</td></tr>\n'+
     // S3 — Full-width editorial hero IMAGE — taller, more cinematic
     (uploadedDesignImg?'<tr><td class="vhd-hero-cell" style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><img class="vhd-hero-img" src="'+uploadedDesignImg+'" alt="'+(hero.n||'').replace(/"/g,'&quot;')+'" width="598" border="0" style="width:100%;max-width:598px;height:auto;display:block;border:0;outline:none;text-decoration:none"></td></tr>\n'
     :'<tr><td class="vhd-hero-cell" style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><img class="vhd-hero-img" src="'+heroVisualPath+'" alt="'+(hero.n||'').replace(/"/g,'&quot;')+'" width="598" border="0" style="width:100%;max-width:598px;height:460px;object-fit:cover;display:block;border:0;outline:none;text-decoration:none;background:#e8f0e8"></td></tr>\n')+
     // S4 — Centered editorial headline + sub + CTA (BELOW image, not beside)
-    '<tr><td class="pd20 editorial-pad" style="background:#FBF5EA;padding:54px 52px 42px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
-      (ot?'<p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;font-weight:800;letter-spacing:0.32em;color:#AB8743;margin:0 0 18px;text-transform:uppercase">— '+ot+' —</p>':'<p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;font-weight:800;letter-spacing:0.32em;color:#AB8743;margin:0 0 18px;text-transform:uppercase">— '+st.type.toUpperCase()+' —</p>')+
-      '<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:44px;font-weight:bold;color:#004A2B;margin:0 0 8px;line-height:1.05;letter-spacing:-0.012em">'+hl[0]+'</p>'+
-      (hl[1]?'<p class="vhd-h2" style="font-family:Lao MN,Georgia,serif;font-size:42px;font-weight:bold;color:#AB8743;margin:0 0 22px;line-height:1.05;font-style:italic;letter-spacing:-0.005em">'+hl[1]+'</p>':'')+
-      '<div style="width:56px;height:2px;background:#AB8743;margin:22px auto 26px;border-radius:1px"></div>'+
-      '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:15px;color:#444;margin:0 0 30px;line-height:1.75;max-width:460px;display:inline-block">'+(sc||'').substring(0,200)+'</p>'+
+    // Premium upgrade: gradient cream bg, larger headline (52px), italic gold sub-headline,
+    // ornate ✦ section motif, drop-cap on first sentence, refined letterform.
+    '<tr><td class="pd20 editorial-pad" style="background:linear-gradient(180deg,#FBF5EA 0%,#f6efde 100%);padding:64px 56px 48px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
+      (ot?'<p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.36em;color:#AB8743;margin:0 0 22px;text-transform:uppercase">✦ '+ot+' ✦</p>':'<p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.36em;color:#AB8743;margin:0 0 22px;text-transform:uppercase">✦ '+st.type.toUpperCase()+' ✦</p>')+
+      '<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:52px;font-weight:bold;color:#004A2B;margin:0 0 6px;line-height:1.02;letter-spacing:-0.018em">'+hl[0]+'</p>'+
+      (hl[1]?'<p class="vhd-h2" style="font-family:Lao MN,Georgia,serif;font-size:48px;font-weight:bold;color:#AB8743;margin:0 0 28px;line-height:1.02;font-style:italic;letter-spacing:-0.012em">'+hl[1]+'</p>':'')+
+      // Ornate divider — small motif rather than plain bar
+      '<div style="font-family:Lao MN,Georgia,serif;font-size:18px;color:#AB8743;margin:24px 0 28px;line-height:1;letter-spacing:0.4em">✦ &nbsp; ✦ &nbsp; ✦</div>'+
+      // Body with subtle drop-cap on first letter (only if subcopy is substantial)
+      ((sc&&sc.length>40)
+        ? '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:16px;color:#3a3a3a;margin:0 0 36px;line-height:1.8;max-width:480px;display:inline-block;text-align:left"><span style="font-family:Lao MN,Georgia,serif;font-size:46px;font-weight:bold;color:#AB8743;float:left;line-height:0.9;margin:6px 10px 0 0;padding:0">'+(sc.charAt(0)||'')+'</span>'+(sc||'').substring(1,210)+'</p>'
+        : '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:16px;color:#3a3a3a;margin:0 0 36px;line-height:1.8;max-width:480px;display:inline-block">'+(sc||'').substring(0,210)+'</p>')+
       '<br>'+btn(collUrl,cta,'#004A2B','#FBF5EA')+
       (oc?'<div style="margin:14px 0 0;display:inline-block">'+
         '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;color:#AB8743;margin:0 0 4px;letter-spacing:0.2em;text-transform:uppercase">Use code at checkout</p>'+
