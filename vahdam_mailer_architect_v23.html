@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='sale-template-v44';
+window.__VAHDAM_BUILD__='sale-everywhere-v45';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -4868,6 +4868,13 @@ async function analyzeImageAndBuildEmail(base64DataUrl,prods,prompt,market){
 // Uses the SAME strategy data (headline, sub, CTA, products, offer) — only
 // the visual structure differs. User picks the better strategic angle.
 function buildEmailVariantB(uploadedDesignImg,mktOverride){
+  // ── Type-specific dispatcher (Variant B too) ───────────────────────────
+  // Sale campaigns ALWAYS use buildSaleMailer regardless of A/B variant —
+  // the old narrative-story stack was atrocious for offers.
+  const _type=S.type||detectType(S.activePrompt||S.prompt||'');
+  if(_type==='Sale' && !uploadedDesignImg){
+    return buildSaleMailer(uploadedDesignImg,mktOverride);
+  }
   refreshStrategy();
   const st=S.strategy||buildCampaignStrategy();
   const prods=st.products;const mt=mktOverride||st.market||'US';
@@ -5267,8 +5274,10 @@ function buildEmail(uploadedDesignImg,mktOverride){
   html+=flavorLaunchBadge(campaignType);
   // Type-specific eyebrow — every campaign type has a tailored label
   html+='<p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:0.32em;text-transform:uppercase;color:#AB8743;margin:0 0 14px">'+flavorEyebrow(campaignType,ot)+'</p>\n';
-  html+='<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:46px;font-weight:bold;color:#004A2B;margin:0 0 6px;line-height:1.02;letter-spacing:-0.018em">'+hl[0]+'</p>\n';
-  if(hl[1]) html+='<p class="vhd-h2" style="font-family:Lao MN,Georgia,serif;font-size:42px;font-weight:bold;color:#AB8743;margin:0 0 16px;line-height:1.02;font-style:italic;letter-spacing:-0.012em">'+hl[1]+'</p>\n';
+  // 32px (was 46) so headlines fit the narrow split-hero left panel without truncation.
+  // The big 52px headline lives in Variant B's centered full-width hero where there's room.
+  html+='<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:32px;font-weight:bold;color:#004A2B;margin:0 0 6px;line-height:1.08;letter-spacing:-0.012em">'+hl[0]+'</p>\n';
+  if(hl[1]) html+='<p class="vhd-h2" style="font-family:Lao MN,Georgia,serif;font-size:28px;font-weight:bold;color:#AB8743;margin:0 0 16px;line-height:1.1;font-style:italic;letter-spacing:-0.008em">'+hl[1]+'</p>\n';
   // Ornate triple-motif divider
   html+='<div style="font-family:Lao MN,Georgia,serif;font-size:14px;color:#AB8743;margin:14px 0 18px;line-height:1;letter-spacing:0.4em">✦ &nbsp; ✦ &nbsp; ✦</div>\n';
   html+='<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:13px;color:#3a3a3a;margin:0 0 24px;line-height:1.78">'+sc+'</p>\n';
