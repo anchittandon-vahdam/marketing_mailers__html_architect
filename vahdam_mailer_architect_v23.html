@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='device-preview-actually-fixed-v36';
+window.__VAHDAM_BUILD__='mailer-actually-responsive-v37';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -4826,28 +4826,68 @@ function buildEmailVariantB(uploadedDesignImg,mktOverride){
     if(t==='Discovery')return 'Spent two months sampling — every single tea was extraordinary. Found three new favourites.';
     return 'Pure, floral, impossibly fresh. The best Indian tea I have ever tasted.';
   })(st.type);
-  const html='<!DOCTYPE html>\n<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<meta http-equiv="X-UA-Compatible" content="IE=edge">\n<title>VAHDAM&reg; &mdash; '+(st.rawPrompt||'').substring(0,60)+'</title>\n'+msoHead+'\n<style>\n@media only screen and (max-width:600px){.email-wrap{width:100%!important}.pcol{display:block!important;width:100%!important}.pd20{padding:14px 16px!important}}\n</style>\n</head>\n<body style="margin:0;padding:0;background:#f0ebe0;-webkit-text-size-adjust:100%">\n'+
+  const html='<!DOCTYPE html>\n<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<meta http-equiv="X-UA-Compatible" content="IE=edge">\n<title>VAHDAM&reg; &mdash; '+(st.rawPrompt||'').substring(0,60)+'</title>\n'+msoHead+'\n<style>\n'+
+    '/* ── Tablet (≤768px) ── */\n'+
+    '@media only screen and (max-width:768px){\n'+
+    '  .email-wrap{width:100%!important;max-width:100%!important}\n'+
+    '  .editorial-pad{padding:38px 32px 28px!important}\n'+
+    '  .vhd-h1{font-size:36px!important;line-height:1.08!important}\n'+
+    '  .vhd-h2{font-size:32px!important;line-height:1.08!important}\n'+
+    '}\n'+
+    '/* ── Mobile (≤600px): single-column reflow, larger touch targets, dramatic hierarchy ── */\n'+
+    '@media only screen and (max-width:600px){\n'+
+    '  .email-wrap{width:100%!important;max-width:100%!important}\n'+
+    '  .pcol{display:block!important;width:100%!important;max-width:100%!important;padding:0!important}\n'+
+    '  .pd20{padding:18px 18px!important}\n'+
+    '  .editorial-pad{padding:32px 22px 24px!important}\n'+
+    '  .ann-bar-text{font-size:9px!important;letter-spacing:0.16em!important;padding:0 8px!important}\n'+
+    '  .vhd-logo{font-size:24px!important;letter-spacing:0.16em!important}\n'+
+    '  .vhd-eyebrow{font-size:8.5px!important;letter-spacing:0.22em!important;margin-bottom:12px!important}\n'+
+    '  .vhd-h1{font-size:30px!important;line-height:1.1!important;letter-spacing:0!important}\n'+
+    '  .vhd-h2{font-size:28px!important;line-height:1.1!important;letter-spacing:0!important}\n'+
+    '  .vhd-hero-img{height:280px!important;object-fit:cover!important}\n'+
+    '  .vhd-sub{font-size:13px!important;line-height:1.65!important;max-width:100%!important;padding:0 4px!important}\n'+
+    '  .vhd-cta{padding:14px 24px!important;font-size:11px!important;letter-spacing:0.14em!important;width:auto!important;display:inline-block!important}\n'+
+    '  .vhd-prod-card{padding:14px 14px 22px!important;text-align:center!important}\n'+
+    '  .vhd-prod-img{width:140px!important;height:140px!important;margin:0 auto 12px!important}\n'+
+    '  .vhd-prod-name{font-size:15px!important;text-align:center!important}\n'+
+    '  .vhd-section-title{font-size:18px!important;letter-spacing:0!important}\n'+
+    '  .vhd-feature-strip{padding:14px 16px!important}\n'+
+    '  .vhd-feature{display:block!important;width:100%!important;padding:6px 0!important;text-align:center!important}\n'+
+    '  .vhd-quote{font-size:16px!important;line-height:1.45!important;padding:24px 18px!important}\n'+
+    '  .vhd-footer{padding:24px 18px!important;font-size:10.5px!important}\n'+
+    '  .vhd-hide-mobile{display:none!important}\n'+
+    '  .vhd-stack-mobile{display:block!important;width:100%!important;text-align:center!important}\n'+
+    '  table[class="vhd-product-grid"] td{display:block!important;width:100%!important;padding:0 0 18px!important}\n'+
+    '}\n'+
+    '/* ── Tiny mobile (≤360px) ── */\n'+
+    '@media only screen and (max-width:360px){\n'+
+    '  .vhd-h1,.vhd-h2{font-size:26px!important}\n'+
+    '  .editorial-pad{padding:26px 16px 20px!important}\n'+
+    '  .pd20{padding:14px 14px!important}\n'+
+    '}\n'+
+    '</style>\n</head>\n<body style="margin:0;padding:0;background:#f0ebe0;-webkit-text-size-adjust:100%">\n'+
     '<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#f0ebe0">'+(sc||'').substring(0,100)+' &mdash; VAHDAM&reg; '+( ot||cta)+' today.</div>\n'+
     '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0ebe0;border-collapse:collapse"><tr><td align="center" style="padding:24px 10px">\n'+
     '<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse;background:#fff">\n'+
     // S1 — Announcement bar (cream on green)
-    '<tr><td style="background:#004A2B;padding:10px 22px;text-align:center"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#FBF5EA;margin:0;font-weight:600">'+st.annBar+'</p></td></tr>\n'+
+    '<tr><td style="background:#004A2B;padding:10px 22px;text-align:center"><p class="ann-bar-text" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#FBF5EA;margin:0;font-weight:600">'+st.annBar+'</p></td></tr>\n'+
     // S2 — Compact brand header (centered, refined)
     '<tr><td style="background:#fff;padding:24px 22px 18px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
-      '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:8.5px;color:#AB8743;letter-spacing:0.24em;margin:0 0 8px;text-transform:uppercase">EST. 2015 · NEW DELHI · INDIA</p>'+
-      '<p style="font-family:Lao MN,Georgia,serif;font-size:32px;font-weight:bold;letter-spacing:0.22em;color:#004A2B;margin:0 0 6px">VAHDAM&reg;</p>'+
+      '<p class="vhd-hide-mobile" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:8.5px;color:#AB8743;letter-spacing:0.24em;margin:0 0 8px;text-transform:uppercase">EST. 2015 · NEW DELHI · INDIA</p>'+
+      '<p class="vhd-logo" style="font-family:Lao MN,Georgia,serif;font-size:32px;font-weight:bold;letter-spacing:0.22em;color:#004A2B;margin:0 0 6px">VAHDAM&reg;</p>'+
       '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;color:#888;letter-spacing:0.16em;margin:0;text-transform:uppercase">Premium Indian Teas · Direct From Source</p>'+
     '</td></tr>\n'+
     // S3 — Full-width editorial hero IMAGE — taller, more cinematic
-    (uploadedDesignImg?'<tr><td style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><img src="'+uploadedDesignImg+'" alt="'+(hero.n||'').replace(/"/g,'&quot;')+'" width="598" border="0" style="width:100%;max-width:598px;height:auto;display:block;border:0;outline:none;text-decoration:none"></td></tr>\n'
-    :'<tr><td style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><img src="'+heroVisualPath+'" alt="'+(hero.n||'').replace(/"/g,'&quot;')+'" width="598" border="0" style="width:100%;max-width:598px;height:460px;object-fit:cover;display:block;border:0;outline:none;text-decoration:none;background:#e8f0e8"></td></tr>\n')+
+    (uploadedDesignImg?'<tr><td class="vhd-hero-cell" style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><img class="vhd-hero-img" src="'+uploadedDesignImg+'" alt="'+(hero.n||'').replace(/"/g,'&quot;')+'" width="598" border="0" style="width:100%;max-width:598px;height:auto;display:block;border:0;outline:none;text-decoration:none"></td></tr>\n'
+    :'<tr><td class="vhd-hero-cell" style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><img class="vhd-hero-img" src="'+heroVisualPath+'" alt="'+(hero.n||'').replace(/"/g,'&quot;')+'" width="598" border="0" style="width:100%;max-width:598px;height:460px;object-fit:cover;display:block;border:0;outline:none;text-decoration:none;background:#e8f0e8"></td></tr>\n')+
     // S4 — Centered editorial headline + sub + CTA (BELOW image, not beside)
-    '<tr><td class="pd20" style="background:#FBF5EA;padding:54px 52px 42px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
-      (ot?'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;font-weight:800;letter-spacing:0.32em;color:#AB8743;margin:0 0 18px;text-transform:uppercase">— '+ot+' —</p>':'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;font-weight:800;letter-spacing:0.32em;color:#AB8743;margin:0 0 18px;text-transform:uppercase">— '+st.type.toUpperCase()+' —</p>')+
-      '<p style="font-family:Lao MN,Georgia,serif;font-size:44px;font-weight:bold;color:#004A2B;margin:0 0 8px;line-height:1.05;letter-spacing:-0.012em">'+hl[0]+'</p>'+
-      (hl[1]?'<p style="font-family:Lao MN,Georgia,serif;font-size:42px;font-weight:bold;color:#AB8743;margin:0 0 22px;line-height:1.05;font-style:italic;letter-spacing:-0.005em">'+hl[1]+'</p>':'')+
+    '<tr><td class="pd20 editorial-pad" style="background:#FBF5EA;padding:54px 52px 42px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
+      (ot?'<p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;font-weight:800;letter-spacing:0.32em;color:#AB8743;margin:0 0 18px;text-transform:uppercase">— '+ot+' —</p>':'<p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;font-weight:800;letter-spacing:0.32em;color:#AB8743;margin:0 0 18px;text-transform:uppercase">— '+st.type.toUpperCase()+' —</p>')+
+      '<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:44px;font-weight:bold;color:#004A2B;margin:0 0 8px;line-height:1.05;letter-spacing:-0.012em">'+hl[0]+'</p>'+
+      (hl[1]?'<p class="vhd-h2" style="font-family:Lao MN,Georgia,serif;font-size:42px;font-weight:bold;color:#AB8743;margin:0 0 22px;line-height:1.05;font-style:italic;letter-spacing:-0.005em">'+hl[1]+'</p>':'')+
       '<div style="width:56px;height:2px;background:#AB8743;margin:22px auto 26px;border-radius:1px"></div>'+
-      '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:15px;color:#444;margin:0 0 30px;line-height:1.75;max-width:460px;display:inline-block">'+(sc||'').substring(0,200)+'</p>'+
+      '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:15px;color:#444;margin:0 0 30px;line-height:1.75;max-width:460px;display:inline-block">'+(sc||'').substring(0,200)+'</p>'+
       '<br>'+btn(collUrl,cta,'#004A2B','#FBF5EA')+
       (oc?'<div style="margin:14px 0 0;display:inline-block">'+
         '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;color:#AB8743;margin:0 0 4px;letter-spacing:0.2em;text-transform:uppercase">Use code at checkout</p>'+
