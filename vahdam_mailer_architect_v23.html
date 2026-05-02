@@ -544,6 +544,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
         <p style="font-size:11px;color:#888;margin:0">Every mailer generated on this device by every user &mdash; shared across the whole team. Sorted newest first.</p>
       </div>
       <button onclick="renderDashboard()" style="font-size:11px;padding:5px 14px;background:var(--lightg);border:1.5px solid var(--g);border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;color:var(--g);font-weight:700;flex-shrink:0">&#8635; Refresh</button>
+      <button onclick="explainLogicForLast5()" title="Implementation forensics on the last 5 records" style="font-size:11px;padding:5px 14px;background:#0f2a1c;border:1.5px solid #0f2a1c;border-radius:6px;cursor:pointer;font-family:DM Sans,sans-serif;color:#fdf6e8;font-weight:700;flex-shrink:0">&#128300; Explain Logic</button>
     </div>
     <div id="dashboardList">
       <div style="text-align:center;padding:40px 16px;color:#bbb">
@@ -955,7 +956,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='dash-all-chips-v69';
+window.__VAHDAM_BUILD__='forensics-v70';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -8431,6 +8432,158 @@ async function renderDashboard(page){
   }).join('')+'</div>';
 }
 // Helper: look up the entry from the cached rendered logs (Supabase OR localStorage)
+// ════════════════════════════════════════════════════════════════════════════
+// IMPLEMENTATION FORENSICS — explainLogicForLast5()
+// Runs strict-evidence analysis on the last 5 dashboard records: which logic
+// branches fired, which fallbacks engaged, what was UNKNOWN. Uses Claude for
+// the analysis when key present; falls back to a client-side rule-based
+// forensics scan when no key. Renders in a modal.
+// ════════════════════════════════════════════════════════════════════════════
+const FORENSICS_SYSTEM_PROMPT = "You are a code-aware product analyst embedded inside the VAHDAM Mailer Studio app. Your job is to explain, record-by-record, the exact implementation logic the app used to generate the output, based ONLY on the input selections and the stored dashboard record fields.\n\nSTRICT RULES:\n- Do NOT hallucinate steps, products, or logic.\n- Use ONLY facts present in the provided JSON records and observable outputs.\n- If a field is missing, explicitly write: UNKNOWN.\n- Always cite the exact field names that support each claim.\n- If a fallback occurred, explain why and cite the evidence.\n- Do not include generic marketing commentary. This is implementation forensics.\n\nKNOWN PIPELINE FACTS (use these to identify which branch ran from observable fields):\n- Concept ideation: generateConcepts() calls Anthropic claude-haiku-4-5. If no claudeKey present at trigger time, _heuristicConcept() runs entirely client-side and returns a synthesized concept with id like 'concept-heuristic-N'. Field strategy_full.depth or _concept.id with 'heuristic' indicates heuristic path.\n- Image generation: gpt-image-1 via api.openai.com (when openaiKey present in input). No key means no image was generated this session - record shows uploaded user image instead or no image.\n- Vision HTML: claude-opus-4-5 via api.anthropic.com when uploaded image present AND claudeKey present. html_generation_mode='claude_vision'. No key means rule-based template fallback (buildEmail / type-specific dispatcher) - mode='template'.\n- Layout archetype: 11 enum values (hero-led-editorial, product-grid-conversion, storytelling-narrative, single-product-spotlight, gift-bundle-showcase, ritual-journey, comparison-discovery, founder-note, editorial-trend-roundup, limited-drop-countdown, subscription-anchor). _archetypeForType(type, _layoutSeed(prompt)) rotates among compatible archetypes. layout_chosen field stores the final.\n- Product picks: KB-driven via window.KB.products (313 real Vahdam Shopify rows) when available. autoPickProducts uses category match + tags + price-range filter. fallback to in-code CAT array when KB unhydrated.\n- Market localization: getRegionalCatalog(market) returns currency/shipping/lang. US='$'/USD/$49+, UK='£'/GBP/£35+, IN='₹'/INR, etc.\n\nOUTPUT FORMAT (STRICT):\nA) RECORD-WISE EXPLANATION (newest to oldest, each record):\nRECORD: <id or created_at>\n1) Inputs Observed (Market/Theme/Cohort/Catalog/Offer with Evidence: field:value)\n2) Product Selection Logic (auto-pick KB vs manual; rules used; Evidence)\n3) Strategy Logic (headline/subcopy/CTA/offer/variant derivation; KPIs/intent; Evidence)\n4) Market Localization Logic (currency/shipping/lang; Evidence)\n5) Image Pipeline Logic (engine: gpt-image-1 vs uploaded vs none; fallback reason; Evidence)\n6) HTML Pipeline Logic (renderer: template vs claude_vision; fallback path; Evidence)\n7) Persistence Logic (DB insert / Storage upload / update; Evidence)\n8) Fallbacks Engaged (what + why with Evidence)\n\nB) TOP 5 RECURRING IMPLEMENTATION LOGIC DECISIONS across the 5 records (each: Logic / Evidence / Impact / Recommended fix)\n\nC) ENGINEERING RECOMMENDATIONS (5 bullets max, each: what to log / where to apply / how to validate)\n\nReturn the analysis as plain markdown text - no JSON wrapper. Be terse. Cite fields verbatim.";
+
+// Heuristic forensics — runs client-side when no Claude key is present
+function _heuristicForensics(records){
+  if(!records || !records.length)return 'No records found. Generate at least one mailer first.';
+  var out='# Implementation Forensics — '+records.length+' records (heuristic analysis, no LLM)\n\n';
+  out+='⚠ No Claude API key present — running rule-based forensics scan. For deeper analysis, add a key in the AI Tools tab.\n\n';
+  out+='## A) RECORD-WISE EXPLANATION\n\n';
+  records.forEach(function(r,idx){
+    out+='---\n### RECORD '+(idx+1)+': '+(r.title||r.campaign_title||r.id||r.date||'untitled')+'\n\n';
+    // 1. Inputs observed
+    out+='**1) Inputs Observed**\n';
+    out+='- Market(s): `'+((r.markets||[r.market||'UNKNOWN']).join(', '))+'`\n';
+    out+='- Type/Theme: `'+(r.type||'UNKNOWN')+'`\n';
+    out+='- Cohort/Audience: `'+(r.target_segment||r.cohort||'UNKNOWN')+'`\n';
+    out+='- Prompt (first 120ch): `'+((r.prompt||r.fullPrompt||'').substring(0,120))+'`\n';
+    out+='- Offer: `'+(r.offerText||r.offer||'UNKNOWN')+'` · Code: `'+(r.offerCode||r.code||'UNKNOWN')+'`\n\n';
+    // 2. Product selection
+    var prodCount=(r.products||[]).length;
+    out+='**2) Product Selection Logic**\n';
+    out+='- '+prodCount+' product(s) in record. ';
+    out+=prodCount?'Auto-pick path likely fired (KB-driven via autoPickProducts when window.KB.products hydrated).\n':'No products — strategy generation may have used type-default catalog.\n';
+    if(r.products && r.products.length){
+      out+='- First 3 product names: `'+(r.products.slice(0,3).join(' · '))+'`\n';
+    }
+    out+='Evidence: `products` array length = '+prodCount+'\n\n';
+    // 3. Strategy
+    var sf=r.strategy_full||{};
+    var depth=sf.depth||{};
+    out+='**3) Strategy Logic**\n';
+    out+='- Headline: `'+(r.title||'UNKNOWN').substring(0,100)+'`\n';
+    out+='- Layout chosen: `'+(r.layout_chosen||depth.layout_variant||'UNKNOWN')+'`\n';
+    out+='- Campaign intent: `'+((depth.intent)||'UNKNOWN')+'`\n';
+    out+='- Send window: `'+(r.send_window||depth.send_window||'UNKNOWN')+'`\n';
+    out+='- Strategy depth field: `'+(Object.keys(depth).length?'present':'UNKNOWN')+'`\n';
+    if(sf._concept && sf._concept.id){
+      out+='- Concept id: `'+sf._concept.id+'` ('+( (sf._concept.id||'').indexOf('heuristic')>=0?'HEURISTIC PATH':'LLM PATH')+')\n';
+    }
+    out+='\n';
+    // 4. Market localization
+    out+='**4) Market Localization Logic**\n';
+    var primaryMkt=(r.markets||[r.market||'US'])[0];
+    var curMap={US:'$ USD',UK:'£ GBP',IN:'₹ INR',Global:'$ USD',ME:'$ USD',AU:'$ AUD',EU:'€ EUR'};
+    out+='- Primary market: `'+primaryMkt+'` → '+(curMap[primaryMkt]||'unknown currency')+'\n';
+    out+='- Per-market mailers stored: `'+(Object.keys(r.fullMailers||{}).join(', ')||'UNKNOWN')+'`\n\n';
+    // 5. Image pipeline
+    out+='**5) Image Pipeline Logic**\n';
+    var hasUpload=!!(r.uploadedDesignUrl||r.upload_url||r.imageUrl);
+    out+='- Image engine: `'+(hasUpload?'UPLOADED IMAGE (user-supplied or AI-generated upstream)':'TEMPLATE-RENDERED (no hero image asset; pure HTML)')+'`\n';
+    out+='- Stored image URL: `'+(hasUpload?'present':'absent — UNKNOWN if gpt-image-1 was attempted')+'`\n\n';
+    // 6. HTML pipeline
+    out+='**6) HTML Pipeline Logic**\n';
+    out+='- Mode: `'+(hasUpload?'likely claude_vision IF claudeKey was present, else template fallback':'template (rule-based dispatcher → buildEmail → type-specific renderer)')+'`\n';
+    var mailerKeys=Object.keys(r.fullMailers||{});
+    var hasAB=mailerKeys.length && (function(){var first=r.fullMailers[mailerKeys[0]];return first && typeof first==='object' && first.A && first.B;})();
+    out+='- Variants stored: `'+(hasAB?'A and B per market':'single variant per market or legacy string')+'`\n\n';
+    // 7. Persistence
+    out+='**7) Persistence Logic**\n';
+    out+='- Storage: `'+(r.id?'Supabase row (id='+r.id+')':'localStorage fallback (no id field)')+'`\n';
+    out+='- Created: `'+(r.created_at||r.date||'UNKNOWN')+'`\n\n';
+    // 8. Fallbacks
+    out+='**8) Fallbacks Engaged**\n';
+    var fallbacks=[];
+    if((sf._concept&&(sf._concept.id||'').indexOf('heuristic')>=0))fallbacks.push('Concept = heuristic (no LLM call)');
+    if(!hasUpload)fallbacks.push('No image asset stored (gpt-image-1 not invoked or skipped)');
+    if(!Object.keys(depth).length)fallbacks.push('No strategy_full.depth populated');
+    if(!r.id)fallbacks.push('Persisted to localStorage (Supabase write skipped or unavailable)');
+    out+=fallbacks.length?fallbacks.map(function(f){return '- '+f;}).join('\n')+'\n':'- None detected from observable fields\n';
+    out+='\n';
+  });
+  // Aggregate top logics
+  out+='---\n## B) TOP 5 RECURRING IMPLEMENTATION LOGIC DECISIONS\n\n';
+  var withConcept=records.filter(function(r){return (r.strategy_full||{})._concept;}).length;
+  var heuristicCount=records.filter(function(r){var c=(r.strategy_full||{})._concept;return c && (c.id||'').indexOf('heuristic')>=0;}).length;
+  var withUpload=records.filter(function(r){return r.uploadedDesignUrl||r.upload_url||r.imageUrl;}).length;
+  var multiMarket=records.filter(function(r){return (r.markets||[]).length>1;}).length;
+  var depthPopulated=records.filter(function(r){return Object.keys((r.strategy_full||{}).depth||{}).length;}).length;
+  out+='**TOP LOGIC #1 — Concept generation path**\n';
+  out+='- '+withConcept+'/'+records.length+' records have _concept stash; '+heuristicCount+'/'+records.length+' on heuristic fallback (no LLM key).\n';
+  out+='- Impact: '+(heuristicCount>=records.length/2?'Quality ceiling held below LLM tier; subject lines + critique fields are templated rotations':'Mixed mode; some records have richer concept output')+'\n';
+  out+='- Fix: Persist `concept_engine: "claude_haiku_4_5" | "heuristic" | "manual"` per record so this is queryable, not inferred.\n\n';
+  out+='**TOP LOGIC #2 — Image pipeline**\n';
+  out+='- '+withUpload+'/'+records.length+' records have an uploaded/generated image asset stored.\n';
+  out+='- Fix: Add `image_engine_used: "gpt-image-1" | "uploaded" | "none"` + `image_provider_key_present: bool` for every record.\n\n';
+  out+='**TOP LOGIC #3 — Multi-market generation**\n';
+  out+='- '+multiMarket+'/'+records.length+' records targeted multiple markets.\n';
+  out+='- Fix: Log `localization_rules_applied: [shipping, currency, cta_verbs]` array per market to confirm which transforms ran.\n\n';
+  out+='**TOP LOGIC #4 — Strategy depth population**\n';
+  out+='- '+depthPopulated+'/'+records.length+' records have strategy_full.depth populated.\n';
+  out+='- Fix: Make depth required at write time; reject inserts where depth=null.\n\n';
+  out+='**TOP LOGIC #5 — Fallback transparency**\n';
+  out+='- Fallbacks are not currently flagged as a first-class field — must be inferred from absence/presence of other fields.\n';
+  out+='- Fix: Add `fallbacks_triggered: ["no_claude_key","no_openai_key","kb_unhydrated"]` array to every record.\n\n';
+  out+='---\n## C) ENGINEERING RECOMMENDATIONS\n\n';
+  out+='1. **Log `concept_engine`** per record — `"claude_haiku_4_5" | "heuristic" | "cached"`. Where: at the end of `_autoConceptThenBuild`. Validate: query records by engine, expect ≥80% LLM rate when keys configured.\n';
+  out+='2. **Log `image_engine_used`** per record — `"gpt-image-1" | "uploaded" | "none"`. Where: persist after image gen step in `saveMailerToDashboard`. Validate: zero records where image is shown but engine=none.\n';
+  out+='3. **Log `html_generation_mode`** per record — `"template" | "claude_vision" | "fallback_after_vision_fail"`. Where: inside buildEmail/analyzeImageAndBuildEmail. Validate: claude_vision count = uploaded image count when key present.\n';
+  out+='4. **Log `fallbacks_triggered`** array per record — capture every graceful-degradation branch hit. Where: every `catch` block in the build pipeline. Validate: dashboard shows fallback rate per day.\n';
+  out+='5. **Make `strategy_full.depth` required** at insert time — reject writes where depth is null/empty. Where: Supabase RLS check or client-side validate before insert. Validate: no records with empty depth.\n';
+  return out;
+}
+
+async function explainLogicForLast5(){
+  var logs=(window._dashLogs||[]).slice(0,5);
+  if(!logs.length){
+    if(typeof showCopyToast==='function')showCopyToast('No records to analyze — generate at least one mailer first');
+    return;
+  }
+  var modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
+  modal.innerHTML='<div style="background:#fff;border-radius:14px;max-width:920px;width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.4)"><div style="background:linear-gradient(135deg,#0f2a1c,#1a3a28);padding:18px 24px;display:flex;align-items:center;gap:12px;color:#fdf6e8"><span style="font-family:Cormorant Garamond,Georgia,serif;font-size:22px;font-weight:600">🔬 Implementation Forensics</span><span style="font-size:11px;opacity:0.8;letter-spacing:0.16em;text-transform:uppercase;color:#d4873a">last '+logs.length+' records</span><span style="flex:1"></span><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fdf6e8;border-radius:5px;padding:4px 12px;font-size:12px;cursor:pointer">✕ Close</button></div><div id="forensicsBody" style="flex:1;overflow-y:auto;padding:24px 28px;font-family:DM Sans,sans-serif;font-size:13px;line-height:1.65;color:#1a1a1a"><div style="text-align:center;padding:40px;color:#666"><div style="width:32px;height:32px;border:3px solid #0f2a1c;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 14px"></div>Analyzing the last '+logs.length+' records...</div></div></div>';
+  document.body.appendChild(modal);
+  var body=modal.querySelector('#forensicsBody');
+  var key=(document.getElementById('claudeKeyIn')&&document.getElementById('claudeKeyIn').value||'').trim();
+  var report='';
+  if(key){
+    try{
+      var payload=JSON.stringify(logs,null,2).substring(0,40000);
+      var res=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:6000,system:FORENSICS_SYSTEM_PROMPT,messages:[{role:'user',content:'Analyze these last '+logs.length+' records:\n\n'+payload}]})
+      });
+      if(res.ok){
+        var data=await res.json();
+        report=((data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('')).trim();
+      }
+    }catch(e){console.warn('[forensics] LLM error',e);report='';}
+  }
+  if(!report){report=_heuristicForensics(logs);}
+  // Render — convert markdown-ish to basic HTML
+  var rendered=report
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^### (.+)$/gm,'<h3 style="font-family:Cormorant Garamond,Georgia,serif;font-size:18px;font-weight:600;color:#0f2a1c;margin:18px 0 8px">$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2 style="font-family:Cormorant Garamond,Georgia,serif;font-size:22px;font-weight:600;color:#0f2a1c;margin:24px 0 10px;border-bottom:1.5px solid #d4873a;padding-bottom:6px">$1</h2>')
+    .replace(/^# (.+)$/gm,'<h1 style="font-family:Cormorant Garamond,Georgia,serif;font-size:26px;font-weight:600;color:#0f2a1c;margin:0 0 14px">$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong style="color:#0f2a1c">$1</strong>')
+    .replace(/`(.+?)`/g,'<code style="background:#fdf6e8;padding:2px 6px;border-radius:3px;font-family:Menlo,Monaco,Consolas,monospace;font-size:11.5px;color:#0f2a1c;border:1px solid #f0e3c4">$1</code>')
+    .replace(/^---$/gm,'<hr style="border:none;border-top:1px dashed #ddd;margin:16px 0">')
+    .replace(/^- (.+)$/gm,'<div style="margin:4px 0 4px 12px">• $1</div>')
+    .replace(/\n\n/g,'<br>');
+  body.innerHTML=rendered;
+}
+window.explainLogicForLast5=explainLogicForLast5;
+
 function _getDashEntry(logIdx){
   var logs=window._dashLogs||[];
   if(logs.length&&logs[logIdx])return logs[logIdx];
