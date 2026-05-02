@@ -939,7 +939,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='enhance-final-only-v29';
+window.__VAHDAM_BUILD__='smart-titles-v30';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -1200,7 +1200,7 @@ async function _resolveTables(){
 // Columns added by 20260501200000_strategic_depth_columns.sql — if the migration
 // hasn't run yet on this project the insert will reject them; we retry once
 // without those keys so the row still lands.
-var _DEPTH_KEYS=['target_segment','segment_size','segment_rationale','campaign_intent','expected_impact','justification','send_window','layout_chosen'];
+var _DEPTH_KEYS=['target_segment','segment_size','segment_rationale','campaign_intent','expected_impact','justification','send_window','layout_chosen','campaign_title'];
 async function supabaseSaveCampaign(record){
   var sb=getSupabase();if(!sb){statusPill('warn','Supabase offline','Saved locally only');return null;}
   var t=await _resolveTables();
@@ -2846,6 +2846,42 @@ function buildCampaignStrategy(){
     // Both variants are always built so the user can switch
     variants:['A','B']
   };
+}
+// ── User-idea + smart title extractors (used by dashboard / save) ──────────
+// extractUserIdea strips the D2C-brief wrapper and returns ONLY the line the
+// user actually typed. Works on both enhanced briefs (BRIEF: …) and the legacy
+// "raw on top, brief below" format. If nothing matches, returns the input.
+function extractUserIdea(prompt){
+  if(!prompt)return '';
+  var p=String(prompt).trim();
+  // Enhanced format (v29+): "BRIEF: <idea>" line — pluck it out
+  var m=p.match(/^\s*BRIEF:\s*(.+?)\s*(?:\n\s*\n|$)/m);
+  if(m && m[1]) return m[1].trim();
+  // Legacy enhanced format (≤v28): raw idea on line 1, brief separator below
+  var sep=p.indexOf('\n──');
+  if(sep>0) return p.slice(0,sep).trim();
+  // Plain prompt — return as-is
+  return p;
+}
+// generateCampaignTitle returns a 4-9 word title-cased headline derived from
+// the user's idea + campaign type + first product. Used on dashboard cards.
+function generateCampaignTitle(prompt,type,products,market){
+  var idea=extractUserIdea(prompt);
+  if(!idea){
+    // Fall back to type + product
+    var prod0=(products&&products[0])||'';
+    return ((type||'Campaign')+(prod0?' · '+prod0.split(',')[0]:'')).trim();
+  }
+  // First sentence (or 80 chars), then trim trailing fillers
+  var first=idea.split(/[.!?\n]/)[0].trim();
+  if(first.length>80) first=first.substring(0,80).trim()+'…';
+  // Strip leading verbs that bloat the title ("Launch the …", "Send a …")
+  first=first.replace(/^(launch|send|push|run|create|build|design|introduce|announce|drive|promote)\s+(the|a|an|our)\s+/i,'');
+  // Trim trailing connector phrases
+  first=first.replace(/\s+(for|to|with|featuring|using)\s+.{0,40}$/i,'');
+  // Title-case the first letter only (avoid mangling product names like "Earl Grey")
+  if(first.length) first=first[0].toUpperCase()+first.slice(1);
+  return first;
 }
 // Refresh strategy whenever state changes. Call before generating canvas / mailer.
 // Memoised: keyed on (prompt, type, market, productHandles, regenCount, manualMode)
@@ -6054,7 +6090,10 @@ function saveMailerToDashboard(){
     // ── INPUT (the task) ──
     user_name:user.name||'Unknown',
     user_email:user.email||'',
-    prompt_short:(S.prompt||'').substring(0,200),
+    // Campaign title + short summary use the user's actual idea (extracted
+    // from the enhanced brief) — never the "── D2C GROWTH BRIEF" wrapper.
+    campaign_title:generateCampaignTitle(S.prompt||'',S.type||detectType(S.prompt||''),(S.finalProds||[]).map(function(p){return p.n;}),primaryMkt),
+    prompt_short:extractUserIdea(S.prompt||'').substring(0,200),
     prompt_full:S.prompt||'',
     active_prompt:S.activePrompt||S.prompt||'',
     campaign_type:S.type||detectType(S.prompt||''),
@@ -6258,7 +6297,11 @@ async function renderDashboard(page){
         return {
           id:r.id,date:r.created_at,
           userName:r.user_name||'Unknown',userEmail:r.user_email||'',
-          prompt:r.prompt_short||'',fullPrompt:r.prompt_full||'',
+          // Smart title — prefer the saved one, otherwise derive from the prompt
+          // for older rows that pre-date the column.
+          title:r.campaign_title||generateCampaignTitle(r.prompt_full||r.prompt_short||'',r.campaign_type,r.product_names,r.primary_market),
+          prompt:extractUserIdea(r.prompt_full||r.prompt_short||''),
+          fullPrompt:r.prompt_full||'',
           markets:r.markets||['US'],type:r.campaign_type||'Campaign',
           products:r.product_names||[],
           fullMailers:r.market_mailers||{},
@@ -6437,7 +6480,8 @@ async function renderDashboard(page){
         +'<span style="font-size:10px;font-weight:700;padding:3px 10px;background:#e8f5ee;color:#004A2B;border-radius:10px;border:1px solid #b7e3c9">'+mkts+'</span>'
         +'<span style="font-size:10px;font-weight:700;padding:3px 10px;background:#fdf6e8;color:#AB8743;border-radius:10px;border:1px solid #ecd9a8">'+(e.type||'Campaign')+'</span>'
         +'</div>'
-        +'<div style="font-size:13px;color:#1a1a1a;font-weight:600;margin-bottom:5px;line-height:1.45">'+(e.prompt||'').substring(0,140)+(e.prompt&&e.prompt.length>140?'…':'')+'</div>'
+        +'<div style="font-family:\'Lao MN\',Georgia,serif;font-size:18px;color:#004A2B;font-weight:600;line-height:1.3;margin-bottom:4px">'+(e.title||generateCampaignTitle(e.fullPrompt||e.prompt||'',e.type,e.products,(e.markets||['US'])[0]))+'</div>'
+        +'<div style="font-size:11.5px;color:#555;font-weight:400;margin-bottom:5px;line-height:1.5">'+((e.prompt||'').substring(0,160)+(e.prompt&&e.prompt.length>160?'…':''))+'</div>'
         +(prods?'<div style="font-size:10.5px;color:#666;margin-bottom:3px">&#127873; '+prods+'</div>':'')
         +(e.userEmail?'<div style="font-size:10px;color:#aaa">&#9993; '+e.userEmail+'</div>':'')
         +'</div>'
@@ -6490,7 +6534,8 @@ function viewDashRecord(logIdx){
     html+=mkts.map(function(m){return '<span style="font-size:12px">'+({'US':'🇺🇸','UK':'🇬🇧','IN':'🇮🇳','Global':'🌍','ME':'🇦🇪','AU':'🇦🇺','EU':'🇪🇺'}[m]||m)+'</span>';}).join('');
     if(_oc)html+='<span style="background:#AB8743;color:#fff;font-size:9px;font-weight:700;padding:3px 9px;border-radius:12px">CODE: '+_oc+'</span>';
     html+='</div>';
-    html+='<div style="font-family:\'Cormorant Garamond\',Georgia,serif;font-size:20px;font-weight:600;color:#FBF5EA;line-height:1.2;margin-bottom:3px">Campaign Record</div>';
+    var modalTitle=e.title||generateCampaignTitle(e.fullPrompt||e.prompt||'',typ,e.products,mkts[0]);
+    html+='<div style="font-family:\'Lao MN\',Georgia,serif;font-size:22px;font-weight:600;color:#FBF5EA;line-height:1.25;margin-bottom:3px">'+modalTitle+'</div>';
     html+='<div style="font-size:10px;color:rgba(251,245,234,0.6)">'+dateStr+(e.userName&&e.userName!=='Unknown'?' &nbsp;·&nbsp; '+e.userName:'')+'</div>';
     html+='</div>';
     html+='<div style="display:flex;align-items:center;gap:8px;flex-shrink:0">';

@@ -6,6 +6,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE public.mailers_generated
+  ADD COLUMN IF NOT EXISTS campaign_title      TEXT,
   ADD COLUMN IF NOT EXISTS target_segment      TEXT,
   ADD COLUMN IF NOT EXISTS segment_size        TEXT,
   ADD COLUMN IF NOT EXISTS segment_rationale   TEXT,
