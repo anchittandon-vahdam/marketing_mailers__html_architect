@@ -946,7 +946,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='concept-ideation-v51';
+window.__VAHDAM_BUILD__='concept-applies-v52';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -5175,6 +5175,29 @@ window.pickConcept=function(id){
   if(!c)return;
   applyConceptToPipeline(c);
   renderConceptSelector(window._lastConcepts);
+  // ── If a mailer has already been built, rebuild every (market × variant)
+  //    cell now so the picked concept's archetype + copy + visual overlay
+  //    actually flow into the visible HTML. Without this rebuild, the user
+  //    only sees the previously-cached output and thinks "nothing changed."
+  try{
+    var mm=window.S && S.marketMailers ? S.marketMailers : null;
+    var hasExisting=mm && Object.keys(mm).some(function(k){var v=mm[k];return v && (typeof v==='string'?v.length:(v.A||v.B));});
+    if(hasExisting){
+      var mkts=(S.markets&&S.markets.length)?S.markets:[S.activeMarket||'US'];
+      S.marketMailers={};
+      mkts.forEach(function(mkt){
+        S.marketMailers[mkt]={A:buildEmail(S.uploadedDesignUrl||null,mkt),B:buildEmailVariantB(S.uploadedDesignUrl||null,mkt)};
+      });
+      S.finalHTML=(S.marketMailers[S.activeMarket]||{})[S.activeVariant||'A']||'';
+      var fr=document.getElementById('emailFr');if(fr)fr.srcdoc=S.finalHTML;
+      var raw=document.getElementById('htmlRaw');if(raw)raw.textContent=S.finalHTML;
+      if(typeof renderMarketTabs==='function')renderMarketTabs();
+      if(typeof renderVariantSwitcher==='function')renderVariantSwitcher();
+      if(typeof renderAllMailersMatrix==='function')renderAllMailersMatrix();
+      if(typeof buildStep5UI==='function')buildStep5UI(S.prompt,S.finalProds,S.activeMarket);
+      if(typeof statusPill==='function')statusPill('ok','Mailer rebuilt with picked concept');
+    }
+  }catch(err){console.warn('[pickConcept] rebuild failed',err);}
   // Re-render Step 5 if already populated
   try{if(typeof renderStrategicBrief==='function')renderStrategicBrief();}catch(_){}
   try{if(typeof renderStep5UnifiedPanel==='function')renderStep5UnifiedPanel();}catch(_){}
@@ -5585,10 +5608,14 @@ function _vhdSetup(type){
   var hero=prods[0]||{n:'',i:''};
   var base=getBase(mt);
   var collUrl=collectionUrl(p,mt);
-  var hl=heroHeadline(p,type);var sc=subCopy(p,type);var cta=ctaText(p,type);
+  // Concept overrides (set by applyConceptToPipeline) take precedence over heuristic copy
+  var conceptOn = !!(st && st._concept);
+  var hl  = (conceptOn && st.headline && st.headline.length) ? st.headline : heroHeadline(p,type);
+  var sc  = (conceptOn && st.subCopy)      ? st.subCopy      : subCopy(p,type);
+  var cta = (conceptOn && st.cta)          ? st.cta          : ctaText(p,type);
   var ot=offerText(p);var oc=offerCode(p);var os=offerSub(p);
-  var annLine=annBarLine(p,mt,type);
-  var secTitle=sectionTitle(p,type);
+  var annLine = (conceptOn && st.annBar)      ? st.annBar      : annBarLine(p,mt,type);
+  var secTitle= (conceptOn && st.sectionTitle)? st.sectionTitle: sectionTitle(p,type);
   return {st:st,prods:prods,p:p,mt:mt,hero:hero,base:base,collUrl:collUrl,
           hl:hl,sc:sc,cta:cta,ot:ot,oc:oc,os:os,annLine:annLine,secTitle:secTitle};
 }
@@ -6082,8 +6109,12 @@ function buildEmail(uploadedDesignImg,mktOverride){
   const mktLabel={US:'United States',UK:'United Kingdom',IN:'India',Global:'Global',ME:'Middle East',AU:'Australia',EU:'Europe'}[mt]||'United States';
   const base=getBase(mt);
   const ep=buildEffectivePrompt(p,prods); // enrich copy with selected product signals
-  const hl=heroHeadline(ep,campaignType);const sc=subCopy(ep,campaignType);const cta=ctaText(ep,campaignType);
-  const feats=featureStrip(ep);const ings=ingredients(ep);const secTitle=sectionTitle(ep,campaignType);
+  const _stE=S.strategy||{}; const _conE = !!_stE._concept;
+  const hl  = (_conE && _stE.headline && _stE.headline.length) ? _stE.headline : heroHeadline(ep,campaignType);
+  const sc  = (_conE && _stE.subCopy)  ? _stE.subCopy  : subCopy(ep,campaignType);
+  const cta = (_conE && _stE.cta)      ? _stE.cta      : ctaText(ep,campaignType);
+  const feats=featureStrip(ep);const ings=ingredients(ep);
+  const secTitle = (_conE && _stE.sectionTitle) ? _stE.sectionTitle : sectionTitle(ep,campaignType);
   const prodSecTitle=productSectionTitle(ep,campaignType);const ot=offerText(p);const oc=offerCode(p);
   const os=offerSub(p);const oct=offerCta(p);const colW=Math.floor(560/Math.min(prods.length,5));
   const mktIntel=getMarketIntel(mt,p);
@@ -7760,15 +7791,16 @@ async function renderDashboard(page){
       +'</div>';
     }
     return '<div style="border:2px solid #d6cdb8;border-radius:14px;background:#fff;box-shadow:0 4px 16px rgba(0,74,43,0.06);overflow:hidden;position:relative">'
-      // ── Card row header strip — instantly tells you where one campaign ends + the next begins ──
-      +'<div style="background:linear-gradient(90deg,#004A2B 0%,#1a3a28 100%);padding:9px 18px;display:flex;align-items:center;gap:10px;color:#FBF5EA;flex-wrap:wrap">'
-        +'<span style="background:#AB8743;color:#fff;font-size:10px;font-weight:800;letter-spacing:0.08em;padding:3px 10px;border-radius:14px;font-family:DM Sans,sans-serif">#'+rowNum+'</span>'
-        +'<span style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;opacity:0.85">Campaign</span>'
-        +'<span style="font-size:10px;font-weight:600;letter-spacing:0.04em;opacity:0.7">·</span>'
-        +'<span style="font-size:10.5px;font-weight:600;color:#FBF5EA;opacity:0.95">'+dateStr+'</span>'
-        +'<span style="flex:1"></span>'
-        +(e.userName&&e.userName!=='Unknown'?'<span style="font-size:10px;font-weight:700;padding:3px 10px;background:rgba(171,135,67,0.22);color:#FBF5EA;border:1px solid rgba(171,135,67,0.5);border-radius:14px;white-space:nowrap">&#128100; '+e.userName+'</span>':'')
-      +'</div>'
+      // ── Card row header strip — campaign TITLE is now the heading ──
+      +(function(){var __title=(e.title||generateCampaignTitle(e.fullPrompt||e.prompt||'',e.type,e.products,(e.markets||['US'])[0]))||'Untitled campaign';return '<div style="background:linear-gradient(90deg,#004A2B 0%,#1a3a28 100%);padding:14px 20px;color:#FBF5EA">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">'
+          +'<span style="background:#AB8743;color:#fff;font-size:10px;font-weight:800;letter-spacing:0.08em;padding:3px 10px;border-radius:14px;font-family:DM Sans,sans-serif">#'+rowNum+'</span>'
+          +'<span style="font-size:9.5px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;opacity:0.7">'+(e.type||'Campaign')+' · '+dateStr+'</span>'
+          +'<span style="flex:1"></span>'
+          +(e.userName&&e.userName!=='Unknown'?'<span style="font-size:10px;font-weight:700;padding:3px 10px;background:rgba(171,135,67,0.22);color:#FBF5EA;border:1px solid rgba(171,135,67,0.5);border-radius:14px;white-space:nowrap">&#128100; '+e.userName+'</span>':'')
+        +'</div>'
+        +'<h2 style="font-family:Lao MN,Georgia,serif;font-size:22px;font-weight:700;color:#FBF5EA;margin:0;line-height:1.25;letter-spacing:0.01em">'+__title.replace(/</g,'&lt;')+'</h2>'
+      +'</div>';})()
       // ── Card body ──
       +'<div style="padding:16px 18px">'
       +'<div style="display:grid;grid-template-columns:1fr auto;gap:14px;align-items:start">'
@@ -7777,8 +7809,7 @@ async function renderDashboard(page){
         +'<span style="font-size:10px;font-weight:700;padding:3px 10px;background:#e8f5ee;color:#004A2B;border-radius:10px;border:1px solid #b7e3c9">'+mkts+'</span>'
         +'<span style="font-size:10px;font-weight:700;padding:3px 10px;background:#fdf6e8;color:#AB8743;border-radius:10px;border:1px solid #ecd9a8">'+(e.type||'Campaign')+'</span>'
         +'</div>'
-        +'<div style="font-family:\'Lao MN\',Georgia,serif;font-size:18px;color:#004A2B;font-weight:600;line-height:1.3;margin-bottom:4px">'+(e.title||generateCampaignTitle(e.fullPrompt||e.prompt||'',e.type,e.products,(e.markets||['US'])[0]))+'</div>'
-        +'<div style="font-size:11.5px;color:#555;font-weight:400;margin-bottom:5px;line-height:1.5">'+((e.prompt||'').substring(0,160)+(e.prompt&&e.prompt.length>160?'…':''))+'</div>'
+        +'<div style="font-size:12px;color:#555;font-weight:400;margin-bottom:5px;line-height:1.55">'+((e.prompt||'').substring(0,200)+(e.prompt&&e.prompt.length>200?'…':''))+'</div>'
         +(prods?'<div style="font-size:10.5px;color:#666;margin-bottom:3px">&#127873; '+prods+'</div>':'')
         +(e.userEmail?'<div style="font-size:10px;color:#aaa">&#9993; '+e.userEmail+'</div>':'')
         +'</div>'
