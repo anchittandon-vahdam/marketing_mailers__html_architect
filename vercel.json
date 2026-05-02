@@ -9,7 +9,9 @@
   "rewrites": [
     { "source": "/",        "destination": "/vahdam_mailer_architect_v23.html" },
     { "source": "/studio",  "destination": "/vahdam_mailer_architect_v23.html" },
-    { "source": "/app",     "destination": "/vahdam_mailer_architect_v23.html" }
+    { "source": "/app",     "destination": "/vahdam_mailer_architect_v23.html" },
+    { "source": "/stable",  "destination": "/vahdam_mailer_architect_v34.html" },
+    { "source": "/next",    "destination": "/vahdam_mailer_architect_next.html" }
   ],
   "headers": [
     {
