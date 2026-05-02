@@ -650,7 +650,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
         placeholder="e.g. 20% off all turmeric &amp; ginger teas with code DETOX20. Focus on gut health, daily wellness ritual, natural ingredients. Free shipping on orders over $49. Warm, inspiring tone."></textarea>
       <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
         <button class="btn-enhance" onclick="enhancePrompt()">&#10024; Enhance with AI</button>
-        <span style="font-size:11px;color:#9ca3af;flex:1">Enriches your idea using the market &amp; type you've already selected — theme stays intact</span>
+        <button class="btn-enhance" onclick="createPromptWithAI()" style="background:linear-gradient(135deg,#0f2a1c,#1a3a28);color:#fdf6e8;border:1.5px solid #d4873a">&#127775; Create with AI</button>
+        <span style="font-size:11px;color:#9ca3af;flex:1">Enhance = enriches your existing idea (heuristic).&nbsp;&nbsp;Create = generates a top-quality brief from scratch via Claude (uses your market + type + product picks).</span>
       </div>
     </div>
 
@@ -954,7 +955,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='deliverables-unmissable-v65';
+window.__VAHDAM_BUILD__='create-with-ai-v66';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -1650,6 +1651,58 @@ function toggleMarket(m,el){
 }
 
 // ── Prompt enhancer ─────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────────────────
+// CREATE WITH AI — generates a top-quality D2C campaign brief from scratch
+// using Claude Haiku 4.5. Unlike enhancePrompt (which is heuristic), this
+// hits the Anthropic API and returns a director-grade brief that the
+// downstream concept ideation + image prompt + HTML templates can act on.
+// ────────────────────────────────────────────────────────────────────────────
+async function createPromptWithAI(){
+  var ta=document.getElementById('promptIn');
+  var seed=(ta?ta.value:'').trim();
+  var key=(document.getElementById('claudeKeyIn')&&document.getElementById('claudeKeyIn').value||'').trim();
+  if(!key){
+    if(typeof statusPill==='function')statusPill('warn','Add your Claude API key in the AI Tools tab','Create with AI uses Claude Haiku 4.5 — paste your key in p4-claude tab');
+    else showCopyToast('Add your Claude API key in the AI Tools tab');
+    return;
+  }
+  var type=(window.S&&S.type)?S.type:'Campaign';
+  var mkts=(window.S&&S.markets&&S.markets.length>0)?S.markets:['US'];
+  var primaryMkt=mkts[0]||'US';
+  var prods=(window.S&&S.finalProds&&S.finalProds.length)?S.finalProds.slice(0,5).map(function(p){return p.n;}).filter(Boolean):[];
+  var btn=event&&event.target;
+  if(btn){btn.disabled=true;btn.dataset._origText=btn.innerHTML;btn.innerHTML='⏳ Creating...';}
+  if(typeof statusPill==='function')statusPill('loading','Claude is drafting a director-grade brief...');
+  var system='You are a D2C growth director and creative lead at a premium tea brand agency. Your job: take a thin campaign idea and write a SINGLE production-ready brief that the downstream concept + image + HTML pipeline can render perfectly.\n\nThe brief MUST contain (in plain prose, NOT bullets):\n  1. Campaign goal in one sentence (what business outcome).\n  2. Audience segment (new / repeat / lapsed) with one-line emotional state.\n  3. PRIMARY HOOK explicit: offer | benefit | origin-freshness — and what specifically (e.g. \"20% off iced teas\", \"calm focus\", \"single-estate Darjeeling harvested 6 weeks ago\").\n  4. SECONDARY HOOK reinforcing the primary.\n  5. Hero scene direction — specific photographic instruction (\"overhead of dry hibiscus petals on raw linen\", not \"product image\").\n  6. Headline angle — sensory OR benefit-led OR offer-integrated, with 1-2 example phrasings.\n  7. CTA verb pattern (Discover/Begin/Claim/Steep) aligned to the angle.\n  8. Mood + tone descriptor (calm-confident-premium).\n\nVAHDAM brand foundation to honor: premium Indian heritage tea, ritual not regimen, single-estate ethical sourcing, US-primary audience.\nBANNED phrases (never include): \"wellness journey\", \"transform\", \"liquid gold\", \"game-changer\", \"LIMITED TIME\" caps, \"You won\'t believe\", \"Hurry\", \"Don\'t miss out\", \"Last chance\".\nPREFERRED vocabulary: ritual, restore, balance, origin, single-estate, hand-picked, steep, heritage, crafted.\n\nOUTPUT: 180-280 words plain prose. No headings, no bullets, no markdown. Reads like a senior growth director briefing a creative team. The downstream concept ideation system will parse it.';
+  var userMsg='SEED IDEA: '+(seed||'(no seed — invent a strong one for the inputs below)')+'\nCAMPAIGN TYPE: '+type+'\nMARKETS: '+mkts.join(', ')+' (primary: '+primaryMkt+')\n'+(prods.length?'PRODUCTS PICKED: '+prods.join('; ')+'\n':'')+'\nWrite the brief now.';
+  try{
+    var res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-haiku-4-5',max_tokens:1500,system:system,messages:[{role:'user',content:userMsg}]})
+    });
+    if(!res.ok){var err=await res.json().catch(function(){return {};});throw new Error((err.error&&err.error.message)||'Claude error '+res.status);}
+    var data=await res.json();
+    var text=((data.content||[]).filter(function(b){return b.type==='text';}).map(function(b){return b.text;}).join('')).trim();
+    if(!text){throw new Error('Empty response');}
+    if(ta){
+      ta.value=text;
+      ta.style.minHeight='260px';
+      ta.scrollTop=0;
+      ta.focus();
+      ta.setSelectionRange(0,0);
+    }
+    if(typeof statusPill==='function')statusPill('ok','Brief created — review and Generate when ready','Director-grade brief from Claude');
+    else showCopyToast('✓ Created — review and Generate');
+  }catch(e){
+    console.warn('[createPromptWithAI] error:',e);
+    if(typeof statusPill==='function')statusPill('err','Create failed — falling back to Enhance',e.message);
+    else showCopyToast('Create failed — try Enhance instead');
+  }finally{
+    if(btn){btn.disabled=false;if(btn.dataset._origText)btn.innerHTML=btn.dataset._origText;}
+  }
+}
+
 function enhancePrompt(){
   var ta=document.getElementById('promptIn');
   var raw=(ta?ta.value:'').trim();
