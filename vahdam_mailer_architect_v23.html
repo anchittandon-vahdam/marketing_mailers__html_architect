@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='correct-device-sizes-v46';
+window.__VAHDAM_BUILD__='all-types-unique-v47';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -4876,12 +4876,19 @@ async function analyzeImageAndBuildEmail(base64DataUrl,prods,prompt,market){
 // Uses the SAME strategy data (headline, sub, CTA, products, offer) — only
 // the visual structure differs. User picks the better strategic angle.
 function buildEmailVariantB(uploadedDesignImg,mktOverride){
-  // ── Type-specific dispatcher (Variant B too) ───────────────────────────
-  // Sale campaigns ALWAYS use buildSaleMailer regardless of A/B variant —
-  // the old narrative-story stack was atrocious for offers.
+  // ── Full type-specific dispatcher (Variant B mirrors Variant A) ─────────
+  // Both variants now route to the same type-specific template.
+  // Variant choice (A vs B) only matters for the legacy fallback.
   const _type=S.type||detectType(S.activePrompt||S.prompt||'');
-  if(_type==='Sale' && !uploadedDesignImg){
-    return buildSaleMailer(uploadedDesignImg,mktOverride);
+  if(!uploadedDesignImg){
+    if(_type==='Sale')        return buildSaleMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Story')       return buildStoryMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Gift')        return buildGiftMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Launch')      return buildLaunchMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Bestseller')  return buildBestsellerMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Discovery')   return buildDiscoveryMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Routine')     return buildRoutineMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Seasonal')    return buildSeasonalMailer(uploadedDesignImg,mktOverride);
   }
   refreshStrategy();
   const st=S.strategy||buildCampaignStrategy();
@@ -5071,6 +5078,368 @@ function buildEmailVariantB(uploadedDesignImg,mktOverride){
   return html;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPE-SPECIFIC MAILER TEMPLATES
+// Each campaign type gets its OWN structurally distinct HTML template — not
+// just different copy on the same skeleton. Section count, section order,
+// hero treatment, CTA placement, and visual rhythm all change per type.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Common helpers used by every type-specific template
+function _vhdMsoHead(){return '<!--[if gte mso 9]><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->';}
+function _vhdResponsiveCSS(){
+  return '\n@media only screen and (max-width:600px){\n'+
+    '  .email-wrap{width:100%!important;max-width:100%!important}\n'+
+    '  .pcol{display:block!important;width:100%!important;padding:0 0 14px!important}\n'+
+    '  .vhd-h1{font-size:30px!important;line-height:1.1!important;letter-spacing:0!important}\n'+
+    '  .vhd-h2{font-size:26px!important;line-height:1.15!important}\n'+
+    '  .vhd-sub{font-size:13px!important;line-height:1.65!important;max-width:100%!important}\n'+
+    '  .vhd-hero-img{height:260px!important;object-fit:cover!important}\n'+
+    '  .pd20{padding:18px 18px!important}\n'+
+    '  .vhd-hide-mobile{display:none!important}\n'+
+    '}\n';
+}
+function _vhdCTA(href,label,bg,fg,size){
+  bg=bg||'#AB8743';fg=fg||'#fff';size=size||'M';
+  var pad=size==='L'?'16px 36px':size==='S'?'10px 22px':'13px 30px';
+  var fs=size==='L'?'14px':size==='S'?'11px':'12.5px';
+  return '<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="'+href+'" style="height:48px;v-text-anchor:middle;width:280px" arcsize="10%" stroke="f" fillcolor="'+bg+'"><w:anchorlock/><center style="color:'+fg+';font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:'+fs+';font-weight:bold;letter-spacing:0.16em;">'+label+'</center></v:roundrect><![endif]--><!--[if !mso]><!--><a href="'+href+'" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:'+bg+';color:'+fg+';padding:'+pad+';font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:'+fs+';font-weight:bold;letter-spacing:0.16em;text-decoration:none;border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,0.15)">'+label+'</a><!--<![endif]-->';
+}
+function _vhdFooter(base){
+  return '<tr><td style="background:#1a3a28;padding:14px 24px;text-align:center;border-left:1px solid #1a3a28;border-right:1px solid #1a3a28">'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#9fd6b5;margin:0;letter-spacing:0.06em">★★★★★ &nbsp;Rated 4.8/5 by 50,000+ tea lovers &nbsp;&middot;&nbsp; 100% Natural &nbsp;&middot;&nbsp; Ships to 100+ Countries</p>'+
+  '</td></tr>\n'+
+  '<tr><td style="background:#111;padding:24px 24px;text-align:center;border-radius:0 0 6px 6px"><p style="font-family:Lao MN,Georgia,serif;font-size:14px;font-weight:bold;letter-spacing:0.22em;color:#FBF5EA;margin:0 0 10px">VAHDAM&reg;</p>'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;color:#888;margin:0 0 8px"><a href="https://www.instagram.com/vahdamteas" style="color:#888;text-decoration:none">Instagram</a> &middot; <a href="https://www.facebook.com/vahdamteas" style="color:#888;text-decoration:none">Facebook</a> &middot; <a href="https://www.youtube.com/@vahdamteas" style="color:#888;text-decoration:none">YouTube</a></p>'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;color:#444;margin:0;line-height:1.7">VAHDAM India Pvt. Ltd. &middot; New Delhi, India<br><a href="'+base+'/pages/unsubscribe" style="color:#666">Unsubscribe</a> &middot; <a href="'+base+'/pages/privacy-policy" style="color:#666">Privacy Policy</a></p>'+
+  '</td></tr>\n';
+}
+function _vhdSetup(type){
+  refreshStrategy();
+  var st=S.strategy||buildCampaignStrategy();
+  var prods=st.products||[];
+  var p=S.activePrompt||S.prompt||'';
+  var mt=st.market||'US';
+  var hero=prods[0]||{n:'',i:''};
+  var base=getBase(mt);
+  var collUrl=collectionUrl(p,mt);
+  var hl=heroHeadline(p,type);var sc=subCopy(p,type);var cta=ctaText(p,type);
+  var ot=offerText(p);var oc=offerCode(p);var os=offerSub(p);
+  var annLine=annBarLine(p,mt,type);
+  var secTitle=sectionTitle(p,type);
+  return {st:st,prods:prods,p:p,mt:mt,hero:hero,base:base,collUrl:collUrl,
+          hl:hl,sc:sc,cta:cta,ot:ot,oc:oc,os:os,annLine:annLine,secTitle:secTitle};
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. STORY MAILER — narrative-led, full-bleed cinematic, drop-cap, single product
+// ─────────────────────────────────────────────────────────────────────────────
+function buildStoryMailer(uploadedDesignImg,mktOverride){
+  var c=_vhdSetup('Story'); if(mktOverride)c.mt=mktOverride;
+  var heroImg=uploadedDesignImg||(c.hero&&c.hero.i)||'';
+  var html='<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VAHDAM&reg; — '+(c.p||'').substring(0,50)+'</title>'+_vhdMsoHead()+'<style>'+_vhdResponsiveCSS()+'</style></head><body style="margin:0;padding:0;background:#1a1410;-webkit-text-size-adjust:100%">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1a1410"><tr><td align="center" style="padding:24px 10px">'+
+    '<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse;background:#fff">'+
+    // S1 — minimal earth-tone announcement bar (no urgency)
+    '<tr><td style="background:#3a2a1a;padding:11px 22px;text-align:center"><p class="ann-bar-text" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;letter-spacing:0.28em;text-transform:uppercase;color:#FBF5EA;margin:0;font-weight:600">'+c.annLine+'</p></td></tr>'+
+    // S2 — minimal brand monogram (smaller for story focus)
+    '<tr><td style="background:#fff;padding:24px 20px 16px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:24px;font-weight:bold;letter-spacing:0.28em;color:#004A2B;margin:0">VAHDAM&reg;</p></td></tr>'+
+    // S3 — FULL-BLEED cinematic hero (no copy overlay — pure photograph)
+    '<tr><td style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+(heroImg?'<img class="vhd-hero-img" src="'+heroImg+'" alt="" width="598" border="0" style="width:100%;max-width:598px;height:520px;object-fit:cover;display:block;border:0;outline:none">':'<div style="width:100%;height:520px;background:linear-gradient(135deg,#3a2a1a,#1a3a28)"></div>')+'</td></tr>'+
+    // S4 — drop-cap narrative paragraph
+    '<tr><td class="pd20 editorial-pad" style="background:#FBF5EA;padding:64px 60px 48px;text-align:left;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.36em;color:#AB8743;margin:0 0 18px;text-transform:uppercase;text-align:center">✦ Our Story ✦</p>'+
+    '<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:38px;font-weight:bold;color:#004A2B;margin:0 0 28px;line-height:1.08;letter-spacing:-0.012em;text-align:center;font-style:italic">'+(c.hl[0]||'')+(c.hl[1]?' '+c.hl[1]:'')+'</p>'+
+    '<div style="font-family:Lao MN,Georgia,serif;font-size:18px;color:#AB8743;margin:0 0 28px;line-height:1;letter-spacing:0.4em;text-align:center">✦ &nbsp; ✦ &nbsp; ✦</div>'+
+    '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:15px;color:#3a3a3a;margin:0;line-height:1.95"><span style="font-family:Lao MN,Georgia,serif;font-size:54px;font-weight:bold;color:#AB8743;float:left;line-height:0.9;margin:6px 14px 0 0;padding:0">'+((c.sc&&c.sc[0])||'F')+'</span>'+(c.sc||'').substring(1)+' For over a decade, we have walked the misty estates of Darjeeling, Assam and the Nilgiris — meeting the farmers who tend each garden. No middlemen. Just tea, exactly as it was meant to be tasted.</p></td></tr>'+
+    // S5 — single hero product spotlight
+    (c.hero&&c.hero.i?'<tr><td style="background:#fff;padding:48px 40px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.32em;text-transform:uppercase;color:#AB8743;margin:0 0 14px;font-weight:700">— Featured —</p>'+
+    '<img src="'+c.hero.i+'" alt="'+(c.hero.n||'').replace(/"/g,'&quot;')+'" width="320" border="0" style="width:100%;max-width:320px;height:auto;display:block;margin:0 auto 22px;border-radius:8px">'+
+    '<p style="font-family:Lao MN,Georgia,serif;font-size:24px;font-weight:bold;color:#004A2B;margin:0 0 10px;line-height:1.25">'+(c.hero.n||'').split(',')[0]+'</p>'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:13px;color:#666;margin:0 0 24px;line-height:1.7;max-width:420px;display:inline-block">'+prodShortDesc(c.hero.n||'')+'</p><br>'+
+    _vhdCTA(pdpUrl(c.hero.n,c.mt),'DISCOVER ITS STORY &rarr;','#004A2B','#FBF5EA')+'</td></tr>':'')+
+    // S6 — Soft CTA on cream
+    '<tr><td style="background:#FBF5EA;padding:36px 32px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:18px;color:#1a1a1a;margin:0 0 18px;line-height:1.5;font-style:italic">"You can taste the heritage in every cup. Single-estate Indian teas, done with absolute integrity."</p>'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#AB8743;letter-spacing:0.16em;text-transform:uppercase;margin:0 0 22px;font-weight:700">— Verified Customer · '+(c.mt||'US')+' —</p>'+
+    _vhdCTA(c.collUrl,(c.cta||'EXPLORE THE COLLECTION')+' &rarr;','#AB8743','#fff','L')+'</td></tr>'+
+    _vhdFooter(c.base)+
+    '</table></td></tr></table></body></html>';
+  return html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. GIFT MAILER — occasion-led, gift-box hero, vertical catalog, free wrap
+// ─────────────────────────────────────────────────────────────────────────────
+function buildGiftMailer(uploadedDesignImg,mktOverride){
+  var c=_vhdSetup('Gift'); if(mktOverride)c.mt=mktOverride;
+  var heroImg=uploadedDesignImg||(c.hero&&c.hero.i)||'';
+  var giftSets=c.prods.slice(0,5);
+  function giftRow(prod,i){
+    return '<tr><td style="padding:14px 0"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#fff;border:1.5px solid #ede5d8;border-radius:10px;overflow:hidden"><tr>'+
+      '<td width="160" style="padding:0;line-height:0;font-size:0;background:#f8f4ee">'+(prod.i?'<img src="'+prod.i+'" alt="'+(prod.n||'').replace(/"/g,'&quot;')+'" width="160" border="0" style="width:160px;height:160px;object-fit:cover;display:block;border:0;outline:none">':'<div style="width:160px;height:160px;background:#e8f0e8"></div>')+'</td>'+
+      '<td style="padding:18px 22px;vertical-align:middle">'+
+        (i===0?'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:8.5px;font-weight:800;letter-spacing:0.18em;color:#AB8743;margin:0 0 6px;text-transform:uppercase">★ Gift Pick</p>':'')+
+        '<p style="font-family:Lao MN,Georgia,serif;font-size:16px;font-weight:bold;color:#1a1a1a;margin:0 0 6px;line-height:1.3">'+(prod.n||'').split(',')[0]+'</p>'+
+        '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11.5px;color:#666;margin:0 0 12px;line-height:1.6">'+prodShortDesc(prod.n||'')+'</p>'+
+        '<a href="'+pdpUrl(prod.n,c.mt)+'" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#AB8743;color:#fff;padding:8px 18px;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:bold;letter-spacing:0.14em;text-decoration:none;border-radius:5px">SHOP THIS GIFT &rarr;</a>'+
+      '</td></tr></table></td></tr>';
+  }
+  var html='<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VAHDAM&reg; Gifts — '+(c.p||'').substring(0,50)+'</title>'+_vhdMsoHead()+'<style>'+_vhdResponsiveCSS()+'</style></head><body style="margin:0;padding:0;background:#f8f0e0;-webkit-text-size-adjust:100%">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8f0e0"><tr><td align="center" style="padding:24px 10px">'+
+    '<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse;background:#fff">'+
+    // S1 — gold occasion banner
+    '<tr><td style="background:linear-gradient(90deg,#8a6a30 0%,#AB8743 50%,#8a6a30 100%);padding:13px 22px;text-align:center"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;letter-spacing:0.32em;text-transform:uppercase;color:#fff;margin:0;font-weight:700">🎁 '+(c.ot||'GIFTING SEASON 2026')+' &middot; Free Wrapping Inside</p></td></tr>'+
+    // S2 — Brand monogram with gift accent
+    '<tr><td style="background:#FBF5EA;padding:24px 22px 18px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;font-weight:bold;letter-spacing:0.24em;color:#004A2B;margin:0">VAHDAM&reg;</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.22em;color:#AB8743;margin:8px 0 0;text-transform:uppercase;font-weight:700">— The Gift Edit —</p></td></tr>'+
+    // S3 — gift-box hero
+    '<tr><td style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+(heroImg?'<img class="vhd-hero-img" src="'+heroImg+'" alt="" width="598" border="0" style="width:100%;max-width:598px;height:420px;object-fit:cover;display:block;border:0;outline:none">':'<div style="width:100%;height:420px;background:linear-gradient(135deg,#AB8743,#8a6a30)"></div>')+'</td></tr>'+
+    // S4 — Hero copy + free wrap callout
+    '<tr><td class="pd20 editorial-pad" style="background:#fff;padding:48px 48px 36px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.36em;color:#AB8743;margin:0 0 18px;text-transform:uppercase">✦ A Gift Worth Giving ✦</p>'+
+    '<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:42px;font-weight:bold;color:#004A2B;margin:0 0 14px;line-height:1.05;letter-spacing:-0.018em">'+(c.hl[0]||'Give the gift')+'</p>'+
+    (c.hl[1]?'<p class="vhd-h2" style="font-family:Lao MN,Georgia,serif;font-size:36px;font-weight:bold;color:#AB8743;margin:0 0 20px;line-height:1.05;font-style:italic;letter-spacing:-0.012em">'+c.hl[1]+'</p>':'')+
+    '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:14px;color:#444;margin:18px 0 26px;line-height:1.75;max-width:460px;display:inline-block">'+(c.sc||'').substring(0,180)+'</p>'+
+    // Free wrap callout
+    '<div style="margin:22px auto 4px;padding:14px 22px;background:linear-gradient(180deg,#fdf6e8 0%,#f8edd0 100%);border:1.5px solid #AB8743;border-radius:10px;display:inline-block">'+
+      '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:12px;font-weight:700;color:#8a6a30;margin:0;letter-spacing:0.06em;line-height:1.6">🎁 <strong>Free Gift Wrapping</strong> &middot; Handwritten Note &middot; Premium Box</p>'+
+    '</div></td></tr>'+
+    // S5 — Gift catalog (vertical stack)
+    (giftSets.length?'<tr><td style="background:#FBF5EA;padding:36px 32px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.32em;text-transform:uppercase;color:#AB8743;margin:0 0 8px;text-align:center;font-weight:700">— Find the Perfect Gift —</p>'+
+    '<p style="font-family:Lao MN,Georgia,serif;font-size:24px;font-weight:bold;color:#1a1a1a;margin:0 0 24px;text-align:center">Curated gift sets for every tea lover</p>'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">'+giftSets.map(giftRow).join('')+'</table></td></tr>':'')+
+    // S6 — quiz CTA
+    '<tr><td style="background:#004A2B;padding:32px 32px;text-align:center;border-left:1px solid #004A2B;border-right:1px solid #004A2B"><p style="font-family:Lao MN,Georgia,serif;font-size:22px;font-weight:bold;color:#FBF5EA;margin:0 0 16px;line-height:1.3">Not sure what to gift?</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:12.5px;color:#9fd6b5;margin:0 0 22px;line-height:1.6;max-width:420px;display:inline-block">Take our 60-second quiz and we will recommend the perfect gift set for the tea lover in your life.</p>'+_vhdCTA(c.base+'/pages/gift-finder','TAKE THE QUIZ &rarr;','#AB8743','#fff','L')+'</td></tr>'+
+    _vhdFooter(c.base)+
+    '</table></td></tr></table></body></html>';
+  return html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. LAUNCH MAILER — exclusive ribbon, single product, tasting notes 3-col
+// ─────────────────────────────────────────────────────────────────────────────
+function buildLaunchMailer(uploadedDesignImg,mktOverride){
+  var c=_vhdSetup('Launch'); if(mktOverride)c.mt=mktOverride;
+  var heroImg=uploadedDesignImg||(c.hero&&c.hero.i)||'';
+  var html='<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VAHDAM&reg; Launch — '+(c.hero.n||'').split(',')[0]+'</title>'+_vhdMsoHead()+'<style>'+_vhdResponsiveCSS()+'</style></head><body style="margin:0;padding:0;background:#0a0f0d;-webkit-text-size-adjust:100%">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0a0f0d"><tr><td align="center" style="padding:24px 10px">'+
+    '<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse;background:#fff">'+
+    // S1 — exclusive ribbon
+    '<tr><td style="background:#1a1a1a;padding:13px 22px;text-align:center;border-bottom:2px solid #AB8743"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;letter-spacing:0.32em;text-transform:uppercase;color:#AB8743;margin:0;font-weight:800">⭐ FIRST ACCESS · EXCLUSIVE FOR SUBSCRIBERS ⭐</p></td></tr>'+
+    // S2 — Brand monogram on dark
+    '<tr><td style="background:#1a1a1a;padding:18px 20px 22px;text-align:center"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;font-weight:bold;letter-spacing:0.28em;color:#FBF5EA;margin:0">VAHDAM&reg;</p></td></tr>'+
+    // S3 — JUST DROPPED pill + dramatic single product hero
+    '<tr><td style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8;background:#0a0f0d;position:relative">'+
+      (heroImg?'<img class="vhd-hero-img" src="'+heroImg+'" alt="" width="598" border="0" style="width:100%;max-width:598px;height:540px;object-fit:cover;display:block;border:0;outline:none;background:#0a0f0d">':'<div style="width:100%;height:540px;background:linear-gradient(135deg,#0a0f0d,#1a3a28)"></div>')+
+    '</td></tr>'+
+    // S4 — JUST DROPPED + product name + price
+    '<tr><td class="pd20 editorial-pad" style="background:#FBF5EA;padding:48px 48px 36px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
+      '<div style="display:inline-block;margin:0 0 18px;padding:6px 18px;background:#c0392b;color:#fff;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.28em;text-transform:uppercase;border-radius:20px">⚡ JUST DROPPED</div>'+
+      '<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:46px;font-weight:bold;color:#004A2B;margin:0 0 12px;line-height:1.05;letter-spacing:-0.018em">'+(c.hero.n||'').split(',')[0]+'</p>'+
+      '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:13px;color:#AB8743;margin:0 0 22px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700">— Limited First Batch —</p>'+
+      '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:14px;color:#444;margin:0 0 26px;line-height:1.78;max-width:460px;display:inline-block">'+(c.sc||'').substring(0,200)+'</p>'+
+      _vhdCTA(pdpUrl(c.hero.n,c.mt),'BE AMONG THE FIRST &rarr;','#004A2B','#FBF5EA','L')+
+    '</td></tr>'+
+    // S5 — Tasting notes 3-col (Aroma · Palate · Finish)
+    '<tr><td style="background:#fff;padding:48px 36px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.36em;text-transform:uppercase;color:#AB8743;margin:0 0 8px;text-align:center;font-weight:700">— The Tasting Profile —</p><p style="font-family:Lao MN,Georgia,serif;font-size:24px;font-weight:bold;color:#1a1a1a;margin:0 0 36px;text-align:center;line-height:1.2;font-style:italic">A taste worth waiting for</p>'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr>'+
+      '<td class="pcol" width="33%" style="text-align:center;padding:0 8px;vertical-align:top;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;color:#AB8743;margin:0 0 8px;line-height:1">🌿</p><p style="font-family:Lao MN,Georgia,serif;font-size:13px;font-weight:bold;color:#004A2B;margin:0 0 6px;letter-spacing:0.12em;text-transform:uppercase">Aroma</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#666;margin:0;line-height:1.6">Floral, bright, with notes of muscatel and honey</p></td>'+
+      '<td class="pcol" width="34%" style="text-align:center;padding:0 8px;vertical-align:top;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;color:#AB8743;margin:0 0 8px;line-height:1">🍵</p><p style="font-family:Lao MN,Georgia,serif;font-size:13px;font-weight:bold;color:#004A2B;margin:0 0 6px;letter-spacing:0.12em;text-transform:uppercase">Palate</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#666;margin:0;line-height:1.6">Smooth, complex, with a delicate maltiness</p></td>'+
+      '<td class="pcol" width="33%" style="text-align:center;padding:0 8px;vertical-align:top"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;color:#AB8743;margin:0 0 8px;line-height:1">✨</p><p style="font-family:Lao MN,Georgia,serif;font-size:13px;font-weight:bold;color:#004A2B;margin:0 0 6px;letter-spacing:0.12em;text-transform:uppercase">Finish</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#666;margin:0;line-height:1.6">Long, clean, with hints of orchard fruit</p></td>'+
+    '</tr></table></td></tr>'+
+    // S6 — Origin + scarcity
+    '<tr><td style="background:#1a3a28;padding:32px 32px;text-align:center;border-left:1px solid #1a3a28;border-right:1px solid #1a3a28"><p style="font-family:Lao MN,Georgia,serif;font-size:20px;font-weight:bold;color:#FBF5EA;margin:0 0 12px;line-height:1.3;font-style:italic">Direct from a single Indian estate</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:12px;color:#9fd6b5;margin:0 0 20px;line-height:1.7;max-width:420px;display:inline-block">A limited first batch — once it sells out, the next harvest is months away. Subscribers get first pick.</p>'+_vhdCTA(c.collUrl,(c.cta||'CLAIM YOUR BOTTLE')+' &rarr;','#AB8743','#fff','L')+'</td></tr>'+
+    _vhdFooter(c.base)+
+    '</table></td></tr></table></body></html>';
+  return html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. BESTSELLER MAILER — top-N countdown, customer quotes, social proof stacked
+// ─────────────────────────────────────────────────────────────────────────────
+function buildBestsellerMailer(uploadedDesignImg,mktOverride){
+  var c=_vhdSetup('Bestseller'); if(mktOverride)c.mt=mktOverride;
+  var top5=c.prods.slice(0,5);
+  var quotes=[
+    {q:'Pure, floral, impossibly fresh. The best Indian tea I have ever tasted.',n:'Sarah · NY'},
+    {q:'My morning ritual transformed since I switched. I drink nothing else now.',n:'James · London'},
+    {q:'Worth every penny. The freshness is unmatched at this price point.',n:'Priya · Mumbai'},
+    {q:'Tasted nothing like this in any tea I have bought before. Truly exceptional.',n:'Marc · Sydney'},
+    {q:'You can taste the heritage. Single-estate done with absolute integrity.',n:'Emma · Toronto'}
+  ];
+  function bestRow(prod,i){
+    var quote=quotes[i]||quotes[0];
+    return '<tr><td style="padding:18px 0"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#fff;border-bottom:1px solid #ede5d8"><tr>'+
+      '<td width="60" style="padding:0 0 0 8px;vertical-align:middle"><p style="font-family:Lao MN,Georgia,serif;font-size:48px;font-weight:bold;color:#AB8743;margin:0;line-height:1;letter-spacing:-0.04em">#'+(i+1)+'</p></td>'+
+      '<td width="120" style="padding:0;line-height:0;font-size:0">'+(prod.i?'<img src="'+prod.i+'" alt="'+(prod.n||'').replace(/"/g,'&quot;')+'" width="120" border="0" style="width:120px;height:120px;object-fit:cover;display:block;border:0;outline:none;border-radius:8px">':'<div style="width:120px;height:120px;background:#e8f0e8;border-radius:8px"></div>')+'</td>'+
+      '<td style="padding:0 0 0 18px;vertical-align:middle">'+
+        '<p style="font-family:Lao MN,Georgia,serif;font-size:15px;font-weight:bold;color:#1a1a1a;margin:0 0 4px;line-height:1.3">'+(prod.n||'').split(',')[0]+'</p>'+
+        '<p style="margin:0 0 6px"><span style="color:#AB8743;font-size:13px">★★★★★</span> <span style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#888">4.8 · 5,200+ reviews</span></p>'+
+        '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11.5px;color:#555;margin:0 0 10px;font-style:italic;line-height:1.55">"'+quote.q+'"<br><span style="font-style:normal;font-size:10px;color:#999">— '+quote.n+'</span></p>'+
+        '<a href="'+pdpUrl(prod.n,c.mt)+'" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#004A2B;color:#FBF5EA;padding:7px 16px;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:bold;letter-spacing:0.12em;text-decoration:none;border-radius:5px">SHOP NOW &rarr;</a>'+
+      '</td></tr></table></td></tr>';
+  }
+  var html='<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VAHDAM&reg; Top Picks</title>'+_vhdMsoHead()+'<style>'+_vhdResponsiveCSS()+'</style></head><body style="margin:0;padding:0;background:#f0ebe0;-webkit-text-size-adjust:100%">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0ebe0"><tr><td align="center" style="padding:24px 10px">'+
+    '<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse;background:#fff">'+
+    // S1 — social proof announcement bar
+    '<tr><td style="background:#004A2B;padding:13px 22px;text-align:center"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#FBF5EA;margin:0;font-weight:600"><span style="color:#AB8743">★★★★★</span> 50,000+ TEA LOVERS RATE 4.8/5</p></td></tr>'+
+    // S2 — Brand
+    '<tr><td style="background:#fff;padding:24px 22px 16px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:32px;font-weight:bold;letter-spacing:0.24em;color:#004A2B;margin:0 0 8px">VAHDAM&reg;</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.24em;color:#AB8743;margin:0;text-transform:uppercase;font-weight:700">— THE MOST-LOVED TEAS, RANKED BY YOU —</p></td></tr>'+
+    // S3 — Hero with massive social proof number
+    '<tr><td style="background:linear-gradient(180deg,#FBF5EA 0%,#f6efde 100%);padding:48px 32px 38px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+
+    '<p style="font-family:Lao MN,Georgia,serif;font-size:96px;font-weight:bold;color:#AB8743;margin:0;line-height:0.95;letter-spacing:-0.04em">50K<span style="font-size:48px">+</span></p>'+
+    '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:13px;letter-spacing:0.16em;color:#004A2B;margin:8px 0 16px;text-transform:uppercase;font-weight:700">Customers Have Spoken</p>'+
+    '<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:34px;font-weight:bold;color:#004A2B;margin:0 0 14px;line-height:1.1;letter-spacing:-0.012em">'+(c.hl[0]||'These are the favourites')+'</p>'+
+    '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:13.5px;color:#444;margin:0;line-height:1.75;max-width:440px;display:inline-block">'+(c.sc||'').substring(0,180)+'</p></td></tr>'+
+    // S4 — Top 5 countdown
+    '<tr><td style="background:#fff;padding:24px 24px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.32em;text-transform:uppercase;color:#AB8743;margin:0 0 6px;text-align:center;font-weight:700">— THE TOP '+top5.length+' —</p><p style="font-family:Lao MN,Georgia,serif;font-size:22px;font-weight:bold;color:#1a1a1a;margin:0 0 8px;text-align:center">As ranked by 50,000+ tea lovers</p>'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">'+top5.map(bestRow).join('')+'</table></td></tr>'+
+    // S5 — Big CTA
+    '<tr><td style="background:#1a3a28;padding:32px 32px;text-align:center;border-left:1px solid #1a3a28;border-right:1px solid #1a3a28"><p style="font-family:Lao MN,Georgia,serif;font-size:22px;font-weight:bold;color:#FBF5EA;margin:0 0 14px;line-height:1.3">Join 50,000+ regulars</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:12.5px;color:#9fd6b5;margin:0 0 20px;line-height:1.6">There is a reason these come back to your cart. Try a bestseller today.</p>'+_vhdCTA(c.collUrl,(c.cta||'SHOP THE BESTSELLERS')+' &rarr;','#AB8743','#fff','L')+'</td></tr>'+
+    _vhdFooter(c.base)+
+    '</table></td></tr></table></body></html>';
+  return html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. DISCOVERY MAILER — sampler hero, "what's inside" grid, exploration framing
+// ─────────────────────────────────────────────────────────────────────────────
+function buildDiscoveryMailer(uploadedDesignImg,mktOverride){
+  var c=_vhdSetup('Discovery'); if(mktOverride)c.mt=mktOverride;
+  var heroImg=uploadedDesignImg||(c.hero&&c.hero.i)||'';
+  var picks=c.prods.slice(0,8);
+  var html='<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VAHDAM&reg; Discovery</title>'+_vhdMsoHead()+'<style>'+_vhdResponsiveCSS()+'</style></head><body style="margin:0;padding:0;background:#f0ebe0;-webkit-text-size-adjust:100%">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0ebe0"><tr><td align="center" style="padding:24px 10px">'+
+    '<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse;background:#fff">'+
+    // S1 — colourful announcement bar
+    '<tr><td style="background:linear-gradient(90deg,#1d6fa4 0%,#004A2B 50%,#AB8743 100%);padding:13px 22px;text-align:center"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;letter-spacing:0.32em;text-transform:uppercase;color:#fff;margin:0;font-weight:700">🎁 DISCOVERY EDIT · TRY MORE, COMMIT LESS</p></td></tr>'+
+    // S2 — brand
+    '<tr><td style="background:#fff;padding:22px 22px 14px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;font-weight:bold;letter-spacing:0.24em;color:#004A2B;margin:0">VAHDAM&reg;</p></td></tr>'+
+    // S3 — hero with massive number
+    '<tr><td style="background:linear-gradient(180deg,#FBF5EA 0%,#f6efde 100%);padding:42px 32px 32px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:84px;font-weight:bold;color:#AB8743;margin:0;line-height:0.95;letter-spacing:-0.04em">'+picks.length+'<span style="font-size:36px"> teas</span></p>'+
+    '<p style="font-family:Lao MN,Georgia,serif;font-size:24px;font-weight:bold;color:#004A2B;margin:8px 0 0;line-height:1.1;font-style:italic">in one box</p>'+
+    '<div style="font-family:Lao MN,Georgia,serif;font-size:14px;color:#AB8743;margin:18px 0 22px;line-height:1;letter-spacing:0.4em">✦ &nbsp; ✦ &nbsp; ✦</div>'+
+    '<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:30px;font-weight:bold;color:#004A2B;margin:0 0 14px;line-height:1.1">'+(c.hl[0]||'Find your next favourite')+'</p>'+
+    '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:13.5px;color:#444;margin:0 0 24px;line-height:1.7;max-width:440px;display:inline-block">'+(c.sc||'A curated selection of our most distinctive teas — chai, green, herbal, black — in sampler size. Try them all, find what you love.').substring(0,200)+'</p>'+
+    _vhdCTA(c.collUrl,(c.cta||'START YOUR JOURNEY')+' &rarr;','#1d6fa4','#fff','L')+'</td></tr>'+
+    // S4 — what's inside grid
+    (picks.length?'<tr><td style="background:#fff;padding:36px 24px 28px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.32em;text-transform:uppercase;color:#AB8743;margin:0 0 8px;font-weight:700">— WHAT IS INSIDE —</p><p style="font-family:Lao MN,Georgia,serif;font-size:22px;font-weight:bold;color:#1a1a1a;margin:0 0 22px">A taste of every category</p>'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">'+(function(){
+      var cols=4,gcW=Math.floor(540/cols);var rows='';
+      for(var i=0;i<picks.length;i+=cols){
+        var row=picks.slice(i,i+cols);
+        rows+='<tr>';
+        row.forEach(function(p){
+          rows+='<td width="'+gcW+'" valign="top" style="width:'+gcW+'px;padding:0 4px 14px;vertical-align:top">'+
+            (p.i?'<img src="'+p.i+'" alt="'+(p.n||'').replace(/"/g,'&quot;')+'" width="'+(gcW-8)+'" border="0" style="width:100%;height:'+(gcW-8)+'px;object-fit:cover;display:block;border:0;outline:none;border-radius:6px">':'<div style="width:100%;height:'+(gcW-8)+'px;background:#e8f0e8;border-radius:6px"></div>')+
+            '<p style="font-family:Lao MN,Georgia,serif;font-size:10.5px;font-weight:bold;color:#1a1a1a;margin:6px 0 0;line-height:1.3;text-align:center">'+(p.n||'').split(',')[0].substring(0,28)+'</p></td>';
+        });
+        for(var e=row.length;e<cols;e++)rows+='<td width="'+gcW+'" style="width:'+gcW+'px"></td>';
+        rows+='</tr>';
+      }
+      return rows;
+    })()+'</table></td></tr>':'')+
+    _vhdFooter(c.base)+
+    '</table></td></tr></table></body></html>';
+  return html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. ROUTINE MAILER — daily ritual, morning/afternoon/evening pairings, subscribe
+// ─────────────────────────────────────────────────────────────────────────────
+function buildRoutineMailer(uploadedDesignImg,mktOverride){
+  var c=_vhdSetup('Routine'); if(mktOverride)c.mt=mktOverride;
+  var heroImg=uploadedDesignImg||(c.hero&&c.hero.i)||'';
+  var slots=[
+    {when:'MORNING',time:'7–10 AM',ico:'☀',body:'Wake-up brew',pick:c.prods[0]||{}},
+    {when:'AFTERNOON',time:'12–4 PM',ico:'🌿',body:'Mid-day reset',pick:c.prods[1]||c.prods[0]||{}},
+    {when:'EVENING',time:'7–10 PM',ico:'🌙',body:'Wind-down ritual',pick:c.prods[2]||c.prods[0]||{}}
+  ];
+  var html='<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VAHDAM&reg; Daily Ritual</title>'+_vhdMsoHead()+'<style>'+_vhdResponsiveCSS()+'</style></head><body style="margin:0;padding:0;background:#f0ebe0;-webkit-text-size-adjust:100%">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0ebe0"><tr><td align="center" style="padding:24px 10px">'+
+    '<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse;background:#fff">'+
+    // S1 — calm announcement
+    '<tr><td style="background:#2d6a4f;padding:13px 22px;text-align:center"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#FBF5EA;margin:0;font-weight:600">'+c.annLine+'</p></td></tr>'+
+    // S2 — brand
+    '<tr><td style="background:#fff;padding:22px 22px 14px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;font-weight:bold;letter-spacing:0.24em;color:#004A2B;margin:0">VAHDAM&reg;</p></td></tr>'+
+    // S3 — lifestyle hero
+    '<tr><td style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+(heroImg?'<img class="vhd-hero-img" src="'+heroImg+'" alt="" width="598" border="0" style="width:100%;max-width:598px;height:380px;object-fit:cover;display:block;border:0;outline:none">':'<div style="width:100%;height:380px;background:linear-gradient(135deg,#2d6a4f,#FBF5EA)"></div>')+'</td></tr>'+
+    // S4 — Headline
+    '<tr><td class="pd20 editorial-pad" style="background:#FBF5EA;padding:48px 48px 36px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p class="vhd-eyebrow" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.36em;color:#AB8743;margin:0 0 18px;text-transform:uppercase">✦ Your Daily Ritual ✦</p><p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:42px;font-weight:bold;color:#004A2B;margin:0 0 14px;line-height:1.05;letter-spacing:-0.018em">'+(c.hl[0]||'Slow mornings, earned')+'</p>'+
+    '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:14px;color:#444;margin:0 0 24px;line-height:1.78;max-width:460px;display:inline-block">'+(c.sc||'A morning routine becomes ritual when it starts with intention. Pair the right tea to the right hour and feel the difference.').substring(0,200)+'</p></td></tr>'+
+    // S5 — Morning/Afternoon/Evening pairings
+    '<tr><td style="background:#fff;padding:36px 32px;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.36em;text-transform:uppercase;color:#AB8743;margin:0 0 8px;text-align:center;font-weight:700">— PAIR YOUR HOURS —</p><p style="font-family:Lao MN,Georgia,serif;font-size:22px;font-weight:bold;color:#1a1a1a;margin:0 0 28px;text-align:center">A tea for every part of the day</p>'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr>'+slots.map(function(s){
+      return '<td class="pcol" width="33%" style="padding:0 6px;vertical-align:top">'+
+        '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#FBF5EA;border:1px solid #ede5d8;border-radius:10px;overflow:hidden">'+
+          '<tr><td style="padding:18px 14px 12px;text-align:center"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:36px;margin:0 0 4px;line-height:1">'+s.ico+'</p>'+
+          '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:800;letter-spacing:0.16em;color:#AB8743;margin:0;text-transform:uppercase">'+s.when+'</p>'+
+          '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;color:#888;margin:2px 0 0">'+s.time+'</p></td></tr>'+
+          (s.pick.i?'<tr><td style="padding:0;line-height:0;font-size:0"><img src="'+s.pick.i+'" alt="" width="180" border="0" style="width:100%;height:130px;object-fit:cover;display:block;border:0;outline:none"></td></tr>':'')+
+          '<tr><td style="padding:12px 14px 16px;text-align:center;background:#fff"><p style="font-family:Lao MN,Georgia,serif;font-size:13px;font-weight:bold;color:#1a1a1a;margin:0 0 6px;line-height:1.3">'+(s.pick.n||'').split(',')[0]+'</p>'+
+          '<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10.5px;color:#666;margin:0 0 10px;line-height:1.5;font-style:italic">'+s.body+'</p>'+
+          '<a href="'+pdpUrl(s.pick.n,c.mt)+'" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#2d6a4f;color:#fff;padding:7px 12px;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;font-weight:bold;letter-spacing:0.1em;text-decoration:none;border-radius:4px">SHOP &rarr;</a></td></tr>'+
+        '</table></td>';
+    }).join('')+'</tr></table></td></tr>'+
+    // S6 — Subscription CTA prominent
+    '<tr><td style="background:#1a3a28;padding:32px 32px;text-align:center;border-left:1px solid #1a3a28;border-right:1px solid #1a3a28"><p style="font-family:Lao MN,Georgia,serif;font-size:24px;font-weight:bold;color:#FBF5EA;margin:0 0 8px;line-height:1.3">Make it routine.</p><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:12.5px;color:#9fd6b5;margin:0 0 8px;line-height:1.6">Subscribe and save 15% on every delivery. Pause or cancel anytime.</p><p style="font-family:Lao MN,Georgia,serif;font-size:32px;font-weight:bold;color:#AB8743;margin:0 0 22px;line-height:1">SAVE 15%</p>'+_vhdCTA(c.base+'/pages/subscribe','START SUBSCRIBING &rarr;','#AB8743','#fff','L')+'</td></tr>'+
+    _vhdFooter(c.base)+
+    '</table></td></tr></table></body></html>';
+  return html;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. SEASONAL MAILER — season hero, time-bound, recipe pairings
+// ─────────────────────────────────────────────────────────────────────────────
+function buildSeasonalMailer(uploadedDesignImg,mktOverride){
+  var c=_vhdSetup('Seasonal'); if(mktOverride)c.mt=mktOverride;
+  var heroImg=uploadedDesignImg||(c.hero&&c.hero.i)||'';
+  // detect season heuristically
+  var lp=(c.p||'').toLowerCase();
+  var season='Season';
+  if(lp.indexOf('summer')>=0)season='Summer 2026';
+  else if(lp.indexOf('winter')>=0||lp.indexOf('holiday')>=0||lp.indexOf('christmas')>=0)season='Winter 2026';
+  else if(lp.indexOf('spring')>=0)season='Spring 2026';
+  else if(lp.indexOf('autumn')>=0||lp.indexOf('fall')>=0)season='Autumn 2026';
+  else if(lp.indexOf('diwali')>=0)season='Diwali Edit';
+  var grid=c.prods.slice(0,4);
+  var html='<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VAHDAM&reg; '+season+'</title>'+_vhdMsoHead()+'<style>'+_vhdResponsiveCSS()+'</style></head><body style="margin:0;padding:0;background:#f0ebe0;-webkit-text-size-adjust:100%">'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0ebe0"><tr><td align="center" style="padding:24px 10px">'+
+    '<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse;background:#fff">'+
+    // S1 — season banner
+    '<tr><td style="background:linear-gradient(90deg,#7a5c1e 0%,#AB8743 50%,#7a5c1e 100%);padding:13px 22px;text-align:center"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;letter-spacing:0.32em;text-transform:uppercase;color:#fff;margin:0;font-weight:700">✦ '+season.toUpperCase()+' &middot; LIMITED EDITION ✦</p></td></tr>'+
+    // S2 — brand
+    '<tr><td style="background:#fff;padding:22px 22px 14px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Lao MN,Georgia,serif;font-size:30px;font-weight:bold;letter-spacing:0.24em;color:#004A2B;margin:0">VAHDAM&reg;</p></td></tr>'+
+    // S3 — full-bleed seasonal hero
+    '<tr><td style="padding:0;line-height:0;font-size:0;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">'+(heroImg?'<img class="vhd-hero-img" src="'+heroImg+'" alt="" width="598" border="0" style="width:100%;max-width:598px;height:480px;object-fit:cover;display:block;border:0;outline:none">':'<div style="width:100%;height:480px;background:linear-gradient(135deg,#7a5c1e,#AB8743)"></div>')+'</td></tr>'+
+    // S4 — Season name big + headline
+    '<tr><td class="pd20 editorial-pad" style="background:linear-gradient(180deg,#FBF5EA 0%,#f6e8c8 100%);padding:54px 48px 38px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.36em;color:#AB8743;margin:0 0 18px;text-transform:uppercase">— '+season+' Collection —</p>'+
+    '<p class="vhd-h1" style="font-family:Lao MN,Georgia,serif;font-size:46px;font-weight:bold;color:#004A2B;margin:0 0 14px;line-height:1.02;letter-spacing:-0.018em">'+(c.hl[0]||'A taste of the season')+'</p>'+
+    (c.hl[1]?'<p class="vhd-h2" style="font-family:Lao MN,Georgia,serif;font-size:36px;font-weight:bold;color:#AB8743;margin:0 0 22px;line-height:1.02;font-style:italic;letter-spacing:-0.012em">'+c.hl[1]+'</p>':'')+
+    '<div style="font-family:Lao MN,Georgia,serif;font-size:16px;color:#AB8743;margin:18px 0 24px;line-height:1;letter-spacing:0.4em">✦ &nbsp; ✦ &nbsp; ✦</div>'+
+    '<p class="vhd-sub" style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:14px;color:#444;margin:0 0 26px;line-height:1.78;max-width:460px;display:inline-block">'+(c.sc||'').substring(0,200)+'</p>'+
+    _vhdCTA(c.collUrl,(c.cta||'SHOP THE SEASON')+' &rarr;','#7a5c1e','#fff','L')+'</td></tr>'+
+    // S5 — seasonal collection grid (2x2)
+    (grid.length?'<tr><td style="background:#fff;padding:36px 24px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9.5px;letter-spacing:0.32em;text-transform:uppercase;color:#AB8743;margin:0 0 8px;font-weight:700">— Seasonal Picks —</p><p style="font-family:Lao MN,Georgia,serif;font-size:22px;font-weight:bold;color:#1a1a1a;margin:0 0 22px">Limited harvest, available this season only</p>'+
+    '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">'+(function(){
+      var rows='';for(var i=0;i<grid.length;i+=2){
+        var pair=grid.slice(i,i+2);
+        rows+='<tr>';
+        pair.forEach(function(p){
+          rows+='<td class="pcol" width="50%" style="padding:0 6px 14px;vertical-align:top"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#FBF5EA;border-radius:8px;overflow:hidden;border:1px solid #ede5d8"><tr><td style="padding:0;line-height:0;font-size:0">'+
+            (p.i?'<img src="'+p.i+'" alt="'+(p.n||'').replace(/"/g,'&quot;')+'" width="280" border="0" style="width:100%;height:200px;object-fit:cover;display:block;border:0;outline:none">':'<div style="width:100%;height:200px;background:#e8f0e8"></div>')+
+            '</td></tr><tr><td style="padding:14px 14px 16px;text-align:center"><p style="font-family:Lao MN,Georgia,serif;font-size:14px;font-weight:bold;color:#1a1a1a;margin:0 0 6px;line-height:1.3">'+(p.n||'').split(',')[0]+'</p><a href="'+pdpUrl(p.n,c.mt)+'" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#7a5c1e;color:#fff;padding:7px 16px;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:bold;letter-spacing:0.12em;text-decoration:none;border-radius:5px">SHOP NOW &rarr;</a></td></tr></table></td>';
+        });
+        for(var e=pair.length;e<2;e++)rows+='<td width="50%" style="padding:0 6px 14px"></td>';
+        rows+='</tr>';
+      }
+      return rows;
+    })()+'</table></td></tr>':'')+
+    // S6 — limited urgency
+    '<tr><td style="background:#7a5c1e;padding:22px 32px;text-align:center;border-left:1px solid #7a5c1e;border-right:1px solid #7a5c1e"><p style="font-family:Lao MN,Georgia,serif;font-size:18px;font-weight:bold;color:#fff;margin:0 0 8px;line-height:1.3;font-style:italic">⏳ Once the season ends, the next harvest is months away.</p></td></tr>'+
+    _vhdFooter(c.base)+
+    '</table></td></tr></table></body></html>';
+  return html;
+}
+
 // ── Sale-specific mailer — short, offer-led, conversion-frenzy ─────────────
 // 5 sections vs 11 in the standard editorial. Promo code is the FIRST visual
 // after the announcement bar. No long story, no ingredient spotlight, no
@@ -5180,12 +5549,19 @@ function buildSaleMailer(uploadedDesignImg,mktOverride){
 }
 
 function buildEmail(uploadedDesignImg,mktOverride){
-  // ── Type-specific dispatcher ───────────────────────────────────────────
-  // Sale campaigns get a fundamentally different short, offer-led template.
-  // Other types continue to use the standard editorial below.
+  // ── Full type-specific dispatcher ──────────────────────────────────────
+  // Every campaign type has its own structurally distinct template.
+  // The standard editorial below is the fallback for "Campaign" / unknown.
   const _type=S.type||detectType(S.activePrompt||S.prompt||'');
-  if(_type==='Sale' && !uploadedDesignImg){
-    return buildSaleMailer(uploadedDesignImg,mktOverride);
+  if(!uploadedDesignImg){
+    if(_type==='Sale')        return buildSaleMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Story')       return buildStoryMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Gift')        return buildGiftMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Launch')      return buildLaunchMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Bestseller')  return buildBestsellerMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Discovery')   return buildDiscoveryMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Routine')     return buildRoutineMailer(uploadedDesignImg,mktOverride);
+    if(_type==='Seasonal')    return buildSeasonalMailer(uploadedDesignImg,mktOverride);
   }
   const prods=S.finalProds;
   // Use feedback-enriched prompt (S.activePrompt) when available so regenerate-with-feedback
