@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='scale-fit-v43';
+window.__VAHDAM_BUILD__='sale-template-v44';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -5056,7 +5056,122 @@ function buildEmailVariantB(uploadedDesignImg,mktOverride){
   return html;
 }
 
+// ── Sale-specific mailer — short, offer-led, conversion-frenzy ─────────────
+// 5 sections vs 11 in the standard editorial. Promo code is the FIRST visual
+// after the announcement bar. No long story, no ingredient spotlight, no
+// testimonial cards. Pure urgency → offer → product grid → CTA → footer.
+function buildSaleMailer(uploadedDesignImg,mktOverride){
+  refreshStrategy();
+  const st=S.strategy||buildCampaignStrategy();
+  const prods=st.products||[];
+  const p=S.activePrompt||S.prompt||'';
+  const mt=mktOverride||st.market||'US';
+  const hero=prods[0]||{n:'',i:''};
+  const base=getBase(mt);
+  const collUrl=collectionUrl(p,mt);
+  const ot=offerText(p);const oc=offerCode(p);const os=offerSub(p);
+  const hl=heroHeadline(p,'Sale');const sc=subCopy(p,'Sale');const cta=ctaText(p,'Sale');
+  const annLine=annBarLine(p,mt,'Sale');
+  const valueLine=valueSummaryLine(p,mt);
+  const pct=offerPct(p)||'25';
+  const pdpFor=function(n){return pdpUrl(n,mt);};
+  // Bulletproof CTA helper (VML for Outlook + standard <a> for everyone else)
+  function ctaBtn(href,label,bg,fg){
+    bg=bg||'#AB8743';fg=fg||'#fff';
+    return '<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="'+href+'" style="height:52px;v-text-anchor:middle;width:300px" arcsize="10%" stroke="f" fillcolor="'+bg+'"><w:anchorlock/><center style="color:'+fg+';font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:14px;font-weight:bold;letter-spacing:0.16em;">'+label+'</center></v:roundrect><![endif]--><!--[if !mso]><!--><a href="'+href+'" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:'+bg+';color:'+fg+';padding:16px 36px;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:14px;font-weight:bold;letter-spacing:0.16em;text-decoration:none;border-radius:6px;box-shadow:0 4px 14px rgba(171,135,67,0.4)">'+label+'</a><!--<![endif]-->';
+  }
+  // Product card with WAS/NOW pricing — the key Sale visual
+  function saleProdCard(prod,colW){
+    const wasPrice=prod.compare_at||prod.was_price||'';
+    const nowPrice=prod.price||'';
+    const cur=({US:'$',UK:'£',IN:'₹',Global:'$',ME:'$',AU:'$',EU:'€'})[mt]||'$';
+    return '<td width="'+colW+'" valign="top" style="width:'+colW+'px;padding:0 6px 18px;vertical-align:top">'+
+      '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background:#fff;border:2px solid #c0392b;border-radius:10px;overflow:hidden">'+
+        // Sale flag
+        '<tr><td style="background:#c0392b;padding:4px 0;text-align:center"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:800;letter-spacing:0.18em;text-transform:uppercase;color:#fff;margin:0">'+pct+'% OFF</p></td></tr>'+
+        '<tr><td style="padding:0;line-height:0;font-size:0">'+
+          (prod.i?'<img src="'+prod.i+'" alt="'+(prod.n||'').replace(/"/g,'&quot;')+'" width="'+(colW-12)+'" border="0" style="width:100%;height:170px;object-fit:cover;display:block;border:0;outline:none;text-decoration:none;background:#e8f0e8">':'<div style="width:100%;height:170px;background:#e8f0e8"></div>')+
+        '</td></tr>'+
+        '<tr><td style="padding:14px 14px 6px"><p style="font-family:Lao MN,Georgia,serif;font-size:13px;font-weight:bold;color:#1a1a1a;margin:0 0 8px;line-height:1.3">'+(prod.n||'').split(',')[0]+'</p>'+
+          (wasPrice?'<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;color:#888;margin:0;text-decoration:line-through">WAS '+cur+wasPrice+'</p>':'')+
+          (nowPrice?'<p style="font-family:Lao MN,Georgia,serif;font-size:18px;font-weight:bold;color:#c0392b;margin:0">NOW '+cur+nowPrice+'</p>':'')+
+        '</td></tr>'+
+        '<tr><td style="padding:0 14px 14px"><a href="'+pdpFor(prod.n)+'" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;background:#004A2B;color:#FBF5EA;padding:10px;font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:0.12em;text-decoration:none;border-radius:5px">SHOP NOW &rarr;</a></td></tr>'+
+      '</table></td>';
+  }
+  const saleGridCols=Math.min(prods.length,3);
+  const saleGcW=Math.floor(564/saleGridCols);
+  const msoHead='<!--[if gte mso 9]><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->';
+  let html='<!DOCTYPE html>\n<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>VAHDAM&reg; '+pct+'% OFF &mdash; '+(p||'').substring(0,50)+'</title>\n'+msoHead+'\n<style>\n@media only screen and (max-width:600px){\n  .email-wrap{width:100%!important;max-width:100%!important}\n  .pcol{display:block!important;width:100%!important;padding:0 0 14px!important}\n  .sale-promo-code{font-size:38px!important;letter-spacing:0.18em!important;padding:14px 22px!important}\n  .sale-pct-off{font-size:60px!important}\n  .sale-headline{font-size:28px!important}\n  .pd20{padding:18px 16px!important}\n}\n</style>\n</head>\n<body style="margin:0;padding:0;background:#f0ebe0;-webkit-text-size-adjust:100%">\n';
+  // S0 — Preheader
+  html+='<div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:#f0ebe0">'+pct+'% OFF on premium VAHDAM teas. '+(oc?'Use code '+oc+'. ':'')+'Limited-time offer. Shop now.</div>\n';
+  // Outer wrapper
+  html+='<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0ebe0;border-collapse:collapse"><tr><td align="center" style="padding:24px 10px">\n';
+  html+='<table class="email-wrap" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;border-collapse:collapse;background:#fff">\n';
+  // S1 — Urgency announcement bar (red, not green — Sale = urgent)
+  html+='<tr><td style="background:linear-gradient(90deg,#a8331e 0%,#c0392b 50%,#a8331e 100%);padding:13px 22px;text-align:center;border-radius:6px 6px 0 0">\n';
+  html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#fff;margin:0;font-weight:700">⏳ '+annLine+' &nbsp;&middot;&nbsp; ENDS SOON</p>\n</td></tr>\n';
+  // S2 — Brand mini header
+  html+='<tr><td style="background:#fff;padding:18px 24px 12px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">\n';
+  html+='<p style="font-family:Lao MN,Georgia,serif;font-size:26px;font-weight:bold;letter-spacing:0.22em;color:#004A2B;margin:0">VAHDAM&reg;</p>\n';
+  html+='</td></tr>\n';
+  // S3 — GIANT OFFER HERO (the conversion moment)
+  html+='<tr><td class="pd20" style="background:linear-gradient(180deg,#FBF5EA 0%,#f6e8c8 100%);padding:48px 40px 44px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">\n';
+  html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;font-weight:800;letter-spacing:0.32em;text-transform:uppercase;color:#c0392b;margin:0 0 14px">✦ FLASH SALE ✦</p>\n';
+  // GIANT % OFF
+  html+='<p class="sale-pct-off" style="font-family:Lao MN,Georgia,serif;font-size:96px;font-weight:bold;color:#c0392b;margin:0;line-height:0.95;letter-spacing:-0.04em">'+pct+'<span style="font-size:60px">%</span></p>\n';
+  html+='<p style="font-family:Lao MN,Georgia,serif;font-size:32px;font-weight:bold;color:#004A2B;margin:0 0 22px;line-height:1.1;letter-spacing:0.04em;text-transform:uppercase">OFF EVERYTHING</p>\n';
+  html+='<p class="sale-headline" style="font-family:Lao MN,Georgia,serif;font-size:22px;color:#1a1a1a;margin:0 0 20px;line-height:1.4;font-style:italic;max-width:440px;display:inline-block">'+(hl[0]||'')+(hl[1]?' '+hl[1]:'')+'</p>\n';
+  // GIANT PROMO CODE PILL
+  if(oc){
+    html+='<div style="margin:0 0 22px;display:inline-block">\n';
+    html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;font-weight:800;color:#666;margin:0 0 6px;letter-spacing:0.22em;text-transform:uppercase">Use code at checkout</p>\n';
+    html+='<p class="sale-promo-code" style="font-family:Lao MN,Georgia,serif;font-size:48px;font-weight:bold;color:#fff;margin:0;letter-spacing:0.22em;background:#c0392b;display:inline-block;padding:18px 30px;border-radius:8px;box-shadow:0 6px 20px rgba(192,57,43,0.4);border:2px dashed #fff;border-color:rgba(255,255,255,0.5)">'+oc+'</p>\n';
+    html+='</div>\n';
+  }
+  html+='<p style="margin:0 0 4px">'+ctaBtn(collUrl,(cta||'SHOP THE SALE')+' &rarr;')+'</p>\n';
+  if(valueLine)html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;font-weight:700;color:#c0392b;margin:14px 0 0;letter-spacing:0.04em">⚡ '+valueLine+'</p>\n';
+  html+='</td></tr>\n';
+  // S4 — WAS/NOW product grid (3-col tight, no fluff)
+  if(prods.length){
+    html+='<tr><td style="background:#fff;padding:30px 18px 18px;text-align:center;border-left:1px solid #ede5d8;border-right:1px solid #ede5d8">\n';
+    html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;letter-spacing:0.32em;text-transform:uppercase;color:#c0392b;margin:0 0 8px;font-weight:700">— DISCOUNTED PICKS —</p>\n';
+    html+='<p style="font-family:Lao MN,Georgia,serif;font-size:22px;font-weight:bold;color:#1a1a1a;margin:0 0 22px">Save on our bestsellers</p>\n';
+    for(var gr=0;gr<prods.length;gr+=saleGridCols){
+      const grow=prods.slice(gr,gr+saleGridCols);
+      html+='<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr>\n';
+      grow.forEach(function(prod){html+=saleProdCard(prod,saleGcW);});
+      for(var ge=grow.length;ge<saleGridCols;ge++)html+='<td width="'+saleGcW+'" style="width:'+saleGcW+'px"></td>';
+      html+='</tr></table>\n';
+    }
+    html+='</td></tr>\n';
+  }
+  // S5 — Mid-flow urgency reminder + CTA
+  html+='<tr><td style="background:#c0392b;padding:24px 32px;text-align:center;border-left:1px solid #c0392b;border-right:1px solid #c0392b">\n';
+  html+='<p style="font-family:Lao MN,Georgia,serif;font-size:24px;font-weight:bold;color:#fff;margin:0 0 8px;line-height:1.2">⏳ Don\'t Miss Out</p>\n';
+  html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:13px;color:#fff;margin:0 0 18px;line-height:1.6;opacity:0.95">Sale ends soon &mdash; '+(os||'limited-time only')+'. '+(oc?'Code '+oc+' applied at checkout.':'')+'</p>\n';
+  html+='<p style="margin:0">'+ctaBtn(collUrl,(cta||'CLAIM YOUR DISCOUNT')+' &rarr;','#fff','#c0392b')+'</p>\n';
+  html+='</td></tr>\n';
+  // S6 — Tiny trust strip
+  html+='<tr><td style="background:#1a3a28;padding:11px 24px;text-align:center;border-left:1px solid #1a3a28;border-right:1px solid #1a3a28">\n';
+  html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#9fd6b5;margin:0;letter-spacing:0.04em">★★★★★ &nbsp;Rated 4.8/5 by 50,000+ tea lovers &nbsp;&middot;&nbsp; 100% Natural &nbsp;&middot;&nbsp; Ships to 100+ Countries</p>\n</td></tr>\n';
+  // S7 — Footer (compact)
+  html+='<tr><td style="background:#111;padding:22px 24px;text-align:center;border-radius:0 0 6px 6px"><p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:0.18em;color:#FBF5EA;margin:0 0 8px">VAHDAM&reg; INDIA</p>\n';
+  html+='<p style="font-family:Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;color:#666;margin:0;line-height:1.7">VAHDAM India Pvt. Ltd. &middot; New Delhi, India<br>'+
+    '<a href="'+base+'/pages/unsubscribe" style="color:#888">Unsubscribe</a> &middot; <a href="'+base+'/pages/privacy-policy" style="color:#888">Privacy Policy</a></p>\n';
+  html+='</td></tr>\n';
+  html+='</table>\n</td></tr></table>\n</body></html>';
+  return html;
+}
+
 function buildEmail(uploadedDesignImg,mktOverride){
+  // ── Type-specific dispatcher ───────────────────────────────────────────
+  // Sale campaigns get a fundamentally different short, offer-led template.
+  // Other types continue to use the standard editorial below.
+  const _type=S.type||detectType(S.activePrompt||S.prompt||'');
+  if(_type==='Sale' && !uploadedDesignImg){
+    return buildSaleMailer(uploadedDesignImg,mktOverride);
+  }
   const prods=S.finalProds;
   // Use feedback-enriched prompt (S.activePrompt) when available so regenerate-with-feedback
   // actually changes the email copy. Falls back to raw S.prompt for first-time generation.
