@@ -956,7 +956,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='3-prods-no-truncation-v72';
+window.__VAHDAM_BUILD__='no-duplicate-chrome-v73';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -5754,6 +5754,10 @@ async function analyzeImageAndBuildEmail(base64DataUrl,prods,prompt,market){
 // Uses the SAME strategy data (headline, sub, CTA, products, offer) — only
 // the visual structure differs. User picks the better strategic angle.
 function buildEmailVariantB(uploadedDesignImg,mktOverride){
+  // v73: same auto-pickup as buildEmail — if S.uploadedDesignUrl is set, use it.
+  if(!uploadedDesignImg && window.S && S.uploadedDesignUrl){
+    uploadedDesignImg = S.uploadedDesignUrl;
+  }
   // ── Full type-specific dispatcher (Variant B mirrors Variant A) ─────────
   // Both variants now route to the same type-specific template.
   // Variant choice (A vs B) only matters for the legacy fallback.
@@ -5773,6 +5777,12 @@ function buildEmailVariantB(uploadedDesignImg,mktOverride){
     if(_archB==='editorial-trend-roundup')  return _compactHTML(buildEditorialEditMailer(uploadedDesignImg,mktOverride));
     if(_archB==='limited-drop-countdown')   return _compactHTML(buildLaunchMailer(uploadedDesignImg,mktOverride));
     if(_archB==='subscription-anchor')      return _compactHTML(buildLaunchMailer(uploadedDesignImg,mktOverride));
+  }
+  // v73: when uploadedDesignImg is present, delegate to buildEmail's trim path
+  // (canonical for upload flow). Prevents variantB rendering its own ann-bar +
+  // brand mark on top of an AI image with its own baked-in chrome.
+  if(uploadedDesignImg){
+    return _compactHTML(buildEmail(uploadedDesignImg,mktOverride));
   }
   if(!uploadedDesignImg){
     if(_type==='Sale')        return _compactHTML(buildSaleMailer(uploadedDesignImg,mktOverride));
@@ -6666,6 +6676,15 @@ function buildSaleMailer(uploadedDesignImg,mktOverride){
 }
 
 function buildEmail(uploadedDesignImg,mktOverride){
+  // v73: if a hero image was uploaded/generated this session, ALWAYS use it
+  // even if the caller passed null. Prevents the duplicate-chrome bug where
+  // approveAndBuild passes null but S.uploadedDesignUrl is set from an earlier
+  // gpt-image-1 generation, causing the standard editorial template's ann-bar
+  // + brand block to stack ON TOP of an AI image that already has its own
+  // ann-bar + brand mark baked into the photograph.
+  if(!uploadedDesignImg && window.S && S.uploadedDesignUrl){
+    uploadedDesignImg = S.uploadedDesignUrl;
+  }
   // ── Full type-specific dispatcher ──────────────────────────────────────
   // Every campaign type has its own structurally distinct template.
   // The standard editorial below is the fallback for "Campaign" / unknown.
