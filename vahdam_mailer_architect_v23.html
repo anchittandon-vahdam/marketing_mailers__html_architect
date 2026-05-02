@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='device-preview-fixed-v35';
+window.__VAHDAM_BUILD__='device-preview-actually-fixed-v36';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -4184,33 +4184,56 @@ window.regenerateHeroImage=function(){
   showCopyToast('Re-generating '+m+' hero image…');
 };
 
-// ── Device preview state — Mobile (360) / Tablet (600) / Desktop (800) ────
+// ── Device preview state — Mobile (375) / Tablet (768) / Desktop (1024) ──
+// Sizes match common breakpoints so the mailer's @media max-width:600px
+// responsive overrides actually trigger correctly when switching to Mobile.
 window._mailerDevice=window._mailerDevice||'desktop';
+var _DEVICE_SIZES={mobile:{w:375,h:720},tablet:{w:768,h:900},desktop:{w:1024,h:760}};
 function setMailerDevice(d){
   window._mailerDevice=d;
+  var size=_DEVICE_SIZES[d]||_DEVICE_SIZES.desktop;
+  document.querySelectorAll('.vhd-mailer-shell').forEach(function(shell){
+    shell.style.maxWidth=size.w+'px';
+  });
   document.querySelectorAll('iframe.vhd-mailer-frame').forEach(function(f){
-    var w=({mobile:360,tablet:600,desktop:800})[d]||800;
-    f.style.maxWidth=w+'px';
-    f.style.transition='max-width 0.25s ease';
+    f.style.height=size.h+'px';
   });
   document.querySelectorAll('.vhd-device-btn').forEach(function(b){
     var on=b.getAttribute('data-device')===d;
     b.style.background=on?'#004A2B':'#fff';
     b.style.color=on?'#FBF5EA':'#374151';
     b.style.borderColor=on?'#004A2B':'#ede5d8';
+    b.style.boxShadow=on?'0 2px 6px rgba(0,74,43,0.25)':'none';
   });
+  if(typeof statusPill==='function'){statusPill('info','Preview: '+d.charAt(0).toUpperCase()+d.slice(1)+' ('+size.w+'px)');}
 }
 function _deviceToggleHTML(){
   var d=window._mailerDevice||'desktop';
   function btn(key,label,icon){
     var on=d===key;
-    return '<button aria-label="Preview at '+label+' size" data-device="'+key+'" onclick="setMailerDevice(\''+key+'\')" class="vhd-device-btn" style="font-size:10.5px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid '+(on?'#004A2B':'#ede5d8')+';background:'+(on?'#004A2B':'#fff')+';color:'+(on?'#FBF5EA':'#374151')+';letter-spacing:0.04em;display:inline-flex;align-items:center;gap:5px">'+icon+'<span>'+label+'</span></button>';
+    return '<button aria-label="Preview at '+label+' size" data-device="'+key+'" onclick="setMailerDevice(\''+key+'\')" class="vhd-device-btn" style="font-size:11px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer;font-family:DM Sans,sans-serif;border:1.5px solid '+(on?'#004A2B':'#ede5d8')+';background:'+(on?'#004A2B':'#fff')+';color:'+(on?'#FBF5EA':'#374151')+';letter-spacing:0.04em;display:inline-flex;align-items:center;gap:6px;'+(on?'box-shadow:0 2px 6px rgba(0,74,43,0.25);':'')+'transition:all 0.18s">'+
+      '<span style="font-size:13px;line-height:1">'+icon+'</span><span>'+label+' &middot; '+_DEVICE_SIZES[key].w+'px</span></button>';
   }
-  return '<div role="group" aria-label="Device preview size" style="display:flex;gap:6px;align-items:center;justify-content:center;padding:10px 14px;background:#fafaf6;border-bottom:1px solid #ede5d8">'+
-    '<span style="font-size:9px;font-weight:700;color:#888;letter-spacing:0.12em;text-transform:uppercase;margin-right:6px">View as</span>'+
+  return '<div role="group" aria-label="Device preview size" style="display:flex;gap:8px;align-items:center;justify-content:center;padding:14px 16px;background:linear-gradient(180deg,#fafaf6 0%,#f0ebe0 100%);border-bottom:1.5px solid #ede5d8;flex-wrap:wrap">'+
+    '<span style="font-size:9.5px;font-weight:800;color:#666;letter-spacing:0.18em;text-transform:uppercase;margin-right:4px">📐 View as</span>'+
     btn('mobile','Mobile','📱')+
     btn('tablet','Tablet','📲')+
     btn('desktop','Desktop','🖥')+
+  '</div>';
+}
+// Wrap the toggle + iframe in a single block so flex-row parents stack them
+// correctly. Used by both Step 5 unified panel and dashboard detail modal.
+function _devicePreviewBlock(safeHtml,baseHeight){
+  var d=window._mailerDevice||'desktop';
+  var size=_DEVICE_SIZES[d]||_DEVICE_SIZES.desktop;
+  var h=size.h||baseHeight||640;
+  return '<div style="width:100%;display:block">'+
+    _deviceToggleHTML()+
+    '<div style="display:flex;justify-content:center;padding:24px 16px;background:#f0ebe0">'+
+      '<div class="vhd-mailer-shell" style="width:100%;max-width:'+size.w+'px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.12),0 2px 6px rgba(0,0,0,0.06);transition:max-width 0.3s cubic-bezier(.2,.8,.2,1)">'+
+        '<iframe class="vhd-mailer-frame" srcdoc="'+safeHtml+'" style="width:100%;height:'+h+'px;border:0;display:block;background:#fff;transition:height 0.3s cubic-bezier(.2,.8,.2,1)"></iframe>'+
+      '</div>'+
+    '</div>'+
   '</div>';
 }
 // ── Step 5: unified Region → Variant → Preview + Download panel ──
