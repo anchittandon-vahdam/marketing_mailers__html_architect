@@ -932,7 +932,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='contextual-layouts-v42';
+window.__VAHDAM_BUILD__='scale-fit-v43';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -4251,40 +4251,43 @@ window.regenerateHeroImage=function(){
   showCopyToast('Re-generating '+m+' hero image…');
 };
 
-// ── Device preview state — Mobile (375) / Tablet (768) / Desktop (1024) ──
-// CRITICAL: iframe srcdoc viewport width is set by the iframe's HTML `width`
-// ATTRIBUTE — not its CSS width. Setting only style.width leaves the inner
-// document's layout viewport at the browser default (usually 980 or 1024 px),
-// which means @media (max-width:600px) NEVER fires regardless of how narrow
-// the iframe visually renders. We set BOTH the attribute AND the style here.
+// ── Device preview — TRANSFORM-SCALE FIT-TO-SCREEN APPROACH ──────────────
+// Iframe srcdoc viewport quirks across browsers made the @media-based reflow
+// unreliable. v43 switches to the same approach Chrome DevTools uses for its
+// device toolbar: render the email at its natural 600px design width, then
+// CSS-transform: scale() the whole iframe to fit the device viewport. The
+// content always fits visibly — no scrollbars, no missed @media queries.
 window._mailerDevice=window._mailerDevice||'desktop';
-var _DEVICE_SIZES={mobile:{w:375,h:720},tablet:{w:768,h:900},desktop:{w:1024,h:760}};
-function _applyDeviceToIframe(f,d){
-  var size=_DEVICE_SIZES[d]||_DEVICE_SIZES.desktop;
-  // Set HTML attributes — this is the layout viewport for srcdoc content
-  f.setAttribute('width',size.w);
-  f.setAttribute('height',size.h);
-  // Force the browser to fully re-render — toggling srcdoc remounts the doc
-  // and re-evaluates @media queries against the new attribute width.
-  var doc=f.getAttribute('srcdoc');
-  if(doc){
-    f.removeAttribute('srcdoc');
-    // Tiny defer so the removal flushes before the re-set
-    setTimeout(function(){f.setAttribute('srcdoc',doc);},10);
-  }
-  f.style.width=size.w+'px';
-  f.style.height=size.h+'px';
-  f.style.maxWidth='100%';
+var MAILER_NATURAL_W=600;   // email's intrinsic design width
+var _DEVICE_SIZES={
+  mobile: { w:375,  label:'Mobile · 375px' },
+  tablet: { w:768,  label:'Tablet · 768px' },
+  desktop:{ w:1024, label:'Desktop · 1024px' }
+};
+function _scaleFor(deviceWidth){
+  // Cap visible width at email's natural width (never upscale beyond 600px)
+  var cap=Math.min(deviceWidth, MAILER_NATURAL_W);
+  return cap / MAILER_NATURAL_W;
 }
 function setMailerDevice(d){
   window._mailerDevice=d;
   var size=_DEVICE_SIZES[d]||_DEVICE_SIZES.desktop;
+  var scale=_scaleFor(size.w);
+  // Update each preview block: shell width = visible width, height = natural * scale
   document.querySelectorAll('.vhd-mailer-shell').forEach(function(shell){
-    shell.style.maxWidth=size.w+'px';
-    shell.style.width='100%';
+    var visW=Math.min(size.w, MAILER_NATURAL_W);
+    shell.style.width=visW+'px';
+    shell.style.maxWidth='100%';
+    var ifr=shell.querySelector('iframe.vhd-mailer-frame');
+    if(ifr){
+      var natH=parseInt(ifr.getAttribute('data-natural-h'),10)||640;
+      shell.style.height=Math.ceil(natH*scale)+'px';
+    }
   });
   document.querySelectorAll('iframe.vhd-mailer-frame').forEach(function(f){
-    _applyDeviceToIframe(f,d);
+    f.style.transform='scale('+scale+')';
+    f.style.transformOrigin='top left';
+    f.style.width=MAILER_NATURAL_W+'px';
   });
   document.querySelectorAll('.vhd-device-btn').forEach(function(b){
     var on=b.getAttribute('data-device')===d;
@@ -4293,7 +4296,7 @@ function setMailerDevice(d){
     b.style.borderColor=on?'#004A2B':'#ede5d8';
     b.style.boxShadow=on?'0 2px 6px rgba(0,74,43,0.25)':'none';
   });
-  if(typeof statusPill==='function'){statusPill('info','Preview: '+d.charAt(0).toUpperCase()+d.slice(1)+' ('+size.w+'px)');}
+  if(typeof statusPill==='function'){statusPill('info','Preview: '+size.label+' · '+(scale*100).toFixed(0)+'% scale');}
 }
 function _deviceToggleHTML(){
   var d=window._mailerDevice||'desktop';
@@ -4311,18 +4314,21 @@ function _deviceToggleHTML(){
 }
 // Wrap the toggle + iframe in a single block so flex-row parents stack them
 // correctly. Used by both Step 5 unified panel and dashboard detail modal.
-// The iframe is born with explicit width/height ATTRIBUTES so the inner
-// document's layout viewport matches the device size — this is what makes
-// the email's @media (max-width:600px) actually fire.
+// IFRAME always renders the email at 600px natural width. SHELL constrains to
+// visible width. CSS transform scales the iframe to fit the shell. Pure visual
+// fit — works in every browser, no @media dependency.
 function _devicePreviewBlock(safeHtml,baseHeight){
   var d=window._mailerDevice||'desktop';
   var size=_DEVICE_SIZES[d]||_DEVICE_SIZES.desktop;
-  var h=size.h||baseHeight||640;
+  var natH=baseHeight||640;
+  var scale=_scaleFor(size.w);
+  var visW=Math.min(size.w, MAILER_NATURAL_W);
+  var visH=Math.ceil(natH*scale);
   return '<div style="width:100%;display:block">'+
     _deviceToggleHTML()+
     '<div style="display:flex;justify-content:center;padding:24px 16px;background:#f0ebe0">'+
-      '<div class="vhd-mailer-shell" style="width:100%;max-width:'+size.w+'px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.12),0 2px 6px rgba(0,0,0,0.06);transition:max-width 0.3s cubic-bezier(.2,.8,.2,1)">'+
-        '<iframe class="vhd-mailer-frame" width="'+size.w+'" height="'+h+'" srcdoc="'+safeHtml+'" style="width:'+size.w+'px;max-width:100%;height:'+h+'px;border:0;display:block;background:#fff;transition:width 0.3s cubic-bezier(.2,.8,.2,1),height 0.3s cubic-bezier(.2,.8,.2,1)"></iframe>'+
+      '<div class="vhd-mailer-shell" style="width:'+visW+'px;max-width:100%;height:'+visH+'px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.12),0 2px 6px rgba(0,0,0,0.06);transition:width 0.3s cubic-bezier(.2,.8,.2,1),height 0.3s cubic-bezier(.2,.8,.2,1);position:relative">'+
+        '<iframe class="vhd-mailer-frame" data-natural-h="'+natH+'" srcdoc="'+safeHtml+'" style="width:'+MAILER_NATURAL_W+'px;height:'+natH+'px;border:0;display:block;background:#fff;transform:scale('+scale+');transform-origin:top left;transition:transform 0.3s cubic-bezier(.2,.8,.2,1)"></iframe>'+
       '</div>'+
     '</div>'+
   '</div>';
