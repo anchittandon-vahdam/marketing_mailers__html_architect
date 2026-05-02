@@ -4,11 +4,12 @@
   "buildCommand": null,
   "outputDirectory": ".",
   "framework": null,
-  "cleanUrls": true,
+  "cleanUrls": false,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/", "destination": "/vahdam_mailer_architect_v23.html" },
-    { "source": "/studio", "destination": "/vahdam_mailer_architect_v23.html" }
+    { "source": "/",        "destination": "/vahdam_mailer_architect_v23.html" },
+    { "source": "/studio",  "destination": "/vahdam_mailer_architect_v23.html" },
+    { "source": "/app",     "destination": "/vahdam_mailer_architect_v23.html" }
   ],
   "headers": [
     {
