@@ -7,23 +7,20 @@
   "cleanUrls": false,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/",        "destination": "/vahdam_mailer_architect_v23.html" },
-    { "source": "/studio",  "destination": "/vahdam_mailer_architect_v23.html" },
-    { "source": "/app",     "destination": "/vahdam_mailer_architect_v23.html" },
-    { "source": "/stable",  "destination": "/archive/vahdam_mailer_architect_v34.html" },
-    { "source": "/v12",     "destination": "/archive/vahdam_mailer_architect_v12.html" },
-    { "source": "/mvp",     "destination": "/archive/vahdam_mailer_architect_MVP.html" },
-    { "source": "/next",    "destination": "/vahdam_mailer_architect_next.html" }
+    { "source": "/",       "destination": "/vahdam_mailer_architect_v23.html" },
+    { "source": "/studio", "destination": "/vahdam_mailer_architect_v23.html" },
+    { "source": "/app",    "destination": "/vahdam_mailer_architect_v23.html" },
+    { "source": "/next",   "destination": "/vahdam_mailer_architect_next.html" }
   ],
   "headers": [
     {
       "source": "/vahdam_mailer_architect_v23.html",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=(), payment=(), usb=()" },
+        { "key": "Cache-Control",             "value": "public, max-age=0, must-revalidate" },
+        { "key": "X-Frame-Options",           "value": "SAMEORIGIN" },
+        { "key": "X-Content-Type-Options",    "value": "nosniff" },
+        { "key": "Referrer-Policy",           "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy",        "value": "geolocation=(), microphone=(), camera=(), payment=(), usb=()" },
         { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" }
       ]
     },
