@@ -956,7 +956,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='variant-divergence-v71';
+window.__VAHDAM_BUILD__='3-prods-no-truncation-v72';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -4010,7 +4010,7 @@ async function generateWithOpenAI(){
     var res=await fetch('https://api.openai.com/v1/images/generations',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
-      body:JSON.stringify({model:'gpt-image-1',prompt:prompt.substring(0,4000),n:1,size:'1024x1536',quality:'high'})
+      body:JSON.stringify({model:'gpt-image-1',prompt:prompt.substring(0,4000)+'\n\nRender at maximum sharpness: razor-crisp product surfaces, gallery-print resolution, every typography character cleanly anti-aliased, no soft-focus haze, no AI smear artifacts.',n:1,size:'1024x1536',quality:'high'})
     });
     if(!res.ok){var err=await res.json().catch(function(){return {};});throw new Error((err.error&&err.error.message)||'OpenAI error '+res.status);}
     var data=await res.json();
@@ -6098,7 +6098,10 @@ function _vhdFooter(base){
 function _vhdSetup(type){
   refreshStrategy();
   var st=S.strategy||buildCampaignStrategy();
-  var prods=st.products||[];
+  // CAP products at 3 across ALL type-specific templates (per project bible:
+  // "Product Highlight 2-3 products MAX, never 4+"). The cap was previously only
+  // enforced in the editorial uploaded-image path, so type templates kept rendering 4+.
+  var prods=(st.products||[]).slice(0,3);
   var p=S.activePrompt||S.prompt||'';
   var mt=st.market||'US';
   var hero=prods[0]||{n:'',i:''};
@@ -6759,7 +6762,10 @@ function buildEmail(uploadedDesignImg,mktOverride){
   }
   // ── STANDARD / ELITE HTML PATH ──────────────────────────────────────────────
   const collUrl=collectionUrl(p,mt);
-  const GRID_COLS=Math.min(prods.length,4);
+  // v72: cap product grid at 3 columns (was 4) - matches project bible
+  // "Product Highlight 2-3 products MAX". Wider cards = no name truncation.
+  const _prodsCapped=prods.slice(0,3);
+  const GRID_COLS=Math.min(_prodsCapped.length,3);
   const gcW=Math.floor(560/GRID_COLS);
   var _prodIdx=0;
   function prodCardFlex(prod){
@@ -6842,11 +6848,13 @@ function buildEmail(uploadedDesignImg,mktOverride){
   // Gift / Seasonal flavor: gift-wrapping callout below the CTA
   html+=flavorGiftCallout(campaignType);
   html+='<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;border-top:1px solid #e4dbd0;margin-top:16px"><tr>\n';
-  feats.forEach(function(f,i){
+  // Cap to 3 features (was 4) to give each cell more breathing room and prevent
+  // "Seasonal P..." / "Free Shipp..." truncation. Bigger labels, 9px instead of 7.5px.
+  feats.slice(0,3).forEach(function(f,i){
     var sp=f.indexOf(' ');var icon=sp>0?f.substring(0,sp):f;var lbl=sp>0?f.substring(sp+1):f;
-    html+='<td style="text-align:center;padding:8px 2px'+(i<3?';border-right:1px solid #e4dbd0':'')+'">\n';
-    html+='<p style="font-family:DM Sans,Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:14px;margin:0 0 2px">'+icon+'</p>\n';
-    html+='<p style="font-family:DM Sans,Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:7.5px;font-weight:bold;text-transform:uppercase;letter-spacing:0.07em;color:#888;margin:0;line-height:1.4">'+lbl+'</p>\n</td>\n';
+    html+='<td style="text-align:center;padding:10px 8px'+(i<2?';border-right:1px solid #e4dbd0':'')+'">\n';
+    html+='<p style="font-family:DM Sans,Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:15px;margin:0 0 4px">'+icon+'</p>\n';
+    html+='<p style="font-family:DM Sans,Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;font-weight:bold;text-transform:uppercase;letter-spacing:0.06em;color:#666;margin:0;line-height:1.4">'+lbl+'</p>\n</td>\n';
   });
   html+='</tr></table>\n';
   html+='</td>\n';
@@ -6862,16 +6870,10 @@ function buildEmail(uploadedDesignImg,mktOverride){
     html+='<p style="font-family:DM Sans,Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;letter-spacing:0.14em;color:#d4873a;margin:0">VAHDAM&reg; INDIA &middot; EST. 2015</p>\n</div>\n';
   }
   html+='</td>\n</tr></table>\n</td></tr>\n';
-  // S4 — Feature pillars (dark green)
-  html+='<tr><td style="background:#0f2a1c;padding:0;border-left:1px solid #0f2a1c;border-right:1px solid #0f2a1c">\n';
-  html+='<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr>\n';
-  feats.forEach(function(f,i){
-    var sp=f.indexOf(' ');var icon=sp>0?f.substring(0,sp):f;var label=sp>0?f.substring(sp+1):f;
-    html+='<td width="25%" style="text-align:center;padding:14px 6px'+(i<3?';border-right:1px solid rgba(255,255,255,0.14)':'')+'">\n';
-    html+='<p style="font-family:DM Sans,Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:16px;margin:0 0 4px">'+icon+'</p>\n';
-    html+='<p style="font-family:DM Sans,Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:8px;font-weight:bold;text-transform:uppercase;letter-spacing:0.1em;color:#9fd6b5;margin:0">'+label+'</p>\n</td>\n';
-  });
-  html+='</tr></table>\n</td></tr>\n';
+  // S4 — DROPPED in v72: this was the duplicate dark feature bar that caused
+  // the "Seasonal P... | Farm Direct | 4.8/5 Rated | Free Shipp..." truncation.
+  // The 4 pillars already render in S3 (light parchment hero), this dark repeat
+  // was redundant and the 25%-each cells were too narrow at iframe widths.
   // S5 — Social proof bar
   html+='<tr><td style="background:#1a3a28;padding:13px 24px;text-align:center;border-left:1px solid #1a3a28;border-right:1px solid #1a3a28">\n';
   html+='<p style="font-family:DM Sans,Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:10px;color:#9fd6b5;margin:0;letter-spacing:0.05em"><span style="color:#d4873a">&#9733;&#9733;&#9733;&#9733;&#9733;</span> &nbsp;'+mktIntel.social+' &nbsp;&middot;&nbsp; &#127807; 100% Natural &nbsp;&middot;&nbsp; '+mktIntel.trustBar+'</p>\n</td></tr>\n';
@@ -6883,8 +6885,8 @@ function buildEmail(uploadedDesignImg,mktOverride){
   html+='<p style="font-family:DM Sans,Proxima Nova,Helvetica Neue,Arial,sans-serif;font-size:9px;letter-spacing:0.22em;text-transform:uppercase;color:#d4873a;margin:0 0 6px">&mdash;&nbsp;SHOP THE COLLECTION&nbsp;&mdash;</p>\n';
   html+='<p style="font-family:Cormorant Garamond,Lao MN,Georgia,serif;font-size:20px;font-weight:bold;color:#1a1a1a;margin:0 0 4px;letter-spacing:0.03em">'+prodSecTitle+'</p>\n';
   html+='<div style="width:40px;height:2px;background:#d4873a;margin:0 auto 20px;border-radius:1px"></div>\n';
-  for(var gr=0;gr<prods.length;gr+=GRID_COLS){
-    var grow=prods.slice(gr,gr+GRID_COLS);
+  for(var gr=0;gr<_prodsCapped.length;gr+=GRID_COLS){
+    var grow=_prodsCapped.slice(gr,gr+GRID_COLS);
     html+='<table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse"><tr>\n';
     grow.forEach(function(prod){html+=prodCardFlex(prod);});
     for(var ge=grow.length;ge<GRID_COLS;ge++)html+='<td width="'+gcW+'" style="width:'+gcW+'px;padding:0 4px 16px"></td>';
