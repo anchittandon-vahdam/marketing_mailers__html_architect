@@ -33,13 +33,65 @@ REGENERATE DIVERGENCE: if regenerate_counter > 0, force divergence on hero angle
 
 First char of output MUST be { · last char }. No markdown, no commentary.`;
 
-const SYSTEM_PROMPT_CREATE_BRIEF = `You are a senior D2C growth director at a premium tea agency. Take a thin campaign idea and write ONE production-ready brief (180-280 words plain prose, NO bullets, NO headings, NO markdown) covering: campaign goal in one sentence, audience segment + emotional state, PRIMARY HOOK explicit (offer|benefit|origin-freshness with what specifically), SECONDARY HOOK reinforcing the primary, hero scene direction (specific photographic instruction), headline angle (sensory/benefit-led/offer-integrated with 1-2 example phrasings), CTA verb pattern aligned to angle, mood + tone descriptor.
+const SYSTEM_PROMPT_CREATE_BRIEF = `You are a Creative Director + Director of Growth operating at a $100M premium D2C brand level (Aesop / AG1 / Net-a-Porter standard). Your ONLY job: take a campaign seed and produce a DIRECTOR-GRADE brief the downstream pipeline renders into a flawless premium mailer.
 
-VAHDAM brand: premium Indian heritage tea, ritual not regimen, single-estate ethical sourcing, US-primary audience.
-BANNED: "wellness journey", "transform", "liquid gold", "game-changer", "LIMITED TIME" (caps), "You won't believe", "Hurry", "Don't miss out".
-PREFERRED: ritual, restore, balance, origin, single-estate, hand-picked, steep, heritage, crafted.
+STEP 1 — DECISION ENGINE (mandatory first pass):
+From inputs extract: audience_profile, primary_motivation, purchase_barrier, campaign_intent, product_strategy (hero + supporting), conversion_strategy (primary lever / trust layer), market_implications, design_implications (visual style, tone, layout bias).
 
-Reads like a senior growth director briefing a creative team. The downstream concept ideation system will parse it.`;
+STEP 2 — NARRATIVE STRUCTURE (story arc, not a list):
+Email follows: Hero (emotion + intrigue, NOT product-first) → Context (why this matters now) → Product reveal (with authority) → Benefits (scannable) → Proof (credibility, sourcing, reviews) → Lifestyle integration → Offer (if any, subtle) → CTA (premium tone).
+
+STEP 3 — CREATIVE DIRECTION LOCKED:
+Visual world = editorial, cinematic, tactile. Not e-commerce. Whitespace is a design element. Restraint over clutter. Typography hierarchy = refined serif headline + clean sans body. Color palette = deep forest green #0f2a1c / warm amber #d4873a / cream #fdf6e8. Image style = macro, texture-rich, shallow depth of field, matte surfaces.
+
+STEP 4 — IMAGE DIRECTION (per section):
+For HERO image: [composition] [lighting] [mood] [specific scene — not generic]. For PRODUCT: studio clean, negative space, editorial crop. Negative prompt for all: no stock look, no clutter, no text overlays, no broken anatomy.
+
+STEP 5 — ANTI-REPETITION (Variant B divergence):
+Variant B MUST use a different emotional angle, different hero image scene, different headline register (if A is sensory, B is rational). Force creative divergence — same product, opposite lens.
+
+VAHDAM BRAND CONSTRAINTS:
+Premium Indian heritage tea. Ritual not regimen. Single-estate ethical sourcing. US-primary audience: urban professionals 30-55, health-conscious, value quality and story over price.
+BANNED: wellness journey / transform / liquid gold / game-changer / LIMITED TIME caps / You won't believe / Hurry / Don't miss out
+PREFERRED: ritual / restore / balance / origin / single-estate / hand-picked / steep / heritage / crafted / "Your morning ritual" / "From the gardens of" / "Steeped in tradition"
+TONE: calm-confident-premium. Evocative without confusion. Specific over vague.
+
+QUALITY GATE (internal check before output):
+→ Does every section serve the narrative arc?
+→ Does it feel editorial or template? (templated = regenerate)
+→ Are image directions art-directed, not generic?
+→ Are conversion levers naturally integrated — never forced?
+
+OUTPUT FORMAT:
+Write as ONE cohesive brief in director prose (180-280 words). No bullet points. No section headers. Reads like a senior creative director briefing a team of specialists. Include:
+1. Campaign objective (business outcome) — one sentence.
+2. Audience segment + emotional state.
+3. Primary hook (offer | benefit | origin) — specific, not generic.
+4. Hero scene direction — photographic instruction, not a vibe word.
+5. Headline angle + 2 example phrasings.
+6. Variant B divergence instruction (different angle from A).
+7. CTA verb pattern.
+8. Mood + tone descriptor.
+Any generic or templated output fails the brief.`;
+
+const SYSTEM_PROMPT_SUGGESTED_PROMPTS = `You are a Creative Director + Director of Growth at VAHDAM India — a premium D2C Indian heritage tea brand (Aesop / AG1 / Net-a-Porter standard). Generate exactly 6 campaign briefs as a JSON array. Each is a director-grade email campaign prompt that a downstream AI pipeline uses to produce a flawless premium mailer.
+
+VAHDAM BRAND:
+- Ultra-premium Indian heritage tea. Single-estate sourcing. Ethical, B-Corp certified.
+- Palette: forest green #0f2a1c / amber #d4873a / cream #fdf6e8
+- Tone: calm-confident-premium. Ritual not regimen. Story over price.
+- BANNED: wellness journey, transform, liquid gold, game-changer, LIMITED TIME (caps), hurry, dont miss out
+- PREFERRED: ritual, restore, balance, origin, single-estate, hand-picked, steep, heritage, crafted
+
+For each campaign:
+1. Pick a different emotional angle and campaign archetype (Sale, Launch, Gift, Seasonal, Bestseller, Routine, Discovery — no two the same)
+2. Write the "text" field as ONE cohesive director brief (150-200 words): audience insight → hook → product feature (specific SKUs) → creative direction → CTA approach
+3. The brief must feel like a senior creative director briefing specialists — NOT a marketing brief template
+4. Vary markets across the 6 prompts based on the provided focus markets
+5. Each brief should diverge in emotional register from every other
+
+Return ONLY a valid JSON array — no markdown, no code fences, no explanation. Format:
+[{"icon":"<single emoji>","type":"<Campaign Name> — <Market>","mkt":"<US|UK|IN|AU|ME|EU|Global>","ctype":"<Sale|Launch|Gift|Seasonal|Bestseller|Routine|Discovery>","text":"<director brief 150-200 words>"},...]`;
 
 const SYSTEM_PROMPT_MAILER_FULL = `You are the VAHDAM Mailer Architect. Output STRICT JSON: {"strategy":"plain text 4-line: Theme/Intent/Expected Impact/Justification", "creative_spec":{...}, "html_plan":{"sections":[...]}}. The creative_spec follows the schema: {variant:"A|B", regenerate_counter:n, creative_seed_summary:"what changed vs previous", hero:{angle, headline, subcopy, cta_primary, cta_secondary?, offer_emphasis, price_display}, sections:[8-section list], selected_products:[{name,url,price,compare_price,image_url}], hero_image_prompt:"photoreal hero photo prompt ONLY"}.
 
@@ -90,18 +142,35 @@ module.exports = async function handler(req, res) {
 
   const mode = body.mode || 'create_brief';
   const market = body.market || 'US';
+  const markets = body.markets || [market];
   const theme = body.theme || body.type || '';
   const campaign_brief = body.campaign_brief || body.brief || body.prompt || '';
   const selected_products = Array.isArray(body.selected_products) ? body.selected_products : [];
   const variant = body.variant || 'A';
   const regenerate_counter = Number(body.regenerate_counter || 0);
   const previous_outputs_summary = body.previous_outputs_summary || '';
+  const season = body.season || '';
 
   let systemPrompt = SYSTEM_PROMPT_CREATE_BRIEF;
   let userMessage = '';
   let response_format = undefined;
 
-  if (mode === 'concepts') {
+  if (mode === 'suggested_prompts') {
+    systemPrompt = SYSTEM_PROMPT_SUGGESTED_PROMPTS;
+    response_format = { type: 'json_object' };
+    const mktList = Array.isArray(markets) ? markets.join(', ') : market;
+    const mktContext = {
+      US: 'urban US professionals 30-55, $55+ AOV, values quality and origin story',
+      UK: 'UK tea-culture audience, appreciate provenance and craft, premium gifters',
+      IN: 'Indian domestic audience, value tradition and festivity',
+      AU: 'Australian wellness seekers, outdoor lifestyle, clean-label conscious',
+      ME: 'Middle East audience, love rich masala chai and aromatic blends',
+      EU: 'European health-conscious shoppers, organic-certified, B-Corp story resonates',
+      Global: 'International premium audience, discovery-minded, seeking authentic Indian heritage'
+    };
+    const mktDesc = (Array.isArray(markets) ? markets : [market]).map(m => `${m}: ${mktContext[m] || m}`).join('; ');
+    userMessage = `MARKETS TO FOCUS ON: ${mktList}\nMARKET AUDIENCE: ${mktDesc}\nCAMPAIGN TYPE FILTER: ${theme || 'Mixed — generate variety across Sale, Launch, Gift, Seasonal, Bestseller, Routine'}\nSEASON CONTEXT: ${season || 'Year-round'}\n\nGenerate 6 diverse, elite director-grade campaign briefs now. Each must be a different emotional angle and conversion strategy. No two briefs should share the same archetype or hero product. Return only the JSON array.`;
+  } else if (mode === 'concepts') {
     systemPrompt = SYSTEM_PROMPT_CONCEPTS;
     response_format = { type: 'json_object' };
     const productsBlock = selected_products.slice(0, 30).map(p => `- handle:${p.handle||p.id||''} | name:${p.name||p.n||''} | category:${p.category||''} | price:${p.price||''} | compare_at:${p.compare_at||''}`).join('\n');
@@ -171,7 +240,7 @@ module.exports = async function handler(req, res) {
       const data = await fetchRes.json();
       text = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
     }
-    if (mode === 'concepts' || mode === 'mailer_full') {
+    if (mode === 'concepts' || mode === 'mailer_full' || mode === 'suggested_prompts') {
       let parsed;
       try { parsed = JSON.parse(text); } catch (e) {
         const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();

@@ -662,8 +662,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
         <div style="display:flex;align-items:center;gap:10px">
           <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--g),#006b3e);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">&#128161;</div>
           <div>
-            <div class="sugg-hdr-lbl">Suggested Campaign Prompts</div>
-            <div class="sugg-hdr-sub">Click any to instantly fill the description</div>
+            <div class="sugg-hdr-lbl">Suggested Campaign Prompts <span style="font-size:9px;font-weight:700;background:#0f2a1c;color:#d4873a;padding:2px 6px;border-radius:4px;letter-spacing:0.1em;vertical-align:middle">✨ AI</span></div>
+            <div class="sugg-hdr-sub">Opens with AI-generated director briefs based on your market &amp; campaign type</div>
           </div>
         </div>
         <span class="sugg-arrow" id="suggArrow">&#9660;</span>
@@ -1849,6 +1849,11 @@ function buildEnhancedPrompt(raw){
 
 
 // ── Suggested prompts ───────────────────────────────────────────────────────
+// ── Suggested prompts — AI-powered via /api/ai/generate ─────────────────────
+var _SUGG_CONTEXT_KEY = '';
+var _SUGG_AI_LOADED = false;
+var _SUGG_GENERATING = false;
+
 function toggleSuggestedPrompts(){
   var grid=document.getElementById('suggGrid');
   var arrow=document.getElementById('suggArrow');
@@ -1856,12 +1861,80 @@ function toggleSuggestedPrompts(){
   if(grid.style.display==='none'||!grid.style.display){
     grid.style.display=window.innerWidth<=600?'flex':'grid';
     if(arrow)arrow.style.transform='rotate(180deg)';
-    if(!grid.innerHTML.trim())renderSuggestedPrompts();
+    var mkts=(window.S&&S.markets&&S.markets.length>0)?S.markets:['US'];
+    var type=(window.S&&S.type)?S.type:'';
+    var ctxKey=mkts.join(',')+':'+type;
+    if(ctxKey!==_SUGG_CONTEXT_KEY||!_SUGG_AI_LOADED){
+      _SUGG_CONTEXT_KEY=ctxKey;
+      _SUGG_AI_LOADED=false;
+      _generateAISuggestedPrompts(mkts,type);
+    } else if(!grid.innerHTML.trim()){
+      renderSuggestedPrompts(_SUGG_AI_LOADED);
+    }
   } else {
     grid.style.display='none';
     if(arrow)arrow.style.transform='';
   }
 }
+
+async function _generateAISuggestedPrompts(mkts,type){
+  if(_SUGG_GENERATING)return;
+  _SUGG_GENERATING=true;
+  var grid=document.getElementById('suggGrid');
+  if(!grid){_SUGG_GENERATING=false;return;}
+  grid.innerHTML='<div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 0;">'
+    +'<div style="width:32px;height:32px;border:3px solid #d4873a33;border-top-color:#d4873a;border-radius:50%;animation:spin 0.8s linear infinite"></div>'
+    +'<div style="font-size:12px;color:#888;font-family:DM Sans,sans-serif;letter-spacing:0.05em">Generating director-grade ideas for '+mkts.join(', ')+(type?' · '+type:'')+'...</div>'
+    +'</div>';
+  var season=_getSuggSeason();
+  try{
+    var res=await fetch('/api/ai/generate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({mode:'suggested_prompts',markets:mkts,market:mkts[0]||'US',theme:type,season:season})
+    });
+    if(!res.ok){var e=await res.json().catch(function(){return{};});throw new Error(e.error||'server error');}
+    var data=await res.json();
+    var parsed=data.data;
+    if(!Array.isArray(parsed)){
+      // Handle case where response is wrapped array string
+      if(typeof parsed==='string'){try{parsed=JSON.parse(parsed);}catch(_){}}
+      // Sometimes returned as object with array value
+      if(parsed&&!Array.isArray(parsed)){var keys=Object.keys(parsed);if(keys.length===1)parsed=parsed[keys[0]];}
+    }
+    if(Array.isArray(parsed)&&parsed.length>=4){
+      var valid=parsed.filter(function(p){return p.icon&&p.type&&p.mkt&&p.ctype&&p.text&&p.text.length>50;});
+      if(valid.length>=4){
+        SUGG_PROMPTS=valid;
+        _SUGG_AI_LOADED=true;
+        renderSuggestedPrompts(true);
+        return;
+      }
+    }
+    throw new Error('Invalid response shape — falling back to static');
+  }catch(e){
+    console.warn('[_generateAISuggestedPrompts]',e.message);
+    _SUGG_AI_LOADED=false;
+    renderSuggestedPrompts(false);
+  }finally{
+    _SUGG_GENERATING=false;
+  }
+}
+
+function _getSuggSeason(){
+  var m=new Date().getMonth()+1;
+  if(m===1)return'January — New Year wellness, Dry January, fresh-start energy';
+  if(m===2)return'February — Valentine\'s Day gifting, romance, self-care';
+  if(m===3||m===4)return'Spring — renewal, light flavours, outdoor rituals';
+  if(m===5)return'May — Mother\'s Day gifting peak, spring tea season';
+  if(m===6||m===7||m===8)return'Summer — iced tea, cold brew, refreshing herbal blends';
+  if(m===9)return'September — autumn reset, back-to-routine wellness';
+  if(m===10)return'October/November — Diwali gifting peak, festive gold collections';
+  if(m===11)return'November — Black Friday, holiday gifting ramp-up';
+  if(m===12)return'December — Holiday gifting, Christmas, cosy winter rituals';
+  return'Year-round evergreen wellness and ritual';
+}
+
 var SUGG_PROMPTS=[
   {icon:'🧘',type:'Detox Sale — US',mkt:'US',ctype:'Sale',
    text:'25% off all detox and cleanse teas for US customers this weekend only. Feature Turmeric Ginger Herbal Tea 100ct, Moringa Leaf Green Tea, Vedic Kadha Herbal Infusion, and Citrus Ginger Green Tea. Focus on gut health, daily wellness ritual, and natural healing with farm-sourced Indian botanicals. Use code DETOX25 at checkout. Free shipping on orders $49+. 72-hour flash sale — ends Sunday.'},
@@ -1880,7 +1953,7 @@ var SUGG_PROMPTS=[
   {icon:'🍃',type:'First Flush Launch — Premium',mkt:'Global',ctype:'Launch',
    text:'2026 First Flush Darjeeling pre-order launch for premium global tea audience. Limited harvest — just weeks each spring from Arya Diamond, Jungpana, and Giddapahar estates. Signature muscatel character, delicate spring floral notes, single-estate excellence with traceability to the leaf. Only 500 units available — pre-order now before the season sells out. Worldwide express shipping included.'},
   {icon:'🪔',type:'Diwali Gift Collection — IN',mkt:'IN',ctype:'Gift',
-   text:'Diwali gifting campaign for India customers. Celebrate the festival of lights with the gift of India finest teas. Feature the Diwali Special Gift Box, Premium Gold Gift Set, and the Assorted 12-Tea Luxury Collection — beautifully packaged with festive gold accents. Free personalised gift message. Express delivery across India. Limited Diwali edition packaging. Order by November 1st for guaranteed delivery before Diwali.'},
+   text:'Diwali gifting campaign for India customers. Celebrate the festival of lights with the gift of India finest teas. Feature the Diwali Special Gift Box, Premium Gold Gift Set, and the Assorted 12-Tea Luxury Collection — beautifully packaged with festive gold accents. Free personalised gift message. Express delivery across India. Limited Diwali edition packaging.'},
   {icon:'🌿',type:'Immunity Wellness — EU',mkt:'EU',ctype:'Launch',
    text:'Immunity and daily wellness launch for European customers. Organic-certified, ethically sourced, and clean-label — VAHDAM immunity teas meet the highest EU quality standards. Feature Turmeric Ginger Herbal Tea, Vedic Kadha Immunity Booster, Moringa Green Tea, and Holy Basil Tulsi Herbal Tea. 100% natural, no additives, certified B-Corp. Free shipping across Europe on orders over EUR 45.'},
   {icon:'🏔️',type:'Himalayan Premium — Global',mkt:'Global',ctype:'Launch',
@@ -1888,14 +1961,15 @@ var SUGG_PROMPTS=[
   {icon:'🌅',type:'Morning Ritual — US',mkt:'US',ctype:'Routine',
    text:'Morning ritual campaign for US customers — make every morning count. Build your perfect tea routine with India Original Masala Chai for energy, Himalayan Green Tea for antioxidants, and Turmeric Ginger for digestion. The complete morning wellness stack — 3 tins for $59, save 30% with code MORNING30. Includes a free VAHDAM bamboo tea infuser spoon. Free US shipping. Limited bundle quantity.'}
 ];
-function renderSuggestedPrompts(){
+function renderSuggestedPrompts(aiGenerated){
   var grid=document.getElementById('suggGrid');
   if(!grid)return;
+  var badge=aiGenerated?'<span style="font-size:9px;font-weight:700;color:#d4873a;letter-spacing:0.12em;text-transform:uppercase;margin-left:4px;vertical-align:middle">✨ AI</span>':'';
   grid.innerHTML=SUGG_PROMPTS.map(function(s,i){
     var preview=s.text.substring(0,96)+(s.text.length>96?'…':'');
     return '<div class="sugg-card" onclick="useSuggestedPromptByIdx('+i+')" title="Click to use this prompt">'
       +'<span class="sugg-card-icon">'+s.icon+'</span>'
-      +'<div class="sugg-type"><span class="sugg-type-dot"></span>'+s.type+'</div>'
+      +'<div class="sugg-type"><span class="sugg-type-dot"></span>'+s.type+badge+'</div>'
       +'<div class="sugg-text">'+preview+'</div>'
       +'</div>';
   }).join('');
@@ -1903,15 +1977,12 @@ function renderSuggestedPrompts(){
 function useSuggestedPromptByIdx(i){
   var s=SUGG_PROMPTS[i];
   if(!s)return;
-  // Fill prompt textarea
   var ta=document.getElementById('promptIn');
   if(ta){
     ta.value=s.text;ta.style.minHeight='140px';ta.focus();
-    // Trigger char counter update
     var cc=document.getElementById('promptCharCount');
     if(cc)cc.textContent=s.text.length+' chars';
   }
-  // Set market chip if suggestion has a single market
   if(s.mkt&&s.mkt!=='Global'){
     S.markets=[s.mkt];
     document.querySelectorAll('#mktChips .mkt-chip').forEach(function(c){
@@ -1919,7 +1990,6 @@ function useSuggestedPromptByIdx(i){
       c.classList.toggle('on',on);
     });
   }
-  // Set campaign type chip
   if(s.ctype){
     selectType(s.ctype,null);
     document.querySelectorAll('.type-chip').forEach(function(b){
@@ -1927,7 +1997,6 @@ function useSuggestedPromptByIdx(i){
       b.classList.toggle('on',on);
     });
   }
-  // Collapse accordion
   var grid=document.getElementById('suggGrid');
   var arrow=document.getElementById('suggArrow');
   if(grid)grid.style.display='none';
@@ -2065,6 +2134,7 @@ function showMarketMailer(mkt){
   renderVariantSwitcher();
   renderAllMailersMatrix();
   renderStrategicBrief();
+  _autoGenerateOpenAIImages(); // non-blocking upgrade to gpt-image-1 quality
   renderStep5UnifiedPanel();
   buildStep5UI(S.prompt,S.finalProds,mkt);
   showCopyToast('Showing '+mkt+' mailer (Variant '+(S.activeVariant||'A')+')');
@@ -4075,14 +4145,14 @@ async function approveWithUpload(){
   S.marketMailers={};
   // Variant A — Claude-vision (uses uploaded design as visual fidelity reference)
   var primaryA=await analyzeImageAndBuildEmail(S.uploadedDesignUrl,S.finalProds,S.activePrompt||S.prompt,S.activeMarket);
-  if(!primaryA)primaryA=buildEmail(S.uploadedDesignUrl,S.activeMarket);
+  if(!primaryA)primaryA=buildEmail(_resolveImageUrl(S.activeMarket,'A'),S.activeMarket);
   // Variant B — rule-based "Narrative Story" layout (always available locally)
-  var primaryB=buildEmailVariantB(S.uploadedDesignUrl,S.activeMarket);
+  var primaryB=buildEmailVariantB(_resolveImageUrl(S.activeMarket,'B'),S.activeMarket);
   S.marketMailers[S.activeMarket]={A:primaryA,B:primaryB};
   // Build both variants for remaining markets using uploaded design
   mkts.forEach(function(mkt){
     if(mkt!==S.activeMarket){
-      S.marketMailers[mkt]={A:buildEmail(S.uploadedDesignUrl,mkt),B:buildEmailVariantB(S.uploadedDesignUrl,mkt)};
+      S.marketMailers[mkt]={A:buildEmail(_resolveImageUrl(mkt,'A'),mkt),B:buildEmailVariantB(_resolveImageUrl(mkt,'B'),mkt)};
     }
   });
   S.finalHTML=(S.marketMailers[S.activeMarket]||{})[S.activeVariant]||'';
@@ -4102,7 +4172,7 @@ async function approveWithUpload(){
 function _ensureMailerBuilt(mkt,v){
   if(!S.marketMailers[mkt])S.marketMailers[mkt]={};
   if(S.marketMailers[mkt][v])return S.marketMailers[mkt][v];
-  var html=v==='B'?buildEmailVariantB(S.uploadedDesignUrl||null,mkt):buildEmail(S.uploadedDesignUrl||null,mkt);
+  var html=v==='B'?buildEmailVariantB(_resolveImageUrl(mkt,'B'),mkt):buildEmail(_resolveImageUrl(mkt,'A'),mkt);
   S.marketMailers[mkt][v]=html;
   return html;
 }
@@ -4348,7 +4418,7 @@ async function approveAndBuild(){
   mkts.forEach(function(mkt){
     S.marketMailers[mkt]={
       A: buildEmail(null, mkt),
-      B: buildEmailVariantB(null, mkt)
+      B: buildEmailVariantB(_resolveImageUrl(mkt,'B'), mkt)
     };
   });
   S.finalHTML=(S.marketMailers[S.activeMarket]||{})[S.activeVariant]||'';
@@ -4624,6 +4694,52 @@ function pollinationsImageUrl(prompt,seed,width,height){
   var w=width||600,h=height||1800;
   var s=seed||Math.floor(Math.random()*999999);
   return 'https://image.pollinations.ai/prompt/'+encoded+'?width='+w+'&height='+h+'&seed='+s+'&nologo=true&model=flux&enhance=true';
+}
+// ── Image resolver (priority: uploadedDesign > openai > pollinations) ────────
+function _resolveImageUrl(mkt,v){
+  if(S.uploadedDesignUrl&&S.uploadedDesignUrl.length>10)return S.uploadedDesignUrl;
+  if(S.openaiImages&&S.openaiImages[mkt]&&S.openaiImages[mkt][v])return S.openaiImages[mkt][v];
+  if(S.generatedImages&&S.generatedImages[mkt]&&S.generatedImages[mkt][v])return S.generatedImages[mkt][v];
+  if(S.generatedImages&&S.generatedImages[mkt]&&S.generatedImages[mkt].A)return S.generatedImages[mkt].A;
+  return '';
+}
+
+// ── Auto-upgrade Pollinations images to gpt-image-1 via /api/ai/image ────────
+async function _autoGenerateOpenAIImages(){
+  if(!window.S||!S.activeMarket)return;
+  var mkt=S.activeMarket;
+  var prompt=(S.imagePrompts&&(S.imagePrompts[mkt]||S.imagePrompts.Global||Object.values(S.imagePrompts)[0]))||'';
+  if(!prompt||prompt.length<10)return;
+  if(!S.openaiImages)S.openaiImages={};
+  if(!S.openaiImages[mkt])S.openaiImages[mkt]={};
+  var directorPrefix='Ultra-premium D2C email hero. Editorial luxury photography. Phase One medium format aesthetic. Macro texture, shallow depth of field, matte surfaces. Cinematic. No text, no UI, no watermarks. ';
+  var genImage=async function(sz,v){
+    try{
+      var r=await fetch('/api/ai/image',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({prompt:directorPrefix+prompt,size:sz,quality:'high'})
+      });
+      if(!r.ok)return;
+      var d=await r.json();
+      var url=d&&(d.url||d.b64_url||(d.data&&d.data[0]&&d.data[0].url));
+      if(url){
+        S.openaiImages[mkt][v]=url;
+        // Rebuild this market's mailers with the upgraded image
+        if(S.marketMailers&&S.marketMailers[mkt]){
+          S.marketMailers[mkt][v]=v==='B'?buildEmailVariantB(_resolveImageUrl(mkt,'B'),mkt):buildEmail(_resolveImageUrl(mkt,'A'),mkt);
+          // Refresh preview if this is the active market+variant
+          if(mkt===S.activeMarket){
+            var fr=document.getElementById('emailPreview');
+            if(fr&&fr.contentDocument){
+              var src=S.marketMailers[mkt][S.activeVariant||'A'];
+              if(src){fr.contentDocument.open();fr.contentDocument.write(src);fr.contentDocument.close();}
+            }
+          }
+        }
+      }
+    }catch(e){console.warn('[_autoGenerateOpenAIImages]',v,e.message);}
+  };
+  Promise.allSettled([genImage('1792x1024','A'),genImage('1024x1792','B')]);
 }
 // Build the region × variant image URL matrix and cache.
 // `forceNewSeeds` = true reseeds every cell (used by regen-with-feedback so the
@@ -5684,7 +5800,7 @@ window.pickConcept=function(id){
       var mkts=(S.markets&&S.markets.length)?S.markets:[S.activeMarket||'US'];
       S.marketMailers={};
       mkts.forEach(function(mkt){
-        S.marketMailers[mkt]={A:buildEmail(S.uploadedDesignUrl||null,mkt),B:buildEmailVariantB(S.uploadedDesignUrl||null,mkt)};
+        S.marketMailers[mkt]={A:buildEmail(_resolveImageUrl(mkt,'A'),mkt),B:buildEmailVariantB(_resolveImageUrl(mkt,'B'),mkt)};
       });
       S.finalHTML=(S.marketMailers[S.activeMarket]||{})[S.activeVariant||'A']||'';
       var fr=document.getElementById('emailFr');if(fr)fr.srcdoc=S.finalHTML;
