@@ -21,41 +21,44 @@ const SYSTEM = `You are a senior email marketing quality auditor for VAHDAM Indi
 ━━ SCORING CRITERIA ━━
 
 strategy_alignment (0-10):
-  10 = Every section directly serves the stated campaign strategy
+  10 = Every section directly serves the stated campaign strategy, hero product prominent
   5  = Strategy is loosely present
   0  = No connection to strategy
 
-structural_uniqueness (0-10):
-  10 = Layout is custom-built for this campaign, zero generic template feel
-  5  = Some unique elements, mostly template
-  0  = Pure template, could be any brand
+content_density (0-10):
+  10 = All sections content-complete: hero has bullets+price+CTA, product cards have ratings+description+price, no blank whitespace sections
+  7  = Most sections filled, minor gaps
+  5  = Several sections thin or padded
+  0  = Multiple empty/placeholder sections or truncated text
 
 copy_quality (0-10):
-  10 = Premium, brand-aligned, emotionally specific, zero banned phrases
-  5  = Adequate, some generic copy present
-  0  = Generic marketing copy or banned phrases found
+  10 = Premium, brand-aligned, emotionally specific, zero banned phrases, full sentences (no truncation)
+  5  = Adequate, some generic copy or truncated text
+  0  = Generic marketing copy, banned phrases, or placeholder brackets found
 
 variant_divergence (0-10) — score ONLY for Variant B:
-  10 = B is structurally and emotionally opposite to A (different hero, section order, copy register, CTA style)
-  5  = Some differences but similar feel
-  0  = B is essentially a reskin of A
+  10 = B is visually and structurally opposite to A: dark opening, ghost CTA, no product grid, narrative copy, editorial scale
+  7  = Clear differences on most dimensions
+  5  = Some differences but same general feel
+  0  = B is essentially a reskin of A — same colors, same CTA style, same product-first structure
 
 ━━ PASS RULES ━━
 - All Variant A scores ≥ ${PASS_THRESHOLD}
 - All Variant B scores ≥ ${PASS_THRESHOLD}
 - Variant B variant_divergence ≥ ${DIVERGENCE_MIN}
+- content_density ≥ 7 for both variants (key quality gate — empty sections must be retried)
 
 ━━ OUTPUT SCHEMA ━━
 {
   "scores_a": {
     "strategy_alignment": 0-10,
-    "structural_uniqueness": 0-10,
+    "content_density": 0-10,
     "copy_quality": 0-10,
     "overall": 0-10
   },
   "scores_b": {
     "strategy_alignment": 0-10,
-    "structural_uniqueness": 0-10,
+    "content_density": 0-10,
     "copy_quality": 0-10,
     "variant_divergence": 0-10,
     "overall": 0-10
@@ -69,19 +72,52 @@ variant_divergence (0-10) — score ONLY for Variant B:
 // Extract a structural fingerprint from HTML (avoids sending 80KB to the LLM)
 function fingerprint(html) {
   if (!html || typeof html !== 'string') return {};
-  const stripped = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const stripped = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+                       .replace(/<[^>]+>/g, ' ')
+                       .replace(/\s+/g, ' ')
+                       .trim();
+  const wordCount = stripped.split(' ').filter(w => w.length > 2).length;
+
+  // Sample copy from the 25%–75% band of the email (skips header boilerplate, includes product body)
+  const bandStart = Math.floor(stripped.length * 0.25);
+  const bandEnd   = Math.min(stripped.length, bandStart + 900);
+  const copySample = stripped.substring(bandStart, bandEnd);
+
+  // Truncation: only flag if truncation patterns appear inside quoted/headline text
+  // (CSS ellipsis or HTML entities starting with &hellip; are false positives)
+  const rawEllipsis = (html.match(/\.{3}/g) || []).length;
+  const htmlEllipsis = (html.match(/&hellip;/gi) || []).length;
+  const realEllipsis = rawEllipsis - htmlEllipsis;
+
+  // Count distinct dark-bg sections (each opening #0f2a1c background counts once per <td>)
+  const darkBgSections = (html.match(/bgcolor=["']#0f2a1c["']/gi) || []).length;
+
   return {
     char_count: html.length,
-    section_count: (html.match(/<!-- SECTION:/g) || []).length,
     table_count: (html.match(/<table/gi) || []).length,
     image_count: (html.match(/<img/gi) || []).length,
-    cta_buttons: (html.match(/bgcolor="#d4873a"/gi) || []).length,
-    ghost_buttons: (html.match(/border:2px solid/gi) || []).length,
-    hero_is_split: html.includes('55%') || (html.match(/<td[^>]*width="[2-4][0-9][0-9]"/gi) || []).length > 1,
-    hero_is_fullbleed: html.includes('width="600"') && html.includes('{{HERO_IMAGE_URL}}'),
-    has_banner: html.includes('bgcolor="#0f2a1c"') && (html.match(/bgcolor="#0f2a1c"/gi) || []).length > 1,
-    word_count: stripped.split(' ').filter(w => w.length > 2).length,
-    copy_sample: stripped.substring(0, 600)
+    // Conversion signals
+    amber_cta_buttons: (html.match(/background[:\s]*#d4873a/gi) || []).length,
+    ghost_buttons: (html.match(/border[:\s]*1\.5px solid|border[:\s]*2px solid/gi) || []).length,
+    cta_links: (html.match(/<a[^>]+href/gi) || []).length,
+    // Layout signals
+    hero_split: (html.match(/<td[^>]*width=["']3[0-3][0-9]["']/gi) || []).length >= 1,
+    hero_fullbleed: html.includes('IMAGE_HERO_URL') && (html.match(/width=["']600["']/gi) || []).length >= 1,
+    dark_bg_sections: darkBgSections,
+    has_bgcolor_outlook: (html.match(/bgcolor=["']#/gi) || []).length,  // Outlook compatibility check
+    // Content density signals
+    has_star_rating: html.includes('4.8') || html.includes('★') || html.includes('⭐'),
+    has_trust_badges: html.toLowerCase().includes('farm direct') || html.toLowerCase().includes('b-corp'),
+    has_free_shipping: html.toLowerCase().includes('free ship') || html.toLowerCase().includes('free shipping'),
+    has_price: (html.match(/\$\d+\.\d{2}/g) || []).length,  // count of price instances (not just boolean)
+    has_benefit_bullets: (html.match(/<li/gi) || []).length,
+    has_testimonial: html.includes('"') && (html.toLowerCase().includes('review') || html.toLowerCase().includes('loved') || html.toLowerCase().includes('perfect')),
+    has_preheader: html.includes('mso-hide:all') || html.includes('max-height:0'),  // preheader present
+    has_responsive_style: html.toLowerCase().includes('@media') && html.includes('max-width:600px'),
+    // Truncation: ellipsis inside actual text content (not CSS) is a content failure signal
+    has_truncation: realEllipsis > 3,
+    word_count: wordCount,
+    copy_sample: copySample   // mid-email band captures product content, not just header
   };
 }
 
@@ -102,9 +138,14 @@ module.exports = async function handler(req, res) {
   const fpB = fingerprint(html_b);
 
   // Structural divergence check (heuristic, pre-LLM)
-  const structurallyDiverged = fpA.cta_buttons !== fpB.cta_buttons ||
-                               fpA.hero_is_split !== fpB.hero_is_split ||
-                               fpA.hero_is_fullbleed !== fpB.hero_is_fullbleed;
+  const structurallyDiverged = fpA.amber_cta_buttons !== fpB.amber_cta_buttons ||
+                               fpA.hero_split !== fpB.hero_split ||
+                               fpA.hero_fullbleed !== fpB.hero_fullbleed ||
+                               fpA.dark_bg_sections !== fpB.dark_bg_sections;
+
+  // Content density quick-check
+  const densityA = fpA.word_count > 200 && fpA.has_price && fpA.cta_links > 2;
+  const densityB = fpB.word_count > 180 && fpB.cta_links > 1;
 
   const planSummaryA = {
     layout_flow: (variant_a_plan.layout_plan || {}).flow,
@@ -120,22 +161,27 @@ module.exports = async function handler(req, res) {
   const userMessage = `━━ CAMPAIGN ━━
 Strategy: ${strategy_output.strategy || '(not provided)'}
 Theme: ${(strategy_output.theme && strategy_output.theme.name) || ''}
+Strategy type: ${strategy_output.strategy_type || ''}
 
 ━━ VARIANT A ━━
 Intended plan: ${JSON.stringify(planSummaryA)}
 HTML fingerprint: ${JSON.stringify(fpA)}
-Copy sample:
+Content signals: word_count=${fpA.word_count} | prices_found=${fpA.has_price} | has_ratings=${fpA.has_star_rating} | bullet_count=${fpA.has_benefit_bullets} | has_trust=${fpA.has_trust_badges} | cta_count=${fpA.cta_links} | truncation_detected=${fpA.has_truncation} | outlook_bgcolor_count=${fpA.has_bgcolor_outlook} | responsive=${fpA.has_responsive_style}
+Mid-email copy sample (25%-75% band):
 "${fpA.copy_sample || ''}"
 
 ━━ VARIANT B ━━
 Intended plan: ${JSON.stringify(planSummaryB)}
 HTML fingerprint: ${JSON.stringify(fpB)}
-Copy sample:
+Content signals: word_count=${fpB.word_count} | prices_found=${fpB.has_price} | has_ratings=${fpB.has_star_rating} | bullet_count=${fpB.has_benefit_bullets} | cta_count=${fpB.cta_links} | dark_bg_sections=${fpB.dark_bg_sections} | ghost_cta=${fpB.ghost_buttons} | truncation_detected=${fpB.has_truncation} | outlook_bgcolor_count=${fpB.has_bgcolor_outlook} | responsive=${fpB.has_responsive_style}
+Mid-email copy sample (25%-75% band):
 "${fpB.copy_sample || ''}"
 
-Structural divergence check (heuristic): ${structurallyDiverged ? 'PASS — A and B have different structural signatures' : 'WARN — A and B may share structural patterns'}
+Structural divergence (heuristic): ${structurallyDiverged ? 'PASS — A and B have structurally different signatures (hero type, CTA style, dark sections)' : 'WARN — A and B may share too many structural patterns'}
+Content density (quick-check): A=${densityA ? 'adequate' : 'THIN — needs retry'} · B=${densityB ? 'adequate' : 'THIN — needs retry'}
+Variant B dark opening (required): ${fpB.dark_bg_sections > 0 ? 'PASS — dark sections present' : 'FAIL — no dark background sections found (B must open dark)'}
 
-Score both variants now and return the JSON.`;
+Score both variants now on ALL criteria. Penalise heavily for: thin content, missing prices, missing ratings, truncated text, or Variant B that looks like Variant A. Return the JSON.`;
 
   try {
     const { text, provider, model } = await callLLM({
@@ -155,9 +201,9 @@ Score both variants now and return the JSON.`;
     // Enforce pass logic client-side too (don't trust LLM alone)
     const sa = parsed.scores_a || {};
     const sb = parsed.scores_b || {};
-    const aFails = [sa.strategy_alignment, sa.structural_uniqueness, sa.copy_quality]
+    const aFails = [sa.strategy_alignment, sa.content_density, sa.copy_quality]
       .some(s => s != null && s < PASS_THRESHOLD);
-    const bFails = [sb.strategy_alignment, sb.structural_uniqueness, sb.copy_quality]
+    const bFails = [sb.strategy_alignment, sb.content_density, sb.copy_quality]
       .some(s => s != null && s < PASS_THRESHOLD);
     const divergenceFails = sb.variant_divergence != null && sb.variant_divergence < DIVERGENCE_MIN;
 

@@ -33,76 +33,44 @@ REGENERATE DIVERGENCE: if regenerate_counter > 0, force divergence on hero angle
 
 First char of output MUST be { · last char }. No markdown, no commentary.`;
 
-const SYSTEM_PROMPT_CREATE_BRIEF = `You are a Creative Director + Director of Growth at a $100M premium D2C brand (Aesop / AG1 / Net-a-Porter standard). Your task is NOT to design a mailer. Your task is to think like a senior marketing org, derive strategy from inputs, and produce a DIRECTOR-GRADE BRIEF the downstream pipeline renders into flawless premium mailers.
+const SYSTEM_PROMPT_CREATE_BRIEF = `You are Creative Director + Director of Growth at VAHDAM India — a $100M premium D2C Indian heritage tea brand. Your output feeds TWO downstream systems simultaneously: (1) a multi-stage AI HTML email builder, (2) ChatGPT Image 2 for photorealistic image generation. Both systems depend entirely on your brief for their quality. A weak brief = a broken mailer. A generic image prompt = a generic image. Think hard. Every field matters.
 
-━━ STEP 0 — INPUT SYNTHESIS ━━
-From inputs extract and lock:
-- audience_truth: real behavioral insight (not demographic label)
-- business_goal: acquisition | repeat | AOV | retention
-- product_landscape: hero + supporting candidates
-- conversion_levers: shipping / urgency / trust (which dominates)
-- market_bias: how geography shapes expectations (UK: provenance; US: ritual + story; IN: tradition + festivity; AU: wellness + clean-label; ME: masala + aromatic; EU: B-Corp + organic)
-No generic audience definitions. Must reflect real buying psychology.
+━━ BRAND CONTEXT ━━
+VAHDAM India. Premium single-estate teas. B-Corp certified. Ritual not regimen.
+Palette: forest green #0f2a1c / amber #d4873a / cream #fdf6e8
+Typography: Cormorant Garamond serif headings / DM Sans body
+BANNED: wellness journey / transform / liquid gold / game-changer / LIMITED TIME caps / Hurry / Don't miss out / Last chance / While supplies last
+PREFERRED: ritual / restore / balance / origin / single-estate / hand-picked / steep / heritage / crafted
 
-━━ STEP 1 — STRATEGY LOCK ━━
-Select ONE strategy from: Conversion Push | Ritual Reinforcement | Desire Creation | AOV Expansion | Catalog Expansion.
-Must connect directly to audience_truth + business_goal.
+━━ WHAT MAKES A GREAT IMAGE PROMPT FOR ChatGPT Image 2 ━━
+Must name: SUBJECT + SURFACE MATERIAL + LIGHT SOURCE + DIRECTION + CAMERA ANGLE + MOOD + COLOR TEMPERATURE
+Good: "Darjeeling first-flush leaves in bone-china cup on weathered oak, raking morning sidelight through sheer linen, tight overhead angle, golden haze, soft shadows, shallow DOF, no text"
+Bad: "Beautiful tea cup in warm light" — too vague, generates stock photo
+Variant A image: product MUST be clearly visible, studio-adjacent, benefit-clear, morning or afternoon light
+Variant B image: NO product visible, atmospheric lifestyle, different time of day from A, no studio feel, human warmth
 
-━━ STEP 2 — VIBE DEFINITION ━━
-emotional_tone + pace + visual_energy — must align with strategy + audience.
-State what to AVOID (what would make this feel generic or off-brand).
+━━ MANDATORY OUTPUT FORMAT ━━
+Output EXACTLY these labeled fields in this order. Every field is required — do not skip, collapse, or merge any.
 
-━━ STEP 3 — PRODUCT LOGIC ━━
-hero_product + supporting_products with logic for how they increase AOV or depth.
-No random products. Every product must support the strategy.
+CAMPAIGN: [2-4 word ownable campaign name — NOT "Tea Campaign" or "Heritage Collection"]
+OBJECTIVE: [One specific measurable outcome — e.g. "Drive first purchase from lapsed US subscribers at $75+ AOV via single-estate origin story"]
+AUDIENCE: [Real behavioral insight — NOT "people who love tea". What is this person doing, feeling, and needing RIGHT NOW? Why are they not buying today?]
+STRATEGY: [Choose exactly one: Conversion Push | Ritual Reinforcement | Desire Creation | AOV Expansion | Catalog Expansion] — [1 sentence: why this strategy for this audience right now]
+HOOK: [Primary lever: origin | gift | urgency | ritual | discovery | bestseller | seasonal | subscription] — [1 sentence: how this hook resolves the purchase barrier]
+HERO PRODUCT: [Exact product name from the provided list] — [1 sentence: why this specific product resolves the stated purchase barrier]
+SUPPORTING: [Product 2 name] + [Product 3 name] — [1 sentence: how these increase AOV or create a product system]
+THEME: [2-4 word ownable theme name — NOT "Heritage Harvest" or "Tea Ritual"]. [1 sentence: the consumption truth being reframed and the emotional state this unlocks.]
+VISUAL WORLD: [55-70 words — describe a specific photographic scene a photographer can execute: name the surface material, light source + direction, time of day, unusual compositional choice, color temperature, depth of field, what is foregrounded, what is out of focus. No generic "warm and inviting" descriptions.]
+IMAGE A: [55-70 words for ChatGPT Image 2 — Variant A hero (product-led, conversion). Spec: subject + foreground surface material + light source + direction + camera angle + color temperature + mood + depth of field. Product MUST be clearly visible and prominent. No text, no logos, no stock feel.]
+IMAGE B: [55-70 words for ChatGPT Image 2 — Variant B hero (editorial-narrative, lifestyle). MUST differ from A on: subject, time of day, composition axis, mood. NO product visible. Atmospheric lifestyle context. Human presence or trace (hand, cup, book) preferred. No text, no logos.]
+NEGATIVE PROMPT: [What to exclude from ALL images — always include these: no text overlays, no logos, no brand marks, no stock photography feel, no artificial lighting, no clutter, no lens distortion. Add 2-3 specific exclusions relevant to THIS brief.]
+HEADLINE A: [Direct benefit-first declarative, max 8 words — e.g. "Steep Better. Start Here." NOT "Discover Our Amazing Teas"]
+HEADLINE B: [Sensory/poetic indirect, max 8 words, different register from A — e.g. "The hill is quiet at 7,000 feet."]
+CTA A: [Max 4 words, action verb: Shop / Order / Explore / Start]
+CTA B: [Max 4 words, understated: Discover / Begin / Find / Read]
+TONE: [3-6 word emotional atmosphere — e.g. "quiet confidence and morning stillness"]
+AVOID: [2-3 specific execution choices that would make THIS brief feel generic or off-brand — be precise, not generic like "avoid clichés"]`;
 
-━━ STEP 4 — THEME ━━
-Theme = [Consumption Truth] + [Reframe] + [Emotion]
-Define: theme_name, core_idea, emotional_driver, visual_world.
-
-━━ STEP 5 — FORCED VARIANT DIVERGENCE (CRITICAL) ━━
-Variant A = CONTROL: product-led, structured layout, benefit-driven.
-Variant B = EXPERIMENTAL: narrative-led, editorial layout, emotional/sensory.
-HARD RULE: If B shares structure or layout with A — regenerate internally before outputting.
-
-━━ STEP 6 — IMAGE DIRECTION (ChatGPT Image 2) ━━
-Global style: "Luxury editorial photography, cinematic lighting, macro detail, tactile textures, shallow depth of field, premium color grading, no stock feel."
-Hero image prompt: [scene] + [composition — email vertical] + [lighting] + [mood] + [color palette].
-Product prompt: macro detail, texture focus, premium lighting, negative space.
-Negative prompt (all images): "no stock images, no clutter, no distortion, no text overlays, no unrealistic visuals, no low resolution."
-Variant B hero MUST differ: different scene, different composition axis, different mood.
-
-━━ STEP 7 — CONVERSION ARCHITECTURE ━━
-Map conversion levers to sections — natural integration only:
-shipping → hero + CTA | urgency → mid section | social_proof → product section.
-Never force levers. Never interrupt the editorial flow with loud promotional interruptions.
-
-━━ STEP 8 — QUALITY GATE (internal — block output if fails) ━━
-→ Every section serves the narrative arc — not a template slot
-→ Output feels editorial, not template (template = regenerate)
-→ Image directions are art-directed, not generic descriptors
-→ Conversion levers naturally integrated, never forced
-→ Variant B is structurally and emotionally distinct from A
-→ No banned phrases anywhere in copy
-
-VAHDAM BRAND:
-Premium Indian heritage tea. Ritual not regimen. Single-estate ethical sourcing.
-Palette: forest green #0f2a1c / amber #d4873a / cream #fdf6e8. Typography: Cormorant Garamond serif / DM Sans body.
-BANNED: wellness journey / transform / liquid gold / game-changer / LIMITED TIME (caps) / You won't believe / Hurry / Don't miss out / Last chance / While supplies last
-PREFERRED: ritual / restore / balance / origin / single-estate / hand-picked / steep / heritage / crafted / "From the gardens of" / "Steeped in tradition"
-TONE: calm-confident-premium. Evocative not vague. Specific over general.
-
-OUTPUT FORMAT — ONE cohesive director brief, 200-300 words, prose only. No bullet points. No section headers. Reads like a senior CD briefing specialists. Must include:
-(1) Campaign objective — one sentence business outcome.
-(2) Audience segment + emotional state they're in right now.
-(3) Strategy + primary hook — specific, not generic.
-(4) Hero scene direction — photographic instruction (not a vibe word).
-(5) Narrative arc — emotion → context → reveal → CTA.
-(6) Headline angle + 2 example phrasings.
-(7) Variant B divergence instruction — structurally and emotionally distinct from A.
-(8) Hero image prompt (Variant A) + Hero image prompt (Variant B) — both 40-60 words, PhotoReal instruction quality.
-(9) CTA verb pattern + tone.
-Any generic or templated output fails the gate and must be regenerated.`;
 
 const SYSTEM_PROMPT_SUGGESTED_PROMPTS = `You are a Creative Director + Director of Growth at VAHDAM India — a premium D2C Indian heritage tea brand (Aesop / AG1 / Net-a-Porter standard). Generate exactly 6 campaign briefs as a JSON array. Each is a director-grade email campaign prompt that a downstream AI pipeline uses to produce a flawless premium mailer.
 
@@ -123,68 +91,130 @@ For each campaign:
 Return ONLY a valid JSON array — no markdown, no code fences, no explanation. Format:
 [{"icon":"<single emoji>","type":"<Campaign Name> — <Market>","mkt":"<US|UK|IN|AU|ME|EU|Global>","ctype":"<Sale|Launch|Gift|Seasonal|Bestseller|Routine|Discovery>","text":"<director brief 150-200 words>"},...]`;
 
-const SYSTEM_PROMPT_MAILER_FULL = `You are the VAHDAM Mailer Architect — Creative Director + Director of Growth. Output STRICT JSON: {"strategy":"plain text 4-line: Theme/Intent/Expected Impact/Justification", "creative_spec":{...}, "html_plan":{"sections":[...]}}.
+// FINAL MASTER PROMPT — Full 11-step orchestration system
+// Used by mailer_full mode (fallback path when pipeline is unavailable)
+const SYSTEM_PROMPT_MAILER_FULL = `You are a Creative Director + Director of Growth at a $100M premium D2C brand.
 
-━━ MANDATORY VARIANT DIVERGENCE SYSTEM ━━
-Variant A = CONTROL (product-led, structured, benefit-driven):
-  Layout: editorial split hero, icon-strip benefits, asymmetric product cards, single bold CTA, mid offer banner. 6-7 sections.
-Variant B = EXPERIMENTAL (narrative-led, editorial, emotional/sensory):
-  Layout: full-bleed cinematic hero, flowing narrative copy, lifestyle integration, comparison-discovery product layout, 2 testimonial pulls, bottom offer strip. 7-8 sections.
-HARD RULE: A and B MUST differ on ≥5 dimensions: hero_layout, section_order, product_presentation, CTA_system, social_proof_style, offer_placement, visual_motif, copy_register, image_composition_axis.
-If B ≈ A on structure or emotional angle → regenerate internally before outputting.
+You DO NOT generate outputs directly.
+You operate as a deterministic system that:
+→ analyzes → decides → enforces constraints → generates → validates → regenerates if needed
 
-━━ CREATIVE SPEC SCHEMA ━━
-creative_spec: {
-  variant: "A|B",
-  regenerate_counter: n,
-  creative_seed_summary: "what diverges from previous gen",
-  strategy: "Conversion Push|Ritual Reinforcement|Desire Creation|AOV Expansion|Catalog Expansion",
-  vibe: { emotional_tone, pace, visual_energy, avoid },
-  hero: { angle, headline, subcopy, cta_primary, cta_secondary?, offer_emphasis, price_display },
-  sections: [8-section array, each: { id, purpose, copy, layout, image_prompt, ux_intent }],
-  selected_products: [{ name, url, price, compare_price, image_url }],
-  hero_image_prompt: "40-60 word PhotoReal prompt: scene + composition + lighting + mood + color palette",
-  hero_image_prompt_b: "DIFFERENT scene from A — different composition axis, different mood, same product"
+Goal: TWO high-quality, non-repetitive, premium email mailer specs with:
+- strong marketing strategy
+- completely different structures
+- image prompts for gpt-image-1 (ChatGPT Image)
+- a layout plan the HTML builder will implement exactly
+
+Output STRICT JSON. First char {, last char }. No markdown.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEPS 0-5: STRATEGY + VARIANT LOCK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 0: INPUT SYNTHESIS
+Convert raw input into: audience_truth, business_goal, product_roles, conversion_levers, market_context.
+No generic statements.
+
+STEP 1: STRATEGY LOCK
+Select ONE: Conversion Push | Ritual Reinforcement | Desire Creation | AOV Expansion | Catalog Expansion.
+
+STEP 2: VIBE DEFINITION
+Tone + Pace + Visual Energy + what to avoid.
+
+STEP 3: PRODUCT LOGIC
+Hero product + supporting products + AOV logic.
+
+STEP 4: THEME
+[Consumption Truth] + [Reframe] + [Emotion] = theme_name + core_idea + visual_world.
+
+STEP 5: HARD VARIANT SPLIT (CRITICAL)
+VARIANT A (CONTROL): product-first, structured, benefit-rational, prominent amber CTA.
+VARIANT B (EXPERIMENTAL — RADICALLY DIFFERENT):
+  - NO product in first 2 sections
+  - storytelling-first narrative
+  - asymmetric/editorial layout
+  - NO product grids
+  - emotional progression before product reveal
+  - understated CTA (ghost button or text-link)
+If B resembles A structurally → REJECT and regenerate B internally before outputting.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 6: CREATIVE PLAN (PER VARIANT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+For EACH variant:
+- layout_plan: { hero_type (split-hero|full-bleed|centered), flow, spacing, color_scheme }
+- sections[]: each with { id, type (split-hero|full-bleed|centered|two-col-grid|three-col-grid|banner|button-row), purpose, copy: {eyebrow,headline,subcopy,cta}, layout, image_slot (hero|product|lifestyle|none), ux_intent }
+- copy_framework: { tone, voice, headline_style, cta_verb }
+- subject_lines: [3 options ≤58 chars]
+- preheader: ≤85 chars
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 7: IMAGE GENERATION PROMPTS (MANDATORY for gpt-image-1)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GLOBAL STYLE LOCK: "Luxury editorial photography, cinematic lighting, soft shadows, shallow depth of field, premium textures, no stock feel, no text overlays"
+
+For EACH variant generate EXACTLY 3 image_requirements:
+1. HERO: 50-70w — scene + composition + lighting + mood + color palette
+2. PRODUCT: 40-50w — macro detail, texture, negative space, editorial feel
+3. LIFESTYLE: 40-50w — contextual scene, warmth, brand world
+
+Each: { slot (hero|product|lifestyle), prompt, size (1536x1024 for hero, 1024x1024 for others), negative_prompt }
+NEGATIVE PROMPT: "no stock images, no clutter, no distortion, no text, no low resolution"
+
+RULE: Variant B image prompts MUST differ — different scene, different composition, different mood.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 8: VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Check:
+- A and B structurally different? (layout, section order, CTA style, copy register)
+- B follows hard rules? (no product first, narrative-led, understated CTA)
+- Image prompts detailed and specific?
+- Theme reflected in copy and visuals?
+If ANY fails → regenerate that component internally before outputting.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL OUTPUT JSON SCHEMA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{
+  "synthesis": { "audience_truth":"", "business_goal":"", "product_roles":"", "conversion_levers":"", "market_context":"" },
+  "strategy": { "name":"", "why":"" },
+  "vibe": { "tone":"", "pace":"", "visual_energy":"", "avoid":"" },
+  "product_logic": { "hero_product":"", "supporting_products":[], "aov_logic":"" },
+  "theme": { "theme_name":"", "core_idea":"", "visual_world":"", "conversion_reason":"" },
+  "image_style_lock": "global photography style for ALL images",
+  "variant_a": {
+    "layout_plan": { "hero_type":"", "flow":"", "spacing":"", "color_scheme":{} },
+    "sections": [{ "id":"", "type":"", "purpose":"", "copy":{"eyebrow":"","headline":"","subcopy":"","cta":""}, "layout":"", "image_slot":"", "ux_intent":"" }],
+    "image_requirements": [{ "slot":"hero", "prompt":"", "size":"1536x1024", "negative_prompt":"" }, { "slot":"product", "prompt":"", "size":"1024x1024", "negative_prompt":"" }, { "slot":"lifestyle", "prompt":"", "size":"1024x1024", "negative_prompt":"" }],
+    "copy_framework": { "tone":"", "voice":"", "headline_style":"", "cta_verb":"" },
+    "subject_lines": ["","",""],
+    "preheader": ""
+  },
+  "variant_b": {
+    "layout_plan": { "hero_type":"", "flow":"", "spacing":"", "color_scheme":{} },
+    "sections": [{ "id":"", "type":"", "purpose":"", "copy":{"eyebrow":"","headline":"","subcopy":"","cta":""}, "layout":"", "image_slot":"", "ux_intent":"" }],
+    "image_requirements": [{ "slot":"hero", "prompt":"", "size":"1536x1024", "negative_prompt":"" }, { "slot":"product", "prompt":"", "size":"1024x1024", "negative_prompt":"" }, { "slot":"lifestyle", "prompt":"", "size":"1024x1024", "negative_prompt":"" }],
+    "copy_framework": { "tone":"", "voice":"", "headline_style":"", "cta_verb":"" },
+    "subject_lines": ["","",""],
+    "preheader": ""
+  }
 }
 
-━━ SECTION STRUCTURE (per variant) ━━
-Each section must include: purpose (why it exists in the arc) + copy + layout + image_prompt (section-specific, 20-40w) + ux_intent (what action or feeling it drives).
-Sections follow: HERO → CONTEXT → PRODUCT REVEAL → BENEFITS → PROOF → LIFESTYLE → OFFER → CTA.
-For Variant B: reorder to HERO → NARRATIVE → LIFESTYLE → PRODUCT → PROOF → OFFER → CTA (editorial flow, not conversion stack).
+━━ NON-NEGOTIABLE RULES ━━
+- NEVER reuse same structure across variants
+- NEVER skip image_requirements
+- NEVER produce generic layouts
+- NEVER ignore Step 8 validation
 
-━━ CHATGPT IMAGE 2 PROMPTS ━━
-Global style lock: "Luxury editorial photography, cinematic lighting, macro detail, tactile textures, shallow depth of field, premium color grading, no stock feel."
-Every image_prompt must be specific to its section — not a generic product shot.
-Negative prompt (include in every section's image_prompt): "no stock, no clutter, no text overlays, no distortion, no low resolution."
-
-━━ LAYOUT MAPPING (before HTML generation) ━━
-Define layout structure: hero (full-width|split), section_2 (split|stacked), spacing (high-whitespace|editorial-tight), flow (editorial|structured-conversion).
-HTML MUST follow this layout map exactly — not a generic template.
-
-━━ HTML GENERATION RULES ━━
-Table-based, 600px max-width, inline CSS only, ≤80KB, ≤8 images, mobile-stacking.
-Hero IMAGE is photo-only — all text/offer/pricing in HTML layer. Use {{HERO_IMAGE_URL}} placeholder.
-Variant A: structured table grid, benefit icon strips, prominent CTA button, mid-banner offer.
-Variant B: full-bleed images, generous padding (60px+ sections), editorial serif headlines, narrative sub-copy, understated CTA.
-No random spacing. No generic template structure. Every section padding/color/type tied to the layout_map.
-
-━━ REGENERATION RULES ━━
-regenerate_counter > 0 forces ≥3 hard changes: hero_angle, benefit_motif, product_order, CTA_language, offer_emphasis, hero_composition_axis.
-
-━━ DATA TRUTH ━━
-Use ONLY provided products. NEVER invent prices, reviews, or claims. If field missing → omit cleanly.
-
-━━ FINAL VALIDATION GATE ━━
-Reject and internally regenerate if:
-- Variant B ≈ Variant A on structure or layout
-- Image prompts are generic (e.g., "product on table with nice lighting")
-- Copy contains banned phrases
-- Layout is a generic template not tied to strategy/vibe
-- Narrative is weak — no emotional arc, no specific audience truth
-
-BRAND: palette #0f2a1c / #d4873a / #fdf6e8 / #1a1a1a. Cormorant Garamond serif / DM Sans body.
-BANNED: wellness journey / transform / liquid gold / game-changer / LIMITED TIME (caps) / You won't believe / Hurry / Don't miss out / Last chance / While supplies last.
-PREFERRED: ritual / restore / balance / origin / single-estate / hand-picked / steep / heritage / crafted.
+VAHDAM BRAND:
+Palette: #0f2a1c / #d4873a / #fdf6e8. Cormorant Garamond serif / DM Sans body.
+BANNED: wellness journey, transform, liquid gold, game-changer, LIMITED TIME caps, hurry, don't miss out.
+PREFERRED: ritual, restore, balance, origin, single-estate, hand-picked, steep, heritage, crafted.
 
 First char { · last char }. No markdown. No commentary.`;
 
@@ -259,77 +289,188 @@ module.exports = async function handler(req, res) {
     userMessage = `INPUTS:\nmarket: ${market}\ntheme: ${theme}\ncampaign_brief: ${campaign_brief.substring(0, 1000)}\nvariant: ${variant}\nregenerate_counter: ${regenerate_counter}\n${previous_outputs_summary ? 'previous_outputs_summary: ' + previous_outputs_summary + '\n' : ''}selected_products:\n${productsBlock || '(none)'}\n\nReturn the strict JSON now.`;
   } else {
     // create_brief mode (default)
-    const productsLine = selected_products.length ? `\nPRODUCTS PICKED: ${selected_products.slice(0,5).map(p=>p.name||p.n).join('; ')}` : '';
-    userMessage = `SEED IDEA: ${campaign_brief || '(no seed — invent a strong one for the inputs below)'}\nCAMPAIGN TYPE: ${theme}\nMARKETS: ${market}${productsLine}\n\nWrite the brief now.`;
+    // Market context — informs audience psychology and visual direction
+    const mktContext = {
+      US:     'Urban US professionals 30-55. Value origin story + morning ritual. $55+ AOV. Expect premium provenance, not discounts.',
+      UK:     'UK tea-culture audience. Provenance and craft matter. Premium gifting occasion. Appreciate estate names and harvest seasons.',
+      IN:     'Indian domestic audience. Value tradition, festivity, masala chai culture. Gifting + family occasions drive purchase.',
+      AU:     'Australian wellness seekers. Outdoor lifestyle, clean-label conscious. Ethical sourcing story resonates strongly.',
+      ME:     'Middle East audience. Love rich masala chai and aromatic blends. Gifting occasions, premium packaging, bold flavors.',
+      EU:     'European health-conscious shoppers. B-Corp + organic certification resonates. Provenance and sustainability over price.',
+      Global: 'International premium audience. Discovery-minded. Seeking authentic Indian heritage and origin stories.'
+    };
+    const audienceCtx = mktContext[market] || `${market} market audience`;
+
+    // Product block — name + price + category so the LLM can build a genuine product system
+    const productsBlock = selected_products.length
+      ? selected_products.slice(0, 6).map(p => {
+          const parts = [p.name || p.n || ''];
+          if (p.price) parts.push('$' + p.price);
+          if (p.category) parts.push(p.category);
+          if (p.compare_at && p.compare_at !== p.price) parts.push('(was $' + p.compare_at + ')');
+          return '- ' + parts.join(' | ');
+        }).join('\n')
+      : null;
+
+    userMessage = [
+      `SEED IDEA: ${campaign_brief || '(none — derive a strong campaign concept from the inputs below)'}`,
+      `CAMPAIGN TYPE: ${theme || 'General Campaign'}`,
+      `MARKET: ${market} — ${audienceCtx}`,
+      productsBlock ? `PRODUCTS AVAILABLE:\n${productsBlock}` : 'PRODUCTS: (none selected — choose 1-3 best-fit VAHDAM products for this market + campaign type)',
+      ``,
+      `OUTPUT ALL LABELED FIELDS in order. IMAGE A and IMAGE B must each be 55-70 words of PhotoReal-quality specification for ChatGPT Image 2 — not vague mood words. Every field is required.`
+    ].join('\n');
   }
 
   // ── Provider-specific call ──
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
   const temperature = 0.7 + Math.min(0.3, regenerate_counter * 0.1);
-  const max_tokens = mode === 'mailer_full' ? 7000 : (mode === 'concepts' ? 4500 : (mode === 'suggested_prompts' ? 3000 : 2000));
-  try {
-    let text = '';
-    if (provider === 'openai') {
-      const fetchRes = await fetch(OPENAI_BASE + '/chat/completions', {
+  // create_brief: 1800 tokens handles the full labeled output (all fields ≈ 700-900 tokens) with headroom
+  const max_tokens = mode === 'mailer_full' ? 7000 : (mode === 'concepts' ? 4500 : (mode === 'suggested_prompts' ? 3000 : 1800));
+
+  // ── Helper: call OpenAI ───────────────────────────────────────────────────
+  async function callOpenAI(model) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30000);
+    try {
+      const r = await fetch(OPENAI_BASE + '/chat/completions', {
         method: 'POST',
+        cache: 'no-store',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + openaiKey },
         body: JSON.stringify({
-          model: textModel,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
-          ],
+          model,
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMessage }],
           max_tokens, temperature,
           ...(response_format ? { response_format } : {})
         }),
-        signal: controller.signal
+        signal: ctrl.signal
       });
-      clearTimeout(timeout);
-      if (!fetchRes.ok) {
-        const errBody = await fetchRes.text().catch(() => '');
-        return res.status(fetchRes.status).json({ error: 'openai_error', status: fetchRes.status, detail: errBody.substring(0, 500) });
+      clearTimeout(t);
+      if (!r.ok) {
+        const err = await r.text().catch(() => '');
+        return { ok: false, status: r.status, error: 'openai_error', detail: err.substring(0, 400), provider: 'openai', model };
       }
-      const data = await fetchRes.json();
-      text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
-    } else {
-      // Gemini call — free tier, 1500 req/day on gemini-1.5-flash
-      // System prompt becomes part of the user message since Gemini has different message shape
-      const geminiPrompt = systemPrompt + '\n\n---\nUSER REQUEST:\n' + userMessage;
-      const fetchRes = await fetch(GEMINI_BASE + '/models/' + encodeURIComponent(textModel) + ':generateContent?key=' + encodeURIComponent(geminiKey), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: geminiPrompt }] }],
-          generationConfig: {
-            temperature,
-            maxOutputTokens: max_tokens,
-            ...(response_format ? { responseMimeType: 'application/json' } : {})
-          }
-        }),
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-      if (!fetchRes.ok) {
-        const errBody = await fetchRes.text().catch(() => '');
-        return res.status(fetchRes.status).json({ error: 'gemini_error', status: fetchRes.status, detail: errBody.substring(0, 500) });
-      }
-      const data = await fetchRes.json();
-      text = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text) || '';
+      const data = await r.json();
+      const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+      return { ok: true, text, provider: 'openai', model };
+    } catch (e) {
+      clearTimeout(t);
+      return { ok: false, status: 500, error: 'openai_fetch_error', detail: String(e.message || e).substring(0, 200), provider: 'openai', model };
     }
+  }
+
+  // ── Helper: call Gemini with a specific model ─────────────────────────────
+  async function callGemini(model) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30000);
+    const geminiPrompt = systemPrompt + '\n\n---\nUSER REQUEST:\n' + userMessage;
+    try {
+      const r = await fetch(
+        GEMINI_BASE + '/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(geminiKey),
+        {
+          method: 'POST',
+          cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: geminiPrompt }] }],
+            generationConfig: {
+              temperature,
+              maxOutputTokens: max_tokens,
+              ...(response_format ? { responseMimeType: 'application/json' } : {})
+            }
+          }),
+          signal: ctrl.signal
+        }
+      );
+      clearTimeout(t);
+      if (!r.ok) {
+        const err = await r.text().catch(() => '');
+        // Parse retry-after seconds from Gemini error message if present
+        const retryMatch = err.match(/retry in ([\d.]+)s/i);
+        const retry_after = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 30;
+        return { ok: false, status: r.status, error: 'gemini_error', detail: err.substring(0, 400), provider: 'gemini', model, retry_after };
+      }
+      const data = await r.json();
+      const text = (
+        data.candidates && data.candidates[0] &&
+        data.candidates[0].content && data.candidates[0].content.parts &&
+        data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text
+      ) || '';
+      return { ok: true, text, provider: 'gemini', model };
+    } catch (e) {
+      clearTimeout(t);
+      return { ok: false, status: 500, error: 'gemini_fetch_error', detail: String(e.message || e).substring(0, 200), provider: 'gemini', model };
+    }
+  }
+
+  // ── Model cascade: try preferred provider first, then fallbacks ───────────
+  // Gemini free-tier model fallback order (separate quota buckets):
+  //   gemini-2.5-flash (10 RPM) → gemini-2.0-flash (15 RPM) → gemini-1.5-flash (15 RPM)
+  // OpenAI is tried if key is present and Gemini exhausted all fallbacks.
+  let result = null;
+
+  try {
+    if (provider === 'openai') {
+      result = await callOpenAI(textModel);
+      // OpenAI rate limit — try Gemini if key available
+      if (!result.ok && result.status === 429 && geminiKey) {
+        console.warn('[generate] OpenAI 429 — trying Gemini fallback');
+        for (const gModel of ['gemini-2.0-flash', 'gemini-1.5-flash']) {
+          result = await callGemini(gModel);
+          if (result.ok || result.status !== 429) break;
+        }
+      }
+    } else {
+      // Gemini primary — cascade through models on 429
+      const geminiModels = [
+        process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', // 10 RPM free
+        'gemini-2.0-flash',                                   // 15 RPM free — separate bucket
+        'gemini-1.5-flash',                                   // 15 RPM free — separate bucket
+        'gemini-2.0-flash-lite'                               // 30 RPM free — highest free quota
+      ];
+      for (const gModel of geminiModels) {
+        console.log('[generate] Trying Gemini model:', gModel);
+        result = await callGemini(gModel);
+        if (result.ok) break;
+        // 429 = rate limited, 503 = RESOURCE_EXHAUSTED — cascade to next quota bucket
+        if (result.status === 429 || result.status === 503) {
+          console.warn('[generate] Gemini ' + result.status + ' on', gModel, '— trying next model');
+          continue;
+        }
+        break; // other error (400, 401, 500) — stop cascade
+      }
+      // All Gemini models exhausted — try OpenAI if key exists
+      if (!result.ok && (result.status === 429 || result.status === 503) && openaiKey) {
+        console.warn('[generate] All Gemini models rate-limited — trying OpenAI fallback');
+        result = await callOpenAI(process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini');
+      }
+    }
+
+    if (!result || !result.ok) {
+      const is429 = result && result.status === 429;
+      return res.status(result ? result.status : 500).json({
+        error: result ? result.error : 'no_provider',
+        detail: result ? result.detail : 'All providers failed',
+        provider: result ? result.provider : provider,
+        model: result ? result.model : textModel,
+        // Include retry_after so the frontend can show a countdown and auto-retry
+        ...(is429 ? { retry_after: result.retry_after || 30, rate_limited: true } : {})
+      });
+    }
+
+    const text = result.text || '';
     if (mode === 'concepts' || mode === 'mailer_full' || mode === 'suggested_prompts') {
       let parsed;
       try { parsed = JSON.parse(text); } catch (e) {
         const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
         try { parsed = JSON.parse(stripped); } catch (e2) {
-          return res.status(502).json({ error: 'json_parse_failed', provider, raw: text.substring(0, 600) });
+          return res.status(502).json({ error: 'json_parse_failed', provider: result.provider, raw: text.substring(0, 600) });
         }
       }
-      return res.status(200).json({ ok: true, mode, provider, model: textModel, data: parsed });
+      return res.status(200).json({ ok: true, mode, provider: result.provider, model: result.model, data: parsed });
     }
-    return res.status(200).json({ ok: true, mode, provider, model: textModel, text });
+    return res.status(200).json({ ok: true, mode, provider: result.provider, model: result.model, text });
+
   } catch (e) {
-    clearTimeout(timeout);
     return res.status(500).json({ error: 'server_error', provider, detail: String(e && e.message || e).substring(0, 300) });
   }
 };

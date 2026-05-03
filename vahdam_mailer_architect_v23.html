@@ -480,64 +480,114 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 <!-- ═══════════════════════════════════════════════════════════════════════
      PIPELINE PROGRESS OVERLAY — v80 multi-stage generation
      ═══════════════════════════════════════════════════════════════════════ -->
-<div id="pipelineOverlay" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(8,24,16,0.92);backdrop-filter:blur(8px);align-items:center;justify-content:center;flex-direction:column">
-  <div style="background:#fff;border-radius:16px;padding:36px 40px;max-width:520px;width:90%;box-shadow:0 32px 80px rgba(0,0,0,0.5)">
-    <!-- Header -->
-    <div style="text-align:center;margin-bottom:28px">
-      <div style="font-family:'DM Sans',sans-serif;font-size:9px;font-weight:800;letter-spacing:0.18em;text-transform:uppercase;color:#d4873a;margin-bottom:6px">VAHDAM Mailer Architect</div>
-      <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:600;color:#0f2a1c;line-height:1.2">Generating Production Mailers</div>
-      <div style="font-family:'DM Sans',sans-serif;font-size:12px;color:#7a6e65;margin-top:6px">5-stage pipeline · Variant A + B · gpt-image-1 hero</div>
-    </div>
-    <!-- Step indicators -->
-    <div id="pipelineSteps" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
-      <div id="pstep-1" class="pstep" data-status="pending">
-        <div class="pstep-icon">⏳</div>
-        <div class="pstep-body"><div class="pstep-label">Stage 1 — Decision Engine</div><div class="pstep-msg">Strategy · Theme · Variant concept lock</div></div>
+<!-- ══════════════════════════════════════════════════════════
+     PIPELINE PROGRESS OVERLAY — 5-stage with live step counter,
+     progress bar, elapsed time, and animated active step detail
+     ══════════════════════════════════════════════════════════ -->
+<div id="pipelineOverlay" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(8,24,16,0.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+  <div style="background:#fff;border-radius:20px;max-width:560px;width:100%;box-shadow:0 40px 100px rgba(0,0,0,0.55);overflow:hidden;margin:auto">
+    <!-- Brand header -->
+    <div style="background:linear-gradient(90deg,#0c2218,#193d28);padding:16px 24px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:20px;font-weight:600;color:#fdf6e8;letter-spacing:0.1em">VAHDAM<span style="font-size:10px;vertical-align:super;letter-spacing:0">®</span></div>
+        <div style="font-size:8.5px;font-weight:800;letter-spacing:0.2em;text-transform:uppercase;color:#d4873a;margin-top:1px">Mailer Studio · AI Pipeline</div>
       </div>
-      <div id="pstep-2" class="pstep" data-status="pending">
-        <div class="pstep-icon">⏳</div>
-        <div class="pstep-body"><div class="pstep-label">Stage 2 — Creative Plans</div><div class="pstep-msg">Variant A (product-led) + B (narrative) in separate calls</div></div>
-      </div>
-      <div id="pstep-3" class="pstep" data-status="pending">
-        <div class="pstep-icon">⏳</div>
-        <div class="pstep-body"><div class="pstep-label">Stage 3 — Image Generation</div><div class="pstep-msg">Hero + product + lifestyle via gpt-image-1 (3 retries each)</div></div>
-      </div>
-      <div id="pstep-4" class="pstep" data-status="pending">
-        <div class="pstep-icon">⏳</div>
-        <div class="pstep-body"><div class="pstep-label">Stage 4 — HTML Generation</div><div class="pstep-msg">Tightly bound to layout plan · Image placeholders injected</div></div>
-      </div>
-      <div id="pstep-5" class="pstep" data-status="pending">
-        <div class="pstep-icon">⏳</div>
-        <div class="pstep-body"><div class="pstep-label">Stage 5 — Quality Scoring</div><div class="pstep-msg">Auto-retry if score &lt; 7/10</div></div>
+      <div style="text-align:right">
+        <div id="plStepCounter" style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;color:#fdf6e8">Step 1 of 5</div>
+        <div id="plElapsed" style="font-family:'DM Sans',monospace;font-size:10px;color:rgba(253,246,232,0.45);margin-top:2px">0:00 elapsed</div>
       </div>
     </div>
-    <!-- Live log -->
-    <div id="pipelineLog" style="background:#f7f3ee;border-radius:8px;padding:12px;max-height:140px;overflow-y:auto;font-family:'DM Sans',monospace;font-size:11px;color:#4a3f37;line-height:1.6"></div>
-    <!-- Abort -->
-    <div style="text-align:center;margin-top:16px">
-      <button onclick="_pipelineAbort()" style="background:none;border:1px solid #ccc;border-radius:6px;padding:7px 20px;font-family:'DM Sans',sans-serif;font-size:11px;color:#7a6e65;cursor:pointer">Cancel &amp; use template fallback</button>
+    <!-- Progress bar -->
+    <div style="background:#1a3a28;height:5px;width:100%">
+      <div id="plProgressFill" style="height:100%;background:linear-gradient(90deg,#d4873a,#e6a234);width:4%;transition:width 0.6s cubic-bezier(.4,0,.2,1)"></div>
+    </div>
+
+    <div style="padding:20px 24px 20px">
+      <!-- Active operation card -->
+      <div id="plActiveSection" style="background:linear-gradient(135deg,#fff9f2,#fdf6e8);border:1.5px solid #d4873a;border-radius:12px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:12px;min-height:60px">
+        <div id="plActiveSpinner" style="width:24px;height:24px;border:2.5px solid rgba(212,135,58,0.22);border-top-color:#d4873a;border-radius:50%;animation:spin 0.75s linear infinite;flex-shrink:0;margin-top:1px"></div>
+        <div style="flex:1;min-width:0">
+          <div id="plActiveBadge" style="font-size:9px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#d4873a;margin-bottom:4px">Stage 1 of 5</div>
+          <div id="plActiveText" style="font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:700;color:#0f2a1c;line-height:1.35;word-break:break-word">Initializing pipeline…</div>
+          <div id="plActiveDetail" style="font-family:'DM Sans',sans-serif;font-size:11px;color:#7a6e65;margin-top:3px;line-height:1.4"></div>
+        </div>
+      </div>
+
+      <!-- Step list (rendered by JS on open) -->
+      <div id="pipelineSteps" style="display:flex;flex-direction:column;gap:5px;margin-bottom:16px"></div>
+
+      <!-- Live log -->
+      <div id="pipelineLog" style="background:#f7f3ee;border-radius:8px;padding:9px 12px;max-height:110px;overflow-y:auto;font-family:'DM Sans',monospace;font-size:10.5px;color:#4a3f37;line-height:1.65"></div>
+      <!-- Error panel -->
+      <div id="pipelineErrorPanel" style="display:none;margin-top:12px"></div>
+      <!-- Cancel -->
+      <div style="text-align:center;margin-top:14px">
+        <button onclick="_pipelineAbort()" class="pl-cancel-btn">Cancel &amp; use template fallback</button>
+      </div>
     </div>
   </div>
 </div>
+
+<!-- ══════════════════════════════════════════════════════════
+     GLOBAL MINI-PROGRESS OVERLAY — used for Create Brief,
+     catalog loading, and other sub-pipeline waits
+     ══════════════════════════════════════════════════════════ -->
+<div id="miniProgressOverlay" style="display:none;position:fixed;inset:0;z-index:99990;background:rgba(8,24,16,0.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px">
+  <div style="background:#fff;border-radius:16px;max-width:400px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.4);overflow:hidden">
+    <div style="background:linear-gradient(90deg,#0c2218,#193d28);padding:12px 20px;display:flex;align-items:center;justify-content:space-between">
+      <div id="mpTitle" style="font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;color:#fdf6e8;letter-spacing:0.04em">Working…</div>
+      <div id="mpElapsed" style="font-family:'DM Sans',monospace;font-size:10px;color:rgba(253,246,232,0.4)">0:00</div>
+    </div>
+    <div style="background:#1a3a28;height:3px">
+      <div id="mpProgressFill" style="height:100%;background:linear-gradient(90deg,#d4873a,#e6a234);width:8%;transition:width 0.5s ease"></div>
+    </div>
+    <div style="padding:16px 20px">
+      <div id="mpStepList" style="display:flex;flex-direction:column;gap:5px;margin-bottom:0"></div>
+    </div>
+  </div>
+</div>
+
 <style>
-.pstep{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:8px;transition:background 0.2s,border-color 0.2s;border:1.5px solid #e8e0d8}
-.pstep[data-status="pending"]{background:#fafafa;opacity:0.55}
-.pstep[data-status="active"]{background:#fff8f0;border-color:#d4873a;opacity:1}
-.pstep[data-status="done"]{background:#f0faf4;border-color:#4caf77;opacity:1}
-.pstep[data-status="warn"]{background:#fff8e6;border-color:#e6a820;opacity:1}
+/* ── Pipeline step list ───────────────────────────────────── */
+.pstep{display:flex;align-items:flex-start;gap:9px;padding:8px 12px;border-radius:8px;transition:all 0.22s ease;border:1.5px solid transparent}
+.pstep[data-status="pending"]{background:#f9f7f5;border-color:#ece7e0;opacity:0.5}
+.pstep[data-status="active"]{background:#fff8f0;border-color:#d4873a;opacity:1;box-shadow:0 2px 8px rgba(212,135,58,0.12)}
+.pstep[data-status="done"]{background:#f2fbf5;border-color:#5bbb7b;opacity:1}
+.pstep[data-status="warn"]{background:#fffbf0;border-color:#e6a820;opacity:1}
 .pstep[data-status="error"]{background:#fff5f5;border-color:#e05050;opacity:1}
-.pstep-icon{font-size:16px;min-width:22px;margin-top:1px}
-.pstep[data-status="done"] .pstep-icon::before{content:"✅"}
-.pstep[data-status="active"] .pstep-icon::before{content:"⚙️"}
-.pstep[data-status="warn"] .pstep-icon::before{content:"⚠️"}
-.pstep[data-status="error"] .pstep-icon::before{content:"❌"}
-.pstep-icon{font-size:15px;min-width:20px}
-.pstep-label{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;color:#0f2a1c;margin-bottom:2px}
-.pstep-msg{font-family:'DM Sans',sans-serif;font-size:11px;color:#7a6e65}
-.pl-item{display:flex;align-items:flex-start;gap:6px;padding:2px 0}
-.pl-icon{min-width:16px;font-size:11px}
-.pl-stage{font-weight:700;min-width:46px;color:#5c4f44}
-.pl-msg{color:#4a3f37}
+.pstep-num{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;font-family:'DM Sans',sans-serif;flex-shrink:0;margin-top:1px;transition:all 0.2s}
+.pstep[data-status="pending"] .pstep-num{background:#e8e0d8;color:#9a8e84}
+.pstep[data-status="active"] .pstep-num{background:#d4873a;color:#fff}
+.pstep[data-status="done"] .pstep-num{background:#4caf77;color:#fff}
+.pstep[data-status="warn"] .pstep-num{background:#e6a820;color:#fff}
+.pstep[data-status="error"] .pstep-num{background:#e05050;color:#fff}
+.pstep-body{flex:1;min-width:0}
+.pstep-label{font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:700;color:#0f2a1c;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pstep[data-status="pending"] .pstep-label{color:#7a6e65}
+.pstep-msg{font-family:'DM Sans',sans-serif;font-size:10.5px;color:#9a8e84;line-height:1.4;word-break:break-word}
+.pstep[data-status="active"] .pstep-msg{color:#7a5a2a}
+.pstep[data-status="done"] .pstep-msg{color:#3d8a5a}
+/* ── Log entries ─────────────────────────────────────────── */
+.pl-item{display:flex;align-items:flex-start;gap:5px;padding:1.5px 0}
+.pl-icon{min-width:14px;font-size:10px;margin-top:1px}
+.pl-stage{font-weight:800;min-width:40px;color:#5c4f44;font-size:10px}
+.pl-msg{color:#4a3f37;font-size:10.5px}
+/* ── Cancel button ───────────────────────────────────────── */
+.pl-cancel-btn{background:none;border:1px solid #d4d0ca;border-radius:6px;padding:6px 20px;font-family:'DM Sans',sans-serif;font-size:11px;color:#8a8078;cursor:pointer;transition:border-color 0.15s,color 0.15s}
+.pl-cancel-btn:hover{border-color:#b0a89e;color:#5a5048}
+/* ── Mini progress steps ─────────────────────────────────── */
+.mp-step{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f0ece6}
+.mp-step:last-child{border-bottom:none}
+.mp-step-num{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;font-family:'DM Sans',sans-serif;flex-shrink:0;transition:all 0.2s}
+.mp-step[data-status="pending"] .mp-step-num{background:#e8e4de;color:#9a8e84}
+.mp-step[data-status="active"] .mp-step-num{background:#d4873a;color:#fff}
+.mp-step[data-status="done"] .mp-step-num{background:#4caf77;color:#fff}
+.mp-step-text{font-family:'DM Sans',sans-serif;font-size:11.5px;color:#333;flex:1;line-height:1.3}
+.mp-step[data-status="pending"] .mp-step-text{color:#aaa}
+.mp-step[data-status="active"] .mp-step-text{color:#0f2a1c;font-weight:700}
+.mp-step[data-status="done"] .mp-step-text{color:#3d8a5a}
+.mp-step-detail{font-family:'DM Sans',sans-serif;font-size:10px;color:#bbb;margin-top:1px}
+.mp-step[data-status="active"] .mp-step-detail{color:#d4873a}
 </style>
 <div id="authOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#f2ede4 0%,#e8f2ec 100%);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:20px;padding:clamp(24px,4vw,44px);max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,74,43,0.14);border:1px solid #e0d8cc">
@@ -622,13 +672,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   <div class="step"><div class="step-n active" id="sn1">1</div><div class="step-l active" id="sl1">Brief</div></div>
   <div class="step-line" id="sc1"></div>
   <div class="step"><div class="step-n" id="sn2">2</div><div class="step-l" id="sl2">Products</div></div>
-  <div class="step-line" id="sc2"></div>
-  <div class="step"><div class="step-n" id="sn3">3</div><div class="step-l" id="sl3">Design</div></div>
-  <div class="step-line" id="sc3"></div>
-  <div class="step"><div class="step-n" id="sn4">4</div><div class="step-l" id="sl4">Review</div></div>
   <div class="step-line" id="sc4"></div>
-  <div class="step"><div class="step-n" id="sn5">5</div><div class="step-l" id="sl5">Mailer</div></div>
+  <div class="step"><div class="step-n" id="sn5">3</div><div class="step-l" id="sl5">Mailer</div></div>
 </div>
+<!-- Hidden anchor nodes — setStep() references sn3/sn4/sc2/sc3 internally; these satisfy those lookups without rendering anything -->
+<div style="display:none" aria-hidden="true"><span id="sn3"></span><span id="sl3"></span><span id="sc2"></span><span id="sn4"></span><span id="sl4"></span><span id="sc3"></span></div>
 <div id="p1" class="panel" style="padding:0;overflow:hidden">
 
   <!-- Panel hero strip -->
@@ -709,12 +757,23 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
       </label>
       <textarea id="promptIn"
         style="min-height:120px;font-size:13px;line-height:1.7"
-        oninput="(function(el){var c=document.getElementById('promptCharCount');if(c)c.textContent=el.value.length+' chars';})(this)"
+        oninput="(function(el){var c=document.getElementById('promptCharCount');if(c)c.textContent=el.value.length+' chars';_updateSmartAIBtn(el.value.trim().length>0);})(this)"
         placeholder="e.g. 20% off all turmeric &amp; ginger teas with code DETOX20. Focus on gut health, daily wellness ritual, natural ingredients. Free shipping on orders over $49. Warm, inspiring tone."></textarea>
       <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
-        <button class="btn-enhance" onclick="enhancePrompt()">&#10024; Enhance with AI</button>
-        <button class="btn-enhance" onclick="createPromptWithAI()" style="background:linear-gradient(135deg,#0f2a1c,#1a3a28);color:#fdf6e8;border:1.5px solid #d4873a">&#127775; Create with AI</button>
-        <span style="font-size:11px;color:#9ca3af;flex:1">Enhance = enriches your existing idea (heuristic).&nbsp;&nbsp;Create = generates a top-quality brief from scratch via Claude (uses your market + type + product picks).</span>
+        <button class="btn-enhance" id="smartAIBtn" onclick="smartAIBrief(event)" style="background:linear-gradient(135deg,#0f2a1c,#1a3a28);color:#fdf6e8;border:1.5px solid #d4873a">&#127775; Create Brief with AI</button>
+        <span id="smartAIHint" style="font-size:11px;color:#9ca3af;flex:1">Empty → AI writes a director-grade brief from scratch. Already typed something → AI enhances it with D2C growth strategy.</span>
+      </div>
+      <!-- Brief creation inline progress — shown while AI is running -->
+      <div id="briefProgressPanel" style="display:none;margin-top:12px;background:linear-gradient(135deg,#f8f4ee,#fdf6e8);border:1.5px solid #d4873a;border-radius:10px;overflow:hidden">
+        <div style="background:linear-gradient(90deg,#0c2218,#193d28);padding:8px 14px;display:flex;align-items:center;justify-content:space-between">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:14px;height:14px;border:2px solid rgba(212,135,58,0.3);border-top-color:#d4873a;border-radius:50%;animation:spin 0.75s linear infinite"></div>
+            <span style="font-size:9px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:#d4873a" id="briefProgressTitle">Creating Brief</span>
+          </div>
+          <span id="briefProgressElapsed" style="font-size:9px;color:rgba(253,246,232,0.4);font-family:monospace">0:00</span>
+        </div>
+        <div style="background:#1a3a28;height:3px"><div id="briefProgressFill" style="height:100%;background:linear-gradient(90deg,#d4873a,#e6a234);width:10%;transition:width 0.5s ease"></div></div>
+        <div id="briefProgressSteps" style="padding:10px 14px;display:flex;flex-direction:column;gap:3px"></div>
       </div>
     </div>
 
@@ -748,8 +807,39 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
   <div class="plbl">Step 2 — Choose Products</div>
   <!-- Campaign context injected by go2() -->
   <div id="p2CampaignCtx" style="display:none;background:linear-gradient(90deg,#0f2a1c,#1a3a28);border-radius:10px;padding:12px 16px;margin-bottom:16px;align-items:flex-start;gap:12px;flex-wrap:wrap"></div>
-  <p style="font-size:12px;color:#888;margin-top:-4px;margin-bottom:14px;line-height:1.6">Browse and tap products to include in your mailer. Skip to auto-select the best matches for your campaign type and brief.</p>
-  <div class="sel-info" id="selInfo">0 products selected (auto-pick will choose best matches)</div>
+
+  <!-- AI Strategy Banner — shown while strategy is loading / when it's ready -->
+  <div id="p2AIPlanning" style="display:none;margin-bottom:16px;border-radius:10px;overflow:hidden;border:1.5px solid #d4873a">
+    <!-- Loading state -->
+    <div id="p2AIPlanningLoading" style="background:linear-gradient(90deg,#0f2a1c,#1a3a28);padding:0;display:flex;flex-direction:column;gap:0">
+      <!-- Header row -->
+      <div style="padding:11px 16px 10px;display:flex;align-items:center;gap:10px">
+        <div style="width:18px;height:18px;border:2.5px solid rgba(212,135,58,0.3);border-top-color:#d4873a;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:9.5px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:#d4873a;margin-bottom:2px">✦ AI Decision Engine — Stage 1 of 5</div>
+          <div id="p2AIPlanStatus" style="font-size:11px;color:rgba(253,246,232,0.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Reading your brief &amp; market context…</div>
+        </div>
+        <div id="p2AIPlanElapsed" style="font-size:10px;color:rgba(212,135,58,0.7);font-variant-numeric:tabular-nums;flex-shrink:0">0:00</div>
+      </div>
+      <!-- Micro-steps track -->
+      <div style="padding:0 16px 10px;display:flex;gap:6px;align-items:center">
+        <div class="p2-mstep" id="p2ms1" style="flex:1;height:3px;border-radius:2px;background:rgba(212,135,58,0.5);transition:background 0.4s"></div>
+        <div class="p2-mstep" id="p2ms2" style="flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,0.12);transition:background 0.4s"></div>
+        <div class="p2-mstep" id="p2ms3" style="flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,0.12);transition:background 0.4s"></div>
+        <div class="p2-mstep" id="p2ms4" style="flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,0.12);transition:background 0.4s"></div>
+        <div class="p2-mstep" id="p2ms5" style="flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,0.12);transition:background 0.4s"></div>
+      </div>
+    </div>
+    <!-- Ready state (hidden until strategy loads) -->
+    <div id="p2AIStrategyReady" style="display:none;background:#f0faf4;padding:12px 16px">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#0f2a1c;margin-bottom:6px">✓ Campaign Strategy Locked</div>
+      <div id="p2AIStrategyText" style="font-size:12px;color:#1a3a28;line-height:1.6"></div>
+      <div id="p2AIProductsPicked" style="margin-top:8px;font-size:11px;color:#4a7a5a;line-height:1.5"></div>
+    </div>
+  </div>
+
+  <p style="font-size:12px;color:#888;margin-top:-4px;margin-bottom:14px;line-height:1.6">Browse and select products for your mailer — or leave empty to let AI auto-pick based on the strategy above.</p>
+  <div class="sel-info" id="selInfo">0 products selected (AI will auto-pick based on strategy)</div>
   <div class="cat-filter" id="catFilter">
     <button class="cfbtn on" onclick="filterCat('all',this)">All</button>
     <button class="cfbtn" onclick="filterCat('bestseller',this)">Bestsellers</button>
@@ -770,7 +860,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
     <button class="btn btn-outline btn-sm" onclick="clearSel()">Clear</button>
     <div style="flex:1"></div>
     <button class="btn btn-outline btn-sm" onclick="activateAutoPick()">&#10024; Auto-Pick</button>
-    <button class="btn btn-primary" style="flex:1" onclick="go3()">Generate Design &rarr;</button>
+    <button class="btn btn-primary" style="flex:1" onclick="go3()">Generate Mailer &rarr;</button>
   </div>
 </div>
 <div id="p3" class="panel" style="display:none">
@@ -1016,7 +1106,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 <script>
 const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Copy_of_castleton-half_11zon_d5872785-939e-486e-9018-feca5a2c94ca.jpg?v=1753778672","t":["black"]},{"n":"2025 Margaret's Hope Premium Darjeeling Second Flush Black Tea  DJ 331","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Margaret_s_Hope_Classic_half_11zon.jpg?v=1751615873","t":["black"]},{"n":"2025 Okayti Classic Darjeeling Second Flush Black Tea DJ 73","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Okayti_Premium_Darjeeling_Second_Flush_Black_Tea_leaf-liquor_206b643f-a6ea-4d24-ba59-86d727bf84e3.jpg?v=1752748573","t":["black"]},{"n":"2026 Arya Diamond Darjeeling First Flush Black Tea DJ FF BT/ 50g","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Arya_Diamond-2.jpg?v=1776235193","t":["black","premium"]},{"n":"2026 Giddapahar Premium Darjeeling First Flush Tea DJ FF BT/ 100g","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Giddapahar.jpg?v=1776235245","t":["black","premium"]},{"n":"2026 Jungpana Premium Darjeeling First Flush Black Tea DJ FF BT/ 100g","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/jungpana_1_aa86ac1f-e8c9-450f-93ca-0fc51e48e0a6.jpg?v=1776235214","t":["black","premium"]},{"n":"24 Spices of Christmas Advent Calendar","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/61bqGJiPqJL._SL1000.jpg?v=1726814024","t":["general"]},{"n":"Applause CTC Assam Summer Black Tea, 340gm /12oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Applause_ctc_03.jpg?v=1724217425","t":["black"]},{"n":"Ashwagandha 1800 mg Capsules with KSM-66®","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/0.jpg?v=1763621911","t":["immunity"]},{"n":"Ashwagandha Coffee","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Pack_of_1_with_kit.jpg?v=1762879608","t":["immunity"]},{"n":"Ashwagandha Coffee 1 Pack (FLAT 30% OFF + 6 FREE Gifts worth $50)","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Packof1withkit.jpg?v=1756736744","t":["immunity"]},{"n":"Ashwagandha Coffee Welcome Kit","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Free_Gifts_1.jpg?v=1741587680","t":["immunity"]},{"n":"Ashwagandha Powder, 2.47 Oz, 70g","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/1_bcb1d852-c3be-4818-98eb-c5c1fe02db62.jpg?v=1749628516","t":["immunity"]},{"n":"Assam Exotic Black Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-40_6f44ad6f-2506-43d4-bb79-ea48b81129ce.jpg?v=1729775144","t":["black"]},{"n":"Assam Exotic Second Flush Black Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Assam-Exotic-Balck-Tea.jpg?v=1721992323","t":["black"]},{"n":"Assam Gold Second Flush Black Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Assam_Gold_03_Pending.jpg?v=1721972294","t":["black"]},{"n":"Assorted Black Teas Sampler, 5 Variants","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Assorted-5-tea-variants.png?v=1724652045","t":["discovery","black"]},{"n":"Assorted Chai Teas Sampler, 5 Variants","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Assorted-Chai-Tea-EU.png?v=1729236764","t":["chai","discovery"]},{"n":"Assorted Selection Tea Sampler, 15 Variants","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Assorted_15-TB.png?v=1764363612","t":["discovery"]},{"n":"Assorted Tea Bags Sampler, (40 Pyramid Tea Bags) 20 Flavors","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Assorted-Samler-20-Varinats_front.png?v=1764363413","t":["discovery","bestseller"]},{"n":"Assorted Tea Loose Leaf Sampler, 10 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_6_5b2e4b3e-57ab-4973-b87a-87b4a9d8c5e1.jpg?v=1721974416","t":["discovery"]},{"n":"Bacopa 1000 mg High Strength Capsules","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/1_54332697-2e41-4c87-b62e-be59de16da99.jpg?v=1763631718","t":["general"]},{"n":"Berberine 1200 mg with Cinnamon Extract & Milk Thistle","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/1_f5f223ee-3967-454a-a935-ec3c0d8a4419.jpg?v=1763632173","t":["general"]},{"n":"Best Seller Bundle, Set of 4","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/1_73e02fbb-37f6-4988-a37d-bc492d61856f.jpg?v=1739432263","t":["gift","bestseller"]},{"n":"Black Tea Bundle, Set of 4","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Black_Tea_1e1167a4-c91b-4880-a546-a32a7d294833.jpg?v=1741702193","t":["gift","black"]},{"n":"Black Tea Loose Leaf Sampler, 10 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/12_1.jpg?v=1748340561","t":["discovery","black"]},{"n":"Bloom, Tea Gift Set, 12 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Bloom_1_a09ba949-53e3-4bf2-a945-18feb46f96b4.jpg?v=1731063841","t":["gift"]},{"n":"Blooming Rose Black Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Blooming_Rose_02.jpg?v=1721110079","t":["gift","black"]},{"n":"Blue Mountain Nilgiri Oolong Tea, 1.76 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Blue-Mountain_bf0b0447-1c49-41ad-b1f8-57eba6942a19.jpg?v=1721990053","t":["black","premium"]},{"n":"Blue Mountain Nilgiri White Tea, 1.76 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Blue-Mountain_ed300413-b3b4-448a-881f-2dcd83f48644.jpg?v=1726569817","t":["black","premium"]},{"n":"Blush, Tea Gift Set, 3 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Vahdam_White_Background_30th_September6093_copy.jpg?v=1729227549","t":["gift"]},{"n":"Butterfly Pea Flower Herbal Tea, 40 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Butterfly-Pea-Flower_40TB-Recovered_1.jpg?v=1724655895","t":["sleep"]},{"n":"Butterfly Pea Flower Tea Herbal Tea Tisane, 1.76 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Butterfly_Blue-Pea-Tea.jpg?v=1728391344","t":["sleep"]},{"n":"Cardamom Masala Chai Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-41.jpg?v=1724653833","t":["chai"]},{"n":"Cardamom Masala Chai Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Cardamom-Chai.jpg?v=1721370065","t":["chai"]},{"n":"Cardamom Masala Chai Tea, 30 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Cardamomo-spiced.jpg?v=1724653675","t":["chai"]},{"n":"Chai Tea Assortment Gift Set, 12 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/products/chai-tea-assortment---1.jpg?v=1668002984","t":["chai","gift"]},{"n":"Chai Tea Assortment, Gift Set, 36 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Chai_tea_Assortment_c55edc93-c7ad-49ec-aa6b-b635c2478b2d.jpg?v=1732606425","t":["chai","gift"]},{"n":"Chai Tea Bundle, Set of 4","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/3_2f808035-aaec-4019-8374-1b2bb76eb091.jpg?v=1739361203","t":["chai","gift"]},{"n":"Chai Tea Loose Leaf Gift Sampler, 10 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_7.jpg?v=1721974505","t":["chai","gift","discovery"]},{"n":"Chai Tea Private Reserve Gift Set, 3 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/612IahASXeL._SL1000.jpg?v=1750159091","t":["chai","gift"]},{"n":"Chamomile Mint Citrus Green Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Chamomile-Mint-Citrus_d9ec2e15-c3a9-46f7-a52d-cebab526b82d.jpg?v=1729772408","t":["green","sleep"]},{"n":"Chamomile Mint Citrus Green Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Chamomile-Mint-Citrus.jpg?v=1721368632","t":["green","sleep"]},{"n":"Chamomile Mint Citrus Green Tea, 30 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/30_Tb_Mock_up_Non_Organic-03_efd3c698-4d7e-43f8-b8ee-795b55c6fe5e.jpg?v=1729837529","t":["green","sleep"]},{"n":"Chocolate Vanilla Herbal Tea Tisane, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Chocolate-Vanilla_7ba8a363-8920-415e-a96a-64f2a54084a4.jpg?v=1726479756","t":["general"]},{"n":"Christmas Breakfast Gift Set, 9 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/holiday-breakfast---2.jpg?v=1721988108","t":["gift"]},{"n":"Christmas Tea Gift Set, 9 Individually Wrapped Tea Bags","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Vahdam_Oct2476_copy.jpg?v=1721991960","t":["gift"]},{"n":"Citrus Ginger Herbal Tea Tisane, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Citrus-Ginger_589a282c-f67a-4ffb-aab0-7779cca1ebb3.jpg?v=1726479352","t":["detox","immunity"]},{"n":"Classic Advent Calendar, Gift Set, 24 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/holiday-advent-calendar---1_fdf63fea-72c7-4578-999a-561ac23665ab.jpg?v=1721992034","t":["gift"]},{"n":"Classic Chamomile Herbal Tea Tisane, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Classic-Chamomile_87f64695-95df-4ef2-8509-662085bf0579.jpg?v=1724648397","t":["sleep"]},{"n":"Clove Whole, 1.76 Oz, 50g","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_8_442e6ff1-25ec-475e-b1df-a3b3ea037df2.jpg?v=1738651295","t":["general"]},{"n":"Cosmos Tea Cup (250ml)","i":"https://cdn.shopify.com/s/files/1/2675/9476/products/WhiteBG7432.jpg?v=1652361841","t":["general"]},{"n":"Daily Assam Black Tea, 12 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Daily-Assam.jpg?v=1724678892","t":["black"]},{"n":"Daily Darjeeling Second Flush Black Tea, 12 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Daily_Darjeeling.jpg?v=1724678892","t":["black"]},{"n":"Darjeeling Muscatel Imperial Black Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Darjeeling_Muscatel_Imperial_01.jpg?v=1721110316","t":["black","premium"]},{"n":"Darjeeling Premium First Flush Black Tea, 12 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Darjeeling_Premium_01.jpg?v=1721110455","t":["black","premium"]},{"n":"Darjeeling Premium First Flush Black Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Darjeeling_Premium_01_66d4db6c-6ed6-4544-a5f1-675522f99b04.jpg?v=1721992476","t":["black","premium"]},{"n":"Darjeeling Spring Black Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-42_da0148da-fe49-4f07-9b57-bf598b492775.jpg?v=1729775248","t":["black"]},{"n":"Darjeeling Summer Black Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-43_f3bc690f-a3c6-4d88-aca4-4e023f033227.jpg?v=1729775298","t":["black"]},{"n":"Darjeeling Teas Sampler, 10 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_5_00252a56-c3f9-4c4c-862b-28f490ae5efc.jpg?v=1721974363","t":["discovery","black"]},{"n":"Decaf Himalayan Green Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-44_4da2a754-9042-435d-910c-12fbe3702a51.jpg?v=1729775330","t":["green"]},{"n":"Double Spice Masala Chai Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Double-Spiced.jpg?v=1726478767","t":["chai"]},{"n":"Drift Mug for Best Friend, Insulated, 10.1 Oz, 300ml","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_15.jpg?v=1721978810","t":["general"]},{"n":"Drift Mug for Boyfriend, Insulated, 10.1 Oz, 300ml","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_5_e1b3ba3c-7f3f-4ece-bed3-043f65b738f7.jpg?v=1721978104","t":["general"]},{"n":"Drift Mug for Grandma, Insulated, 10.1 Oz, 300ml","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_6_1e72f4de-4f20-4626-934e-1f559abf07ec.jpg?v=1721978147","t":["general"]},{"n":"Drift Mug for Teacher, Insulated, 10.1 Oz, 300ml","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Teacher_mug_362c8247-4cc4-429a-8595-05413ecc02d2.jpg?v=1730103235","t":["general"]},{"n":"Earl Grey Black Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-45_3e940970-3616-4cc7-8811-c5ba556631a6.jpg?v=1729774985","t":["black"]},{"n":"Earl Grey Black Tea, 12 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Earl_Grey_Black_Tea_92078c83-7ecb-4537-8e2c-dc363a6c3540.jpg?v=1724678892","t":["black"]},{"n":"Earl Grey Black Tea, 30 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Earl-Grey_9dc484f5-3260-4c5b-b979-c27ec4fe2695.jpg?v=1729496353","t":["black"]},{"n":"Earl Grey Citrus Green Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Earl-grey.jpg?v=1721368730","t":["green","black"]},{"n":"Earl Grey Masala Chai Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Earlgrey_3e011b17-59a0-4464-8144-43eab1a6ac15.jpg?v=1721370492","t":["chai","black"]},{"n":"English Breakfast Black Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/non_organic_100tb_1.jpg?v=1746514669","t":["black","bestseller"]},{"n":"English Breakfast Black Tea, 12 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/English_Breakfast.jpg?v=1724678893","t":["black","bestseller"]},{"n":"English Breakfast Black Tea, 30 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/US_30_TB_NON_ORGANIC.jpg?v=1746514754","t":["black","bestseller"]},{"n":"Foldable Advent Calendar Tea Gift, 24 Loose Leaf Teas, 1.69 Oz, 48g","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/advent_6921481a-4082-4fa2-957d-fa61459430fd.jpg?v=1726827011","t":["general"]},{"n":"Foldable Advent Calendar Tea Gift, 24 Teas, 1.69 Oz, 48g","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/71CYPzDZN_L._SL1000_1.jpg?v=1764363676","t":["general"]},{"n":"Founder's Select Gift Set, 36 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/61WhMV4SR6L._SL1000_8e5d6578-bf56-4e68-8261-b42fb485bf6a.jpg?v=1750071762","t":["gift"]},{"n":"Garlic Powder,2.47 Oz, 70g","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Garlic_Powder_f15c3dbc-2463-4974-b21b-fb8ceb7dd3c5.jpg?v=1724476116","t":["general"]},{"n":"Ginger Masala Chai Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Ginger-Chai_1.jpg?v=1724320845","t":["chai"]},{"n":"Ginger Mint Green Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/ginger-Mint_220bd51c-dbe7-46b9-9301-c94ec8c1baf7.jpg?v=1729772345","t":["green","immunity"]},{"n":"Ginger Mint Green Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Ginger-Mint.jpg?v=1721368766","t":["green","immunity"]},{"n":"Ginger Powder,2.47 Oz, 70g","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_9.jpg?v=1738652055","t":["general"]},{"n":"Glow, Tea Gift Set, 6 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Glow_1_52b75260-5228-4509-b71f-50fc3ef25ea6.jpg?v=1731063842","t":["gift"]},{"n":"Green Tea Assortment, Gift Set, 36 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/B0B524WNZN.MAIN.jpg?v=1721805614","t":["green","gift"]},{"n":"Green Tea Bundle, Set of 4","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Green_tea_1.jpg?v=1741700876","t":["green","gift"]},{"n":"Green Tea Loose Leaf Sampler, 10 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_4_20df1849-bbc7-4145-a406-d0df22f99a12.jpg?v=1750071855","t":["green","discovery"]},{"n":"Halloween Mug, Insulated, 11.8 Oz, 350ml (Black)","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_19.jpg?v=1721985759","t":["general"]},{"n":"Hearty Hibiscus Herbal Tea 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard1_01563e20-a406-4e1a-9a50-d947e3711951.jpg?v=1738315966","t":["summer"]},{"n":"Herbal Tea Assortment, Gift Set, 36 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/USA_herbal_tea_6x6_first_image.jpg?v=1731073084","t":["gift"]},{"n":"Herbal Tea Variety Pack, 36 Infusion Bags","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_1_f76251fe-ab19-48c7-a839-3411789fadbf.jpg?v=1741333534","t":["discovery"]},{"n":"Hibiscus Cranberry Iced Tea | 26 Pitcher Tea Bags","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Hibiscus-Cranberry-US-2.png?v=1721375215","t":["summer"]},{"n":"Hibiscus Rose Herbal Tea Tisane, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/hibuscus-Rose_115cea17-eff6-41ff-8ed5-84a851d570ad.jpg?v=1729774083","t":["summer"]},{"n":"High Mountain Oolong Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-46_930d7834-d8dd-4170-a49e-5ae0ccdac27d.jpg?v=1729775367","t":["premium"]},{"n":"High Mountain Oolong Tea, 12 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/High-Mountain-1_339915dc-53ed-4932-9d5d-45810324e21c.jpg?v=1726487161","t":["premium"]},{"n":"High Mountain Oolong Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/High-Mountain-1_15a6db0b-aaad-48bc-a8e2-2a2904236109.jpg?v=1721371208","t":["premium"]},{"n":"Himalayan Gold Black Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Himalayan_Gold_01.jpg?v=1721368202","t":["black"]},{"n":"Himalayan Green Tea, 12 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Himalayan_green_tea_f953d287-3e7a-4973-9957-5e6e8bd22130.jpg?v=1724678892","t":["green"]},{"n":"Himalayan Green Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Himalayan_7d2918f3-c616-4f17-bc1b-b3b4a2e10a7a.jpg?v=1721906120","t":["green"]},{"n":"Himalayan Pearls Green Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Himalayan-pearls.jpg?v=1721368873","t":["green"]},{"n":"Imperial Earl Grey White Tea, 1.76 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Imperial-Earl-Grey.jpg?v=1721371634","t":["black","premium"]},{"n":"Imperial Himalayan White Tea Bags, 15 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/imperial_himalyan_white_tea_2.jpg?v=1724653345","t":["premium"]},{"n":"Imperial Himalayan White Tea, 1.76 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Imperial-Himalyan.jpg?v=1721371679","t":["premium"]},{"n":"Imperial Loose Leaf Tea Maker with Infuser","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/White_BG7475.jpg?v=1721371918","t":["premium"]},{"n":"India's Original Masala Chai Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-31_4fb347b1-a1d5-4b72-93f8-0bc9a112e688.jpg?v=1729775650","t":["chai","bestseller"]},{"n":"India's Original Masala Chai Tea, 12 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Original_chai_ba5f65d4-7560-4423-b25a-c09cd33e7172.jpg?v=1724678893","t":["chai","bestseller"]},{"n":"India's Original Masala Chai Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Original-Chai-1.jpg?v=1721370743","t":["chai","bestseller"]},{"n":"India's Original Masala Chai Tea, 30 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/2_57439e6a-108d-4ed8-b07c-ff8afc96663d.jpg?v=1725629072","t":["chai","bestseller"]},{"n":"Insulated Stainless Steel Tumbler","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/WhiteBG7304.jpg?v=1742460445","t":["general"]},{"n":"Jasmine Green Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-47_73e96785-b657-4fbe-92e7-8f6c6e4303a4.jpg?v=1729775398","t":["green"]},{"n":"Kashmiri Kahwa Masala Chai Green Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Kashmirir-Khawa.jpg?v=1721370644","t":["chai","green"]},{"n":"Lemon Ginger Green Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-48_4e09ef55-d2e6-4df9-82ab-b44064875633.jpg?v=1729775468","t":["green"]},{"n":"Lopchu Golden Orange Pekoe Darjeeling Second Flush Black Tea, 3.53 Oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Lopchu_1.jpg?v=1721999151","t":["black"]},{"n":"Lychee Rose Iced Tea | 26 Pitcher Tea Bags","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Lychee-Rose-US-2.png?v=1721375298","t":["summer"]},{"n":"Maharaja Earl Grey Oolong Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Maharaja.jpg?v=1721371248","t":["black","premium"]},{"n":"Maharani Chai Spiced Oolong Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Maharani-Chai.jpg?v=1721370697","t":["chai","premium"]},{"n":"Mint Melody Green Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Mint-Melody_5a446b6e-947d-4e22-915a-be2249af19c6.jpg?v=1729774453","t":["green","bestseller"]},{"n":"Mint Melody Green Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Mint-Melody_19eb413a-b41d-494c-b078-2c836b28afc2.jpg?v=1721368969","t":["green","bestseller"]},{"n":"Mint Melody Green Tea, 30 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/30_Tb_Mock_up_Non_Organic-10.jpg?v=1729838238","t":["green","bestseller"]},{"n":"Moringa 1100 mg High Strength Capsules","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/1_529fbff5-8f6c-4c1f-9c45-8ad102275d25.jpg?v=1763632254","t":["immunity"]},{"n":"Moringa Leaf Herbal Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Moringa_Leaf.jpg?v=1741335745","t":["detox","immunity"]},{"n":"Moringa Powder, 2.47 Oz, 70g","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_10_159f1f6c-34e3-4a71-8878-d440e99d11fa.jpg?v=1738651841","t":["immunity"]},{"n":"Nilgiri Breakfast Black Tea, 12 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Nilgiri_Breakfast_01.jpg?v=1724217287","t":["black"]},{"n":"Oolong Tea Loose Leaf Sampler, 5 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_1_6540551c-7368-4e4f-a80e-0f2d1e8e462a.jpg?v=1721973768","t":["discovery","premium"]},{"n":"Organic Himalayan Green Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-54_68119a09-e877-453b-8ba8-6a176ee8364c.jpg?v=1729775067","t":["green"]},{"n":"Organic Himalayan Green Tea, 30 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/30_Tb_Mock_up_Organic-01.jpg?v=1729840289","t":["green"]},{"n":"Perfect Serve Spoon","i":"https://cdn.shopify.com/s/files/1/2675/9476/products/WhiteBG7497.jpg?v=1658814785","t":["general"]},{"n":"Psyllium Husk 1820mg with Probiotics (2 Billion CFU)","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/1_5859ab33-c8ae-44f9-a483-eb0a31b4fad0.jpg?v=1764051941","t":["general"]},{"n":"Pure Matcha Green Tea Powder, Culinary Grade, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_1_9.jpg?v=1756905360","t":["green"]},{"n":"Pure Mint Herbal Tea Tisane, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Pure-Mint_979b4d75-1c51-48ec-bc59-db7cdf1767ca.jpg?v=1731601205","t":["sleep"]},{"n":"Saffron Premium Masala Chai Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Saffron-Chai.jpg?v=1721370791","t":["chai"]},{"n":"Shatavari 1000mg High Strength","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/1_4008b754-1ef9-45c9-bef0-6a43a4202d7a.jpg?v=1763632437","t":["general"]},{"n":"Signature Private Reserve Gift Set, 24 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Vahdam_White_Background_30th_September6099_copy_04df7428-b4d5-4218-82a7-75bd6982a68f.jpg?v=1750072071","t":["gift"]},{"n":"Silver Needle Sparkle White Tea, 1.76 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Silver-Needle.jpg?v=1721371713","t":["premium"]},{"n":"Sprightly Spearmint Herbal Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Spearmint_b6107af1-e511-4964-bc83-71aec484459d.jpg?v=1741335662","t":["sleep"]},{"n":"Sweet Cinnamon Masala Chai Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-50_fd01b91e-e700-42e3-b9e6-87f1c129d897.jpg?v=1729775559","t":["chai"]},{"n":"Sweet Cinnamon Masala Chai Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Cinnamon-Chai.jpg?v=1721370324","t":["chai"]},{"n":"Sweet Cinnamon Masala Chai Tea, 30 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/30_Tb_Mock_up_Non_Organic-11.jpg?v=1729838323","t":["chai"]},{"n":"Triphala High Strength with Amla, Bibhitaki, Haritaki Extract","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/1_08be759a-8ace-48e9-96fd-526c145d7717.jpg?v=1763632511","t":["general"]},{"n":"Turmeric Ashwagandha Herbal Tea Tisane, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-32_1.jpg?v=1749649669","t":["detox","immunity"]},{"n":"Turmeric Ashwagandha Instant Mix, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Ashwagandha_Front.jpg?v=1749474159","t":["detox","immunity"]},{"n":"Turmeric Chamomile Herbal Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Turmeric_Chamomile.jpg?v=1724662783","t":["detox","sleep","immunity"]},{"n":"Turmeric Curcumin 2000mg with Boswellia & Piperine","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/1_64e02326-b293-4b07-b149-dfbbd1bd40f2.jpg?v=1763632630","t":["detox","immunity"]},{"n":"Turmeric Ginger Herbal Tea 18 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/1_9f5a6254-50bb-4813-bf64-76469a514414.jpg?v=1721198986","t":["detox","immunity","bestseller"]},{"n":"Turmeric Ginger Herbal Tea Tisane, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Organic_Turmeric_Ginger_Front.jpg?v=1743675761","t":["detox","immunity","bestseller"]},{"n":"Turmeric Ginger Herbal Tea Tisane, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/B0757VW95S.MAIN_4fff80cf-7292-4c2f-9646-4373f47a911a.jpg?v=1751882900","t":["detox","immunity","bestseller"]},{"n":"Turmeric Ginger Herbal Tea Tisane, 30 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Turmeric-Ginger_1_cd7229ca-ba17-4966-be01-89edadc2560a.jpg?v=1724653470","t":["detox","immunity","bestseller"]},{"n":"Turmeric Ginger Latte Mix, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Turmeric_Ginger_Latte_US_Front.jpg?v=1723114495","t":["detox","immunity"]},{"n":"Turmeric Ginger with 1500mg Curcuminoids","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/1_19ad8aa4-2234-4857-b8ee-aa47f4dc27b9.jpg?v=1763632731","t":["detox","immunity"]},{"n":"Turmeric Matcha Green Tea Powder, 1.76 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Turmeric_Matcha.jpg?v=1721975316","t":["detox","green","immunity"]},{"n":"Turmeric Moringa Herbal Tea Tisane, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-35_4da393f4-31b6-4c79-8384-cf7614a28579.jpg?v=1729837182","t":["detox","immunity"]},{"n":"Turmeric Powder, 2.47 Oz, 70g","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_5_4fdcf8b6-fee1-4380-b890-6b3eb63a467c.jpg?v=1738651967","t":["detox","immunity"]},{"n":"Turmeric Saffron Herbal Tea Tisane, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Turmeric-Saffron.jpg?v=1721369839","t":["detox","chai","immunity"]},{"n":"Turmeric Spiced Herbal Tea Tisane, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-36_a54e487f-7612-47be-bae5-05daf8a40c52.jpg?v=1729837268","t":["detox","immunity"]},{"n":"Turmeric Spiced Herbal Tea Tisane, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Turmeric-Spiced.jpg?v=1721369883","t":["detox","immunity"]},{"n":"Turmeric Spiced Herbal Tea Tisane, 30 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/30_Tb_Mock_up_Non_Organic-17.jpg?v=1729504175","t":["detox","immunity"]},{"n":"Turmeric Tea Bundle, Set of 3","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Turemric_Chamo.jpg?v=1741701242","t":["detox","gift","immunity"]},{"n":"Turmeric Tea Variety Pack, 20 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/61EVgHBqkHL._SL1000.jpg?v=1721199820","t":["detox","discovery","immunity"]},{"n":"Unitea - Blend of Darjeeling & Assam Black Tea, 12 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Unitea_Darjeeling_Assam_01_d6015a67-56b5-411f-b662-aeb326209ff2.jpg?v=1724217620","t":["black"]},{"n":"Vanilla Matcha Green Tea Powder, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Artboard_1_copy_2.jpg?v=1756905284","t":["green"]},{"n":"Vanilla Spiced Masala Chai Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-51_c4330914-ab66-4360-9b98-5a52162ba4d9.jpg?v=1729775597","t":["chai"]},{"n":"Vanilla Spiced Masala Chai Tea, 3.53 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Vanilla-Chai.jpg?v=1721989425","t":["chai"]},{"n":"Vanilla Spiced Masala Chai Tea, 30 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/30_Tb_Mock_up_Non_Organic-18.jpg?v=1729839688","t":["chai"]},{"n":"Vedic Kadha Herbal Tea Tisane, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/100_TB-37_03b23dfc-07f3-4534-bdb7-0b39b1165871.jpg?v=1729837321","t":["detox","immunity"]},{"n":"Weekend in London, Gift Set, 9 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Weekend_in_London_effd85b4-6967-4f4a-abb2-1f3c00e0bc4d.jpg?v=1750072132","t":["gift"]},{"n":"Weekend in Paris, Gift Set, 9 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Weekend_in_paris.jpg?v=1726463225","t":["gift"]},{"n":"White Mountain Darjeeling Oolong Tea, 1.76 oz","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/White-Mountain.jpg?v=1721371333","t":["black","premium"]},{"n":"White Teas Gift Sampler, 4 Teas","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/71qdFHwzwOL._SL1500.jpg?v=1770359606","t":["gift","discovery","premium"]},{"n":"World Tea Sampler + Free GIFTS","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Tea_box_pack_of_1.jpg?v=1753092110","t":["discovery"]},{"n":"Zingy Ginger Herbal Tea, 100 Count","i":"https://cdn.shopify.com/s/files/1/2675/9476/files/Zingy_Ginger.jpg?v=1741335707","t":["detox","immunity"]}];
 
-const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null};
+const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null,precomputedStrategy:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
 window.__VAHDAM_BUILD__='free-providers-v76';
 // On page load, surface Supabase connection state so the user can see if
@@ -1046,11 +1136,13 @@ const SUPABASE_CONFIG={
 };
 /* ═══ REQUIRED SQL — paste into Supabase SQL Editor ══════════════════════════
 -- Table 1: mailers_generated (every generated mailer)
+-- Run the ALTER TABLE migration below if you created this table before v23.
 CREATE TABLE IF NOT EXISTS public.mailers_generated (
   id BIGSERIAL PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT now(),
   user_name TEXT,
   user_email TEXT,
+  campaign_title TEXT,
   prompt_short TEXT,
   prompt_full TEXT,
   active_prompt TEXT,            -- prompt + regen feedback
@@ -1070,17 +1162,70 @@ CREATE TABLE IF NOT EXISTS public.mailers_generated (
   sub_copy TEXT,
   cta TEXT,
   ann_bar TEXT,
+  feature_strip JSONB,
+  ingredients JSONB,
+  section_title TEXT,
+  product_section_title TEXT,
   layout_variant TEXT,           -- 'A' or 'B' (suggested primary)
+  canvas_market TEXT,
+  canvas_variant TEXT,
   variant_a_html TEXT,           -- Variant A HTML for primary market
   variant_b_html TEXT,           -- Variant B HTML for primary market
   market_mailers JSONB,          -- {US: {A: html, B: html}, UK: {...}}
+  variant_a_image_prompt TEXT,
+  variant_b_image_prompt TEXT,
+  image_prompts_full JSONB,
+  generated_images JSONB,
+  image_seeds JSONB,
+  regen_count INTEGER DEFAULT 0,
+  last_feedback TEXT,
   feedback_history JSONB,        -- ["regen feedback 1", "regen feedback 2"]
   reasoning JSONB,               -- {typeSource, categorySource, productSource, layoutVariant}
   strategy_full JSONB,           -- full S.strategy snapshot for analytics
+  target_segment TEXT,
+  segment_size TEXT,
+  segment_rationale TEXT,
+  campaign_intent TEXT,
+  expected_impact TEXT,
+  justification TEXT,
+  send_window TEXT,
+  layout_chosen TEXT,
   build_version TEXT,
   user_agent TEXT,
-  origin TEXT
+  origin TEXT,
+  hero_image_url TEXT,
+  canvas_image_url TEXT,
+  thumbnail_url TEXT,
+  mailer_image_urls JSONB
 );
+-- Migration for existing tables (run once in Supabase SQL editor):
+-- ALTER TABLE public.mailers_generated
+--   ADD COLUMN IF NOT EXISTS campaign_title TEXT,
+--   ADD COLUMN IF NOT EXISTS feature_strip JSONB,
+--   ADD COLUMN IF NOT EXISTS ingredients JSONB,
+--   ADD COLUMN IF NOT EXISTS section_title TEXT,
+--   ADD COLUMN IF NOT EXISTS product_section_title TEXT,
+--   ADD COLUMN IF NOT EXISTS canvas_market TEXT,
+--   ADD COLUMN IF NOT EXISTS canvas_variant TEXT,
+--   ADD COLUMN IF NOT EXISTS variant_a_image_prompt TEXT,
+--   ADD COLUMN IF NOT EXISTS variant_b_image_prompt TEXT,
+--   ADD COLUMN IF NOT EXISTS image_prompts_full JSONB,
+--   ADD COLUMN IF NOT EXISTS generated_images JSONB,
+--   ADD COLUMN IF NOT EXISTS image_seeds JSONB,
+--   ADD COLUMN IF NOT EXISTS regen_count INTEGER DEFAULT 0,
+--   ADD COLUMN IF NOT EXISTS last_feedback TEXT,
+--   ADD COLUMN IF NOT EXISTS target_segment TEXT,
+--   ADD COLUMN IF NOT EXISTS segment_size TEXT,
+--   ADD COLUMN IF NOT EXISTS segment_rationale TEXT,
+--   ADD COLUMN IF NOT EXISTS campaign_intent TEXT,
+--   ADD COLUMN IF NOT EXISTS expected_impact TEXT,
+--   ADD COLUMN IF NOT EXISTS justification TEXT,
+--   ADD COLUMN IF NOT EXISTS send_window TEXT,
+--   ADD COLUMN IF NOT EXISTS layout_chosen TEXT,
+--   ADD COLUMN IF NOT EXISTS hero_image_url TEXT,
+--   ADD COLUMN IF NOT EXISTS canvas_image_url TEXT,
+--   ADD COLUMN IF NOT EXISTS thumbnail_url TEXT,
+--   ADD COLUMN IF NOT EXISTS mailer_image_urls JSONB;
 CREATE INDEX IF NOT EXISTS mg_created_idx    ON public.mailers_generated(created_at DESC);
 CREATE INDEX IF NOT EXISTS mg_user_email_idx ON public.mailers_generated(user_email);
 
@@ -1279,17 +1424,51 @@ async function _resolveTables(){
 // Columns added by 20260501200000_strategic_depth_columns.sql — if the migration
 // hasn't run yet on this project the insert will reject them; we retry once
 // without those keys so the row still lands.
+// Columns guaranteed to exist in the ORIGINAL mailers_generated table.
+// supabaseSaveCampaign() strips fullRecord to this set before every INSERT
+// so Supabase never receives unknown columns (which cause HTTP 400).
+// After running the ALTER TABLE migration (see schema comment above),
+// add the new column names here to unlock them.
+var _SCHEMA_KEYS = [
+  // ── Original schema (safe to insert without any migration) ──
+  'user_name','user_email','prompt_short','prompt_full','active_prompt',
+  'campaign_type','primary_market','markets',
+  'hero_product_name','hero_product_image','hero_category','product_names','product_full',
+  'offer_text','offer_code','offer_pct','occasion',
+  'headline','sub_copy','cta','ann_bar',
+  'layout_variant','variant_a_html','variant_b_html','market_mailers',
+  'feedback_history','reasoning','strategy_full',
+  'build_version','user_agent','origin'
+  // ── Add after migration ──
+  // 'campaign_title','feature_strip','ingredients','section_title','product_section_title',
+  // 'canvas_market','canvas_variant',
+  // 'variant_a_image_prompt','variant_b_image_prompt','image_prompts_full',
+  // 'generated_images','image_seeds','regen_count','last_feedback',
+  // 'target_segment','segment_size','segment_rationale',
+  // 'campaign_intent','expected_impact','justification','send_window','layout_chosen',
+  // 'hero_image_url','canvas_image_url','thumbnail_url','mailer_image_urls'
+];
+// Legacy: depth keys kept for back-compat with older code paths
 var _DEPTH_KEYS=['target_segment','segment_size','segment_rationale','campaign_intent','expected_impact','justification','send_window','layout_chosen','campaign_title'];
 async function supabaseSaveCampaign(record){
   var sb=getSupabase();if(!sb){statusPill('warn','Supabase offline','Saved locally only');return null;}
   var t=await _resolveTables();
+  // Strip to known schema before EVERY insert — prevents 400 "column does not exist" errors
+  function _filterToSchema(r){
+    var out={};
+    Object.keys(r).forEach(function(k){
+      if(_SCHEMA_KEYS.indexOf(k)>=0)out[k]=r[k];
+    });
+    return out;
+  }
   try{
-    var {data,error}=await sb.from(t.mailers).insert([record]).select().single();
+    var safe=_filterToSchema(record);
+    var {data,error}=await sb.from(t.mailers).insert([safe]).select().single();
     if(error){
       var msg=error.message||'';
       if(/column\s+\S*\s*does not exist/i.test(msg) || /Could not find/i.test(msg)){
-        // Strip the depth columns and retry — old schema, no migration applied
-        var stripped={};Object.keys(record).forEach(function(k){if(_DEPTH_KEYS.indexOf(k)<0)stripped[k]=record[k];});
+        // Secondary strip: remove depth keys and retry (old schema, migration not applied)
+        var stripped={};Object.keys(safe).forEach(function(k){if(_DEPTH_KEYS.indexOf(k)<0)stripped[k]=safe[k];});
         var retry=await sb.from(t.mailers).insert([stripped]).select().single();
         if(retry.error){statusPill('err','Mailer save failed',retry.error.message);return null;}
         statusPill('ok','Mailer saved · id '+retry.data.id,'Run strategic-depth migration to unlock columns');
@@ -1635,6 +1814,13 @@ function showOnly(stepNum){
 function goBack(to){
   showOnly(to);
   if(to===2){_activeCatFilter='all';renderCatalog('all');}
+  if(to===1){
+    // Returning to Brief — reset strategy prefetch so it re-runs with the new brief
+    _strategyPrefetch=null;_strategyPrefetchKey='';_strategyPrefetching=false;
+    S.precomputedStrategy=null;
+    var banner=document.getElementById('p2AIPlanning');
+    if(banner)banner.style.display='none';
+  }
 }
 function renderCatalog(filter){
   const grid=document.getElementById('catGrid');
@@ -1720,54 +1906,200 @@ function toggleMarket(m,el){
 // hits the Anthropic API and returns a director-grade brief that the
 // downstream concept ideation + image prompt + HTML templates can act on.
 // ────────────────────────────────────────────────────────────────────────────
+// ── Smart AI Brief button — empty → create from scratch, has text → enhance ──
+function _updateSmartAIBtn(hasContent){
+  var btn=document.getElementById('smartAIBtn');
+  var hint=document.getElementById('smartAIHint');
+  if(!btn)return;
+  if(hasContent){
+    btn.innerHTML='&#10024; Enhance Brief with AI';
+    if(hint)hint.textContent='AI rewrites your idea as a director-grade brief — keeping your concept, adding D2C strategy, ritual framing, and Vahdam brand voice.';
+  } else {
+    btn.innerHTML='&#127775; Create Brief with AI';
+    if(hint)hint.textContent='AI creates a director-grade brief from scratch using your market, campaign type, and product picks. Or type any seed idea first and it will build on it.';
+  }
+}
+
+async function smartAIBrief(e){
+  // Both paths (empty or has content) go through createPromptWithAI which already reads
+  // the textarea value as `seed` — if content exists it enriches it, if empty it creates fresh.
+  // This ensures every click is genuinely AI-driven, not a heuristic template substitution.
+  await createPromptWithAI.call(this,e);
+}
+
 async function createPromptWithAI(){
   var ta=document.getElementById('promptIn');
   var seed=(ta?ta.value:'').trim();
   var type=(window.S&&S.type)?S.type:'Campaign';
   var mkts=(window.S&&S.markets&&S.markets.length>0)?S.markets:['US'];
   var primaryMkt=mkts[0]||'US';
-  var prods=(window.S&&S.finalProds&&S.finalProds.length)?S.finalProds.slice(0,5).map(function(p){return {name:p.n,handle:p.handle,category:p.category,price:p.price,compare_at:p.compare_at};}):[];
-  var btn=event&&event.target;
-  if(btn){btn.disabled=true;btn.dataset._origText=btn.innerHTML;btn.innerHTML='⏳ Creating...';}
-  if(typeof statusPill==='function')statusPill('loading','Drafting director-grade brief via OpenAI...');
-  // ── v74: SERVER-SIDE call — no API key required from user.
-  //    Falls through to /api/ai/generate which uses OPENAI_API_KEY from Vercel env.
-  try{
+
+  // Build product list: prefer selected/final products; fall back to catalog sample
+  // so the brief always has real product context even when user hasn't selected yet
+  function _mapProd(p){
+    return {
+      name: p.name||p.n||'',
+      handle: p.handle||p.h||'',
+      category: p.category||(Array.isArray(p.t)?p.t.join(', '):''),
+      price: p.price||'',
+      compare_at: p.compare_at||p.compare_price||''
+    };
+  }
+  var prods=[];
+  if(window.S&&S.finalProds&&S.finalProds.length){
+    prods=S.finalProds.slice(0,6).map(_mapProd);
+  } else if(window.S&&S.manualProds&&S.manualProds.length){
+    prods=S.manualProds.slice(0,6).map(_mapProd);
+  } else if(window.CAT&&CAT.length){
+    // No products selected yet — send a sample of the catalog so the LLM can pick intelligently
+    prods=CAT.slice(0,10).map(_mapProd);
+  }
+
+  var btn=document.getElementById('smartAIBtn')||(typeof event!=='undefined'&&event&&event.target)||null;
+  if(btn){btn.disabled=true;btn.dataset._origText=btn.innerHTML;btn.innerHTML='⏳ Creating…';}
+
+  // ── Brief progress panel steps ────────────────────────────────────────────
+  var _BRIEF_STEPS=[
+    {label:'Reading your inputs',      detail:'Market: '+primaryMkt+' · '+prods.length+' product(s) · type: '+(type||'General')},
+    {label:'Analysing campaign strategy', detail:'Locking audience insight, hook, hero product + AOV logic'},
+    {label:'Crafting image prompts',   detail:'Writing PhotoReal specs for Variant A (product-led) + B (editorial)'},
+    {label:'Finalising director brief', detail:'Building headline angles, CTAs, tone + avoid list'}
+  ];
+  var _briefPanel=document.getElementById('briefProgressPanel');
+  var _briefSteps=document.getElementById('briefProgressSteps');
+  var _briefFill=document.getElementById('briefProgressFill');
+  var _briefTitle=document.getElementById('briefProgressTitle');
+
+  function _bpShow(){
+    if(!_briefPanel)return;
+    if(_briefSteps){
+      _briefSteps.innerHTML=_BRIEF_STEPS.map(function(s,i){
+        return '<div class="mp-step" id="bpstep-'+i+'" data-status="pending">'
+          +'<div class="mp-step-num">'+(i+1)+'</div>'
+          +'<div style="flex:1;min-width:0">'
+          +'<div class="mp-step-text">'+s.label+'</div>'
+          +'<div class="mp-step-detail">'+s.detail+'</div>'
+          +'</div></div>';
+      }).join('');
+    }
+    if(_briefFill) _briefFill.style.width='10%';
+    if(_briefTitle) _briefTitle.textContent='Creating Brief — Step 1 of '+_BRIEF_STEPS.length;
+    _briefPanel.style.display='block';
+  }
+  function _bpStep(idx){
+    // Mark previous as done
+    if(idx>0){var prev=document.getElementById('bpstep-'+(idx-1));if(prev)prev.setAttribute('data-status','done');}
+    var cur=document.getElementById('bpstep-'+idx);
+    if(cur)cur.setAttribute('data-status','active');
+    if(_briefFill) _briefFill.style.width=Math.round(10+(idx/_BRIEF_STEPS.length)*82)+'%';
+    if(_briefTitle) _briefTitle.textContent='Creating Brief — Step '+(idx+1)+' of '+_BRIEF_STEPS.length;
+  }
+  function _bpDone(ok){
+    _BRIEF_STEPS.forEach(function(_,i){var el=document.getElementById('bpstep-'+i);if(el)el.setAttribute('data-status',ok?'done':'pending');});
+    if(_briefFill) _briefFill.style.width=ok?'100%':'0%';
+    if(_briefTitle) _briefTitle.textContent=ok?'✓ Brief Ready':'Brief creation failed';
+    setTimeout(function(){if(_briefPanel)_briefPanel.style.display='none';},ok?2200:3000);
+  }
+
+  // ── Step advance timers (simulate granular progress through single LLM call) ─
+  var _bpTimers=[];
+  function _startBriefProgress(){
+    _bpShow();
+    _bpStep(0);
+    _bpTimers.push(setTimeout(function(){_bpStep(1);},2200));
+    _bpTimers.push(setTimeout(function(){_bpStep(2);},5500));
+    _bpTimers.push(setTimeout(function(){_bpStep(3);},9500));
+  }
+  function _clearBriefTimers(){_bpTimers.forEach(function(t){clearTimeout(t);});_bpTimers=[];}
+
+  // ── Internal: single LLM attempt ─────────────────────────────────────────
+  async function _doCreate(){
     var res=await fetch('/api/ai/generate',{
-      method:'POST',
+      method:'POST',cache:'no-store',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        mode:'create_brief',
-        market:primaryMkt,
-        theme:type,
-        campaign_brief:seed,
-        selected_products:prods
-      })
+      body:JSON.stringify({mode:'create_brief',market:primaryMkt,theme:type,campaign_brief:seed,selected_products:prods})
     });
     if(!res.ok){
       var errBody=await res.json().catch(function(){return {};});
-      throw new Error((errBody.error||'server_error')+(errBody.detail?': '+errBody.detail:''));
+      var err=new Error((errBody.error||'server_error')+(errBody.detail?': '+errBody.detail.substring(0,120):''));
+      err._status=res.status;
+      err._retryAfter=errBody.retry_after||30;
+      err._rateLimited=errBody.rate_limited||res.status===429;
+      throw err;
     }
     var data=await res.json();
     var text=(data&&data.text||'').trim();
     if(!text){throw new Error('Empty response from server');}
+    return {text:text,model:data.model||'AI',provider:data.provider||'ai'};
+  }
+
+  // ── Rate-limit countdown inside the brief panel ───────────────────────────
+  function _countdown(secs,onDone){
+    var remaining=secs;
+    if(_briefTitle) _briefTitle.textContent='Rate limit — retrying in '+remaining+'s…';
+    var iv=setInterval(function(){
+      remaining--;
+      if(remaining<=0){clearInterval(iv);onDone();}
+      else if(_briefTitle) _briefTitle.textContent='Rate limit — retrying in '+remaining+'s…';
+    },1000);
+  }
+
+  // ── Main orchestration ────────────────────────────────────────────────────
+  try{
+    _startBriefProgress();
+    if(typeof statusPill==='function')statusPill('loading','Creating director-grade brief…');
+    var result=null, lastErr=null;
+
+    try{ result=await _doCreate(); }
+    catch(e1){ lastErr=e1; }
+
+    if(!result && lastErr && lastErr._rateLimited){
+      var waitSecs=Math.min(lastErr._retryAfter||35,65);
+      _clearBriefTimers();
+      await new Promise(function(resolve){_countdown(waitSecs,resolve);});
+      lastErr=null;
+      _startBriefProgress();
+      try{ result=await _doCreate(); }
+      catch(e2){
+        lastErr=e2;
+        if(e2._rateLimited){
+          _clearBriefTimers();
+          await new Promise(function(resolve){_countdown(15,resolve);});
+          _startBriefProgress();
+          try{ result=await _doCreate(); }
+          catch(e3){ lastErr=e3; }
+        }
+      }
+    }
+    if(!result) throw lastErr||new Error('No result from AI');
+
+    _clearBriefTimers();
+    _bpDone(true);
     if(ta){
-      ta.value=text;
+      ta.value=result.text;
       ta.style.minHeight='260px';
       ta.scrollTop=0;
-      ta.focus();
-      ta.setSelectionRange(0,0);
+      ta.focus();ta.setSelectionRange(0,0);
     }
-    if(typeof statusPill==='function')statusPill('ok','Brief created — review and Generate when ready','Director-grade brief from OpenAI · '+(data.model||'gpt-4o-mini'));
-    else showCopyToast('✓ Created — review and Generate');
+    if(typeof statusPill==='function')statusPill('ok','Brief created — review and click Generate','Director-grade brief · '+result.model+' ('+result.provider+')');
+    else showCopyToast('✓ Brief created');
+
   }catch(e){
+    _clearBriefTimers();
+    _bpDone(false);
     console.warn('[createPromptWithAI] error:',e);
-    if(typeof statusPill==='function')statusPill('err','Create failed — using heuristic Enhance',String(e.message||e));
-    else showCopyToast('Create failed — try Enhance instead');
-    // Graceful fallback: trigger heuristic enhance so the user gets SOMETHING usable
+    var isRateLimit=!!(e&&(e._rateLimited||(e.message&&(e.message.indexOf('429')!==-1||e.message.indexOf('rate')!==-1||e.message.indexOf('quota')!==-1||e.message.indexOf('RESOURCE_EXHAUSTED')!==-1))));
+    var errLabel=isRateLimit?'AI rate limit — using heuristic brief (retry in ~60s)':'Brief creation failed — using heuristic';
+    if(typeof statusPill==='function')statusPill('err',errLabel,String(e&&e.message||e).substring(0,200));
+    else showCopyToast(errLabel);
     if(typeof enhancePrompt==='function')try{enhancePrompt();}catch(_){}
   }finally{
-    if(btn){btn.disabled=false;if(btn.dataset._origText)btn.innerHTML=btn.dataset._origText;}
+    var _fbtn=document.getElementById('smartAIBtn')||btn;
+    if(_fbtn){
+      _fbtn.disabled=false;
+      var _ta2=document.getElementById('promptIn');
+      _updateSmartAIBtn(_ta2&&_ta2.value.trim().length>0);
+    }
   }
 }
 
@@ -1923,16 +2255,9 @@ function toggleSuggestedPrompts(){
   if(grid.style.display==='none'||!grid.style.display){
     grid.style.display=window.innerWidth<=600?'flex':'grid';
     if(arrow)arrow.style.transform='rotate(180deg)';
-    var mkts=(window.S&&S.markets&&S.markets.length>0)?S.markets:['US'];
-    var type=(window.S&&S.type)?S.type:'';
-    var ctxKey=mkts.join(',')+':'+type;
-    if(ctxKey!==_SUGG_CONTEXT_KEY||!_SUGG_AI_LOADED){
-      _SUGG_CONTEXT_KEY=ctxKey;
-      _SUGG_AI_LOADED=false;
-      _generateAISuggestedPrompts(mkts,type);
-    } else if(!grid.innerHTML.trim()){
-      renderSuggestedPrompts(_SUGG_AI_LOADED);
-    }
+    // Always render static prompts immediately — zero delay, no API call.
+    // 12 curated director-grade briefs cover all markets and campaign types.
+    if(!grid.innerHTML.trim()) renderSuggestedPrompts(false);
   } else {
     grid.style.display='none';
     if(arrow)arrow.style.transform='';
@@ -2257,7 +2582,7 @@ function go2(){
   S.activeMarket=S.markets[0];
   S.type=document.getElementById('typeIn').value;
   // ── fresh slate: clear any products from a previous campaign ──
-  S.manualProds=[];S.finalProds=[];_activeCatFilter='all';
+  S.manualProds=[];S.finalProds=[];S.precomputedStrategy=null;_activeCatFilter='all';
   document.querySelectorAll('.cfbtn').forEach(function(b){b.classList.remove('on');});
   var allBtn=document.querySelector('#catFilter .cfbtn[onclick*="\'all\'"]');if(allBtn)allBtn.classList.add('on');
   // ─────────────────────────────────────────────────────────────
@@ -2269,22 +2594,271 @@ function go2(){
     var cfBtn=document.querySelector('#catFilter .cfbtn[onclick*="\''+smartTab+'\'"]');
     if(cfBtn)cfBtn.click();
   }
+  // ── Fire strategy analysis in background while user browses products ──────
+  // When complete: highlights recommended products + shows strategy banner.
+  // Result cached so _runPipeline can skip Stage 1 (saves ~30s on generation).
+  _prefetchStrategy(p, S.markets[0], S.type);
 }
+
 function go3(){
+  // Set final products — manual selection or auto-pick from strategy/keywords
   var manCount=S.manualProds?S.manualProds.length:0;
-  var selInfo=document.getElementById('selInfo');
   if(manCount===0){
-    // Auto-pick preview — show what will be selected and why
-    var previewProds=autoPickProducts(S.prompt,S.type||detectType(S.prompt));
-    var previewNames=previewProds.slice(0,3).map(function(p){return p.n.split(',')[0];}).join(', ')+(previewProds.length>3?' + '+(previewProds.length-3)+' more':'');
-    var typeLabel=S.type||'campaign';
-    var mktLabel=(S.markets||['US']).join(' & ');
-    if(selInfo)selInfo.innerHTML='<strong>Auto-picking '+previewProds.length+' products</strong> for your <em>'+typeLabel+'</em> brief — '+mktLabel+' market. Starting with: <strong>'+previewNames+'</strong>. These match your campaign theme. <span style="color:#d4873a;cursor:pointer;text-decoration:underline" onclick="this.parentNode.style.display=\'none\'">Use these</span> or select your own above.';
+    // If strategy pre-fetched, use its product selection; otherwise keyword auto-pick
+    var pf=S.precomputedStrategy;
+    if(pf&&pf.product_selection&&pf.product_selection.hero){
+      // Build product list from strategy recommendations
+      var heroName=(pf.product_selection.hero.name||'').toLowerCase();
+      var supNames=((pf.product_selection.supporting)||[]).map(function(s){return (s.name||'').toLowerCase();});
+      var strategyProds=CAT.filter(function(c){
+        var cn=c.n.toLowerCase();
+        return cn===heroName||supNames.some(function(s){return s&&cn.indexOf(s.substring(0,20))>=0;});
+      }).slice(0,5);
+      S.finalProds=strategyProds.length>0
+        ? strategyProds.map(function(p,i){return Object.assign({},p,{role:i===0?'hero':i<=2?'featured':'grid'});})
+        : autoPickProducts(S.prompt,S.type||detectType(S.prompt));
+    } else {
+      S.finalProds=autoPickProducts(S.prompt,S.type||detectType(S.prompt));
+    }
   } else {
-    if(selInfo)selInfo.innerHTML='<strong>'+manCount+' product'+(manCount>1?'s':'')+' selected</strong> for your <em>'+(S.type||'campaign')+'</em> mailer. ✓ Proceeding with your selection.';
+    S.finalProds=S.manualProds.map(function(p,i){return Object.assign({},p,{role:i===0?'hero':i<=2?'featured':'grid'});});
   }
-  injectCtxBanners();
-  showOnly(3);runGeneration(null);
+  S.activePrompt=S.prompt;
+  S.lastFeedback='';S.feedbackHistory=[];S.regenCount=0;
+  // Go directly to pipeline — bypass canvas/review steps entirely
+  approveAndBuild(false);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GLOBAL MINI-PROGRESS SYSTEM
+// Used by: Create Brief, catalog load, strategy prefetch, and any sub-task
+// ══════════════════════════════════════════════════════════════════════════════
+var _mpTimer = null;
+var _mpStartTime = 0;
+
+function _mpShow(title, steps) {
+  // steps: [{label, detail}]
+  var overlay = document.getElementById('miniProgressOverlay');
+  var titleEl = document.getElementById('mpTitle');
+  var listEl  = document.getElementById('mpStepList');
+  var fill    = document.getElementById('mpProgressFill');
+  var elapsed = document.getElementById('mpElapsed');
+  if (!overlay) return;
+  if (titleEl) titleEl.textContent = title || 'Working…';
+  if (fill) fill.style.width = '8%';
+  if (elapsed) elapsed.textContent = '0:00';
+  if (listEl) {
+    listEl.innerHTML = (steps || []).map(function(s, i){
+      return '<div class="mp-step" id="mp-step-'+i+'" data-status="pending">'
+        + '<div class="mp-step-num">'+(i+1)+'</div>'
+        + '<div style="flex:1;min-width:0">'
+        + '<div class="mp-step-text">'+s.label+'</div>'
+        + (s.detail ? '<div class="mp-step-detail">'+s.detail+'</div>' : '')
+        + '</div></div>';
+    }).join('');
+  }
+  _mpStartTime = Date.now();
+  clearInterval(_mpTimer);
+  _mpTimer = setInterval(function(){
+    if (elapsed) elapsed.textContent = _plnFmtTime(Date.now() - _mpStartTime);
+  }, 1000);
+  overlay.style.display = 'flex';
+}
+
+function _mpSetStep(idx, status) {
+  var el = document.getElementById('mp-step-' + idx);
+  if (!el) return;
+  el.setAttribute('data-status', status);
+  // update progress bar: percent through steps
+  var total = document.getElementById('mpStepList')
+    ? document.getElementById('mpStepList').querySelectorAll('.mp-step').length : 1;
+  var doneN = idx + (status === 'done' ? 1 : 0);
+  var fill = document.getElementById('mpProgressFill');
+  if (fill) fill.style.width = Math.min(96, Math.round(8 + (doneN / total) * 88)) + '%';
+}
+
+function _mpHide() {
+  clearInterval(_mpTimer);
+  var overlay = document.getElementById('miniProgressOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// ── Strategy pre-fetch: fires on go2() so strategy is ready before Generate ──
+var _strategyPrefetch=null;
+var _strategyPrefetchKey='';
+var _strategyPrefetching=false;
+
+// ── Strategy prefetch micro-step cycling ────────────────────────────────────
+var _prefetchMicroTimer = null;
+var _prefetchElapsedTimer = null;
+var _prefetchStartTime = 0;
+var _prefetchMicroSteps = [
+  'Reading your brief &amp; market context…',
+  'Identifying audience truth + purchase barrier…',
+  'Selecting hero product + supporting SKUs…',
+  'Locking campaign strategy type + theme…',
+  'Writing Variant A &amp; B execution contracts…'
+];
+
+function _p2FmtTime(ms) {
+  var s = Math.floor(ms / 1000);
+  var m = Math.floor(s / 60);
+  return m + ':' + (s % 60 < 10 ? '0' : '') + (s % 60);
+}
+
+function _prefetchSetMicroStep(idx) {
+  var statusEl = document.getElementById('p2AIPlanStatus');
+  if (statusEl) statusEl.innerHTML = _prefetchMicroSteps[idx] || _prefetchMicroSteps[_prefetchMicroSteps.length - 1];
+  // Light up progress segments up to current idx
+  for (var i = 1; i <= 5; i++) {
+    var seg = document.getElementById('p2ms' + i);
+    if (seg) {
+      seg.style.background = i <= idx + 1
+        ? (i <= idx ? 'rgba(212,135,58,0.9)' : 'rgba(212,135,58,0.55)')
+        : 'rgba(255,255,255,0.12)';
+    }
+  }
+}
+
+function _prefetchStartMicroSteps() {
+  var idx = 0;
+  _prefetchSetMicroStep(0);
+  _prefetchStartTime = Date.now();
+
+  // Elapsed timer
+  clearInterval(_prefetchElapsedTimer);
+  _prefetchElapsedTimer = setInterval(function() {
+    var el = document.getElementById('p2AIPlanElapsed');
+    if (el) el.textContent = _p2FmtTime(Date.now() - _prefetchStartTime);
+  }, 1000);
+
+  // Step cycling — advance every ~7s (strategy call takes ~25-38s total)
+  _prefetchMicroTimer = setInterval(function() {
+    idx++;
+    if (idx >= _prefetchMicroSteps.length) {
+      clearInterval(_prefetchMicroTimer);
+      _prefetchMicroTimer = null;
+      return;
+    }
+    _prefetchSetMicroStep(idx);
+  }, 7000);
+}
+
+function _prefetchStopMicroSteps() {
+  clearInterval(_prefetchMicroTimer);
+  clearInterval(_prefetchElapsedTimer);
+  _prefetchMicroTimer = null;
+  _prefetchElapsedTimer = null;
+  // Light all segments green on success
+  for (var i = 1; i <= 5; i++) {
+    var seg = document.getElementById('p2ms' + i);
+    if (seg) seg.style.background = 'rgba(76,175,119,0.8)';
+  }
+  var el = document.getElementById('p2AIPlanElapsed');
+  if (el && _prefetchStartTime) el.textContent = _p2FmtTime(Date.now() - _prefetchStartTime);
+}
+
+function _prefetchStrategy(brief,market,type){
+  var key=(brief||'').substring(0,100)+':'+market+':'+type;
+  if(_strategyPrefetchKey===key&&_strategyPrefetch){return;} // already done
+  if(_strategyPrefetching)return; // in progress
+  _strategyPrefetchKey=key;
+  _strategyPrefetch=null;
+  _strategyPrefetching=true;
+
+  // Show loading banner with step-cycling status
+  var banner=document.getElementById('p2AIPlanning');
+  var loading=document.getElementById('p2AIPlanningLoading');
+  var ready=document.getElementById('p2AIStrategyReady');
+  if(banner)banner.style.display='block';
+  if(loading)loading.style.display='flex';
+  if(ready)ready.style.display='none';
+
+  // Start cycling through micro-steps while LLM is running
+  _prefetchStopMicroSteps();
+  _prefetchStartMicroSteps();
+
+  var prods=(window.CAT||[]).slice(0,20).map(function(p){return {name:p.n,handle:p.h||p.n,price:p.price,category:(p.t||[]).join(',')};});
+
+  (async function(){
+    try{
+      var res=await fetch('/api/ai/pipeline/strategy',{
+        method:'POST',cache:'no-store',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({brief:(brief||'').substring(0,700),market:market||'US',type:type||'',products:prods,regenerate_counter:0})
+      });
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      var data=await res.json();
+      if(!data.ok||!data.strategy)throw new Error('Invalid strategy response');
+      _strategyPrefetch=data;
+      S.precomputedStrategy=data;
+      _prefetchStopMicroSteps();
+      _showStrategyBanner(data);
+    }catch(e){
+      console.warn('[prefetchStrategy]',e.message);
+      _prefetchStopMicroSteps();
+      if(banner)banner.style.display='none';
+    }finally{
+      _strategyPrefetching=false;
+    }
+  })();
+}
+
+function _showStrategyBanner(data){
+  var loading=document.getElementById('p2AIPlanningLoading');
+  var ready=document.getElementById('p2AIStrategyReady');
+  var text=document.getElementById('p2AIStrategyText');
+  var prods=document.getElementById('p2AIProductsPicked');
+  if(!ready)return;
+  if(loading)loading.style.display='none';
+  ready.style.display='block';
+  var theme=(data.theme||{});
+  var ps=(data.product_selection||{});
+  var heroName=(ps.hero||{}).name||'';
+  var suppNames=((ps.supporting)||[]).map(function(s){return s.name;}).filter(Boolean).slice(0,3);
+  if(text){
+    text.innerHTML='<strong>'+(data.strategy||'Campaign strategy locked')+'</strong>'
+      +(theme.name?' &nbsp;·&nbsp; Theme: <em>'+theme.name+'</em>':'')
+      +(theme.core_idea?'<br><span style="color:#4a7a5a;font-size:11px">'+theme.core_idea+'</span>':'');
+  }
+  if(prods&&heroName){
+    prods.innerHTML='<strong>Hero product:</strong> '+heroName
+      +(suppNames.length?' &nbsp;·&nbsp; <strong>Supporting:</strong> '+suppNames.join(', '):'')
+      +'<br><span style="color:#6b7280;font-size:10.5px">These are pre-selected below — adjust freely before generating.</span>';
+    // Auto-highlight recommended products in the catalog
+    _highlightStrategyProducts(data);
+  }
+}
+
+function _highlightStrategyProducts(data){
+  // Only auto-select if user hasn't picked anything manually
+  if(S.manualProds&&S.manualProds.length>0)return;
+  var ps=data.product_selection||{};
+  var heroName=((ps.hero||{}).name||'').toLowerCase().trim();
+  var suppNames=((ps.supporting)||[]).map(function(s){return (s.name||'').toLowerCase().trim();}).filter(Boolean);
+  var allRec=[heroName].concat(suppNames).filter(Boolean);
+  if(!allRec.length)return;
+  var matched=[];
+  (window.CAT||[]).forEach(function(c){
+    var cn=(c.n||'').toLowerCase();
+    var isMatch=allRec.some(function(rn){
+      // Fuzzy: check if either contains the other (handles minor name differences)
+      return rn.length>4&&(cn.indexOf(rn.substring(0,Math.min(rn.length,22)))>=0||rn.indexOf(cn.substring(0,22))>=0);
+    });
+    if(isMatch&&matched.length<5){
+      var enc=encodeURIComponent(c.n);
+      var tags=encodeURIComponent((c.t||[]).join(','));
+      matched.push({enc,tags,img:c.i});
+      // Programmatically select
+      if(!S.manualProds.some(function(x){return x.n===c.n;})){
+        S.manualProds.push({n:c.n,i:c.i,t:c.t||[],handle:c.h||c.n});
+      }
+    }
+  });
+  if(matched.length>0){
+    renderCatalog(_activeCatFilter);
+    updateSelInfo();
+  }
 }
 
 function has(p,...kws){return kws.some(k=>p.toLowerCase().includes(k));}
@@ -4497,44 +5071,151 @@ function _pipelineAbort() {
   _PLN_ABORT = true;
   _showPipelineOverlay(false);
   _PLN_RUNNING = false;
-  // Fall back immediately to template-based build
-  approveAndBuild(true);
+  approveAndBuild(true); // Fall back to template builders
+}
+
+// ── Pipeline step definitions (label + subtitle for each stage) ─────────────
+var _PLN_STEP_DEFS = [
+  { n:1, label:'Stage 1 — Decision Engine',   sub:'Campaign strategy · theme · product selection · variant contracts' },
+  { n:2, label:'Stage 2 — Creative Plans',    sub:'Variant A layout (product-led) + Variant B layout (editorial narrative)' },
+  { n:3, label:'Stage 3 — Image Generation',  sub:'Hero + product + lifestyle × 2 variants via AI image model' },
+  { n:4, label:'Stage 4 — HTML Builder',      sub:'Full email HTML from locked plan · 10K token budget per variant' },
+  { n:5, label:'Stage 5 — Quality Score',     sub:'Strategy alignment + variant divergence · auto-retry if < 7/10' }
+];
+
+// ── Elapsed timer state ──────────────────────────────────────────────────────
+var _plnStartTime = 0;
+var _plnElapsedTimer = null;
+
+function _plnFmtTime(ms) {
+  var s = Math.floor(ms / 1000);
+  var m = Math.floor(s / 60);
+  return m + ':' + (s % 60 < 10 ? '0' : '') + (s % 60);
 }
 
 function _showPipelineOverlay(visible) {
   var el = document.getElementById('pipelineOverlay');
   if (!el) return;
   el.style.display = visible ? 'flex' : 'none';
+
   if (visible) {
-    // Reset all steps to pending
-    [1,2,3,4,5].forEach(function(i){
-      var s = document.getElementById('pstep-'+i);
-      if (s) s.setAttribute('data-status','pending');
-    });
+    // Render step list
+    var stepsEl = document.getElementById('pipelineSteps');
+    if (stepsEl) {
+      stepsEl.innerHTML = _PLN_STEP_DEFS.map(function(d){
+        return '<div id="pstep-'+d.n+'" class="pstep" data-status="pending">'
+          + '<div class="pstep-num">'+d.n+'</div>'
+          + '<div class="pstep-body">'
+          + '<div class="pstep-label">'+d.label+'</div>'
+          + '<div class="pstep-msg">'+d.sub+'</div>'
+          + '</div></div>';
+      }).join('');
+    }
+    // Reset active section
+    var txt = document.getElementById('plActiveText');
+    var badge = document.getElementById('plActiveBadge');
+    var detail = document.getElementById('plActiveDetail');
+    if (txt) txt.textContent = 'Checking pipeline endpoints…';
+    if (badge) badge.textContent = 'Starting up';
+    if (detail) detail.textContent = '';
+    // Reset progress bar
+    var fill = document.getElementById('plProgressFill');
+    if (fill) fill.style.width = '4%';
+    var counter = document.getElementById('plStepCounter');
+    if (counter) counter.textContent = 'Step 1 of 5';
+    // Clear log & error
     var log = document.getElementById('pipelineLog');
     if (log) log.innerHTML = '';
+    var errPanel = document.getElementById('pipelineErrorPanel');
+    if (errPanel) errPanel.style.display = 'none';
+    // Start elapsed timer
+    _plnStartTime = Date.now();
+    clearInterval(_plnElapsedTimer);
+    _plnElapsedTimer = setInterval(function(){
+      var elapsed = document.getElementById('plElapsed');
+      if (elapsed) elapsed.textContent = _plnFmtTime(Date.now() - _plnStartTime) + ' elapsed';
+    }, 1000);
+  } else {
+    clearInterval(_plnElapsedTimer);
   }
 }
 
 function _pipelineSetStep(stepNum, status, msg) {
   var el = document.getElementById('pstep-' + stepNum);
-  if (!el) return;
-  el.setAttribute('data-status', status);
-  var msgEl = el.querySelector('.pstep-msg');
-  if (msgEl && msg) msgEl.textContent = msg;
+  if (el) {
+    el.setAttribute('data-status', status);
+    var msgEl = el.querySelector('.pstep-msg');
+    if (msgEl && msg) msgEl.textContent = msg;
+  }
+
+  // Update active section card on the prominent banner
+  if (status === 'active' && msg) {
+    var def = _PLN_STEP_DEFS[stepNum - 1] || {};
+    var badge = document.getElementById('plActiveBadge');
+    var text  = document.getElementById('plActiveText');
+    var detail = document.getElementById('plActiveDetail');
+    var counter = document.getElementById('plStepCounter');
+    var spinner = document.getElementById('plActiveSpinner');
+    if (badge)  badge.textContent  = 'Stage ' + stepNum + ' of 5';
+    if (text)   text.textContent   = def.label || ('Stage ' + stepNum);
+    if (detail) detail.textContent = msg;
+    if (counter) counter.textContent = 'Step ' + stepNum + ' of 5';
+    if (spinner) spinner.style.display = 'block';
+  }
+  if (status === 'done' || status === 'warn') {
+    // Advance progress bar: each done step = 20% (steps 1→5 = 20%→100%)
+    var doneCount = 0;
+    _PLN_STEP_DEFS.forEach(function(d){
+      var s = document.getElementById('pstep-'+d.n);
+      if (s && (s.getAttribute('data-status')==='done'||s.getAttribute('data-status')==='warn')) doneCount++;
+    });
+    var fill = document.getElementById('plProgressFill');
+    if (fill) fill.style.width = Math.min(100, 4 + doneCount * 19) + '%';
+    // Hide spinner when last step done
+    if (stepNum === 5) {
+      var spinner2 = document.getElementById('plActiveSpinner');
+      if (spinner2) spinner2.style.display = 'none';
+      var badge2 = document.getElementById('plActiveBadge');
+      var text2  = document.getElementById('plActiveText');
+      if (badge2) badge2.textContent = 'Complete';
+      if (text2)  text2.textContent  = '✓ Both variants ready';
+    }
+  }
 }
 
 function _pipelineLog(stepNum, msg, type) {
   var log = document.getElementById('pipelineLog');
   if (!log) return;
-  var icon = type==='ok'?'✓':type==='warn'?'⚠':type==='error'?'✗':'·';
+  var icon = type==='ok' ? '✓' : type==='warn' ? '⚠' : type==='error' ? '✗' : '·';
   var row = document.createElement('div');
   row.className = 'pl-item';
-  row.innerHTML = '<span class="pl-icon">'+icon+'</span>'
+  row.innerHTML = '<span class="pl-icon" style="color:'+(type==='ok'?'#4caf77':type==='warn'?'#e6a820':type==='error'?'#e05050':'#9a8e84')+'">'+icon+'</span>'
     + (stepNum ? '<span class="pl-stage">S'+stepNum+'</span>' : '')
-    + '<span class="pl-msg">'+msg+'</span>';
+    + '<span class="pl-msg">'+msg.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</span>';
   log.appendChild(row);
   log.scrollTop = log.scrollHeight;
+}
+
+function _pipelineShowError(title, detail, suggestion) {
+  var panel = document.getElementById('pipelineErrorPanel');
+  if (!panel) return;
+  clearInterval(_plnElapsedTimer);
+  // Update active section to show error
+  var text = document.getElementById('plActiveText');
+  var badge = document.getElementById('plActiveBadge');
+  var spinner = document.getElementById('plActiveSpinner');
+  if (text) text.textContent = title;
+  if (badge) badge.textContent = 'Error';
+  if (spinner) spinner.style.display = 'none';
+  // Show error card
+  panel.style.display = 'block';
+  panel.innerHTML =
+    '<div style="font-family:DM Sans,sans-serif;background:#fff5f5;border:1.5px solid #e05050;border-radius:10px;padding:14px 16px">'
+    + '<div style="font-size:12px;font-weight:700;color:#c0392b;margin-bottom:7px">✗ '+title+'</div>'
+    + (detail ? '<div style="font-size:10.5px;color:#555;font-family:monospace;background:#fff;border:1px solid #f0e0e0;border-radius:5px;padding:8px;margin-bottom:8px;word-break:break-all;max-height:80px;overflow-y:auto">'+detail.replace(/</g,'&lt;').replace(/>/g,'&gt;').substring(0,500)+'</div>' : '')
+    + (suggestion ? '<div style="font-size:11px;color:#666;margin-bottom:10px;line-height:1.5">'+suggestion+'</div>' : '')
+    + '<button onclick="_pipelineAbort()" style="background:#e05050;color:#fff;border:none;border-radius:6px;padding:7px 16px;font-size:11px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif">Use Template Fallback</button>'
+    + '</div>';
 }
 
 async function _pipelinePost(path, body, timeoutMs) {
@@ -4545,38 +5226,55 @@ async function _pipelinePost(path, body, timeoutMs) {
   try {
     var r = await fetch(path, {
       method: 'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: ctrl.signal
     });
     clearTimeout(timer);
     if (!r.ok) {
-      var errData = await r.json().catch(function(){ return {}; });
-      throw new Error(path + ' → HTTP ' + r.status + ': ' + (errData.error || errData.detail || 'unknown'));
+      var errText = await r.text().catch(function(){ return ''; });
+      var errData = {};
+      try { errData = JSON.parse(errText); } catch(_) {}
+      var msg = 'HTTP ' + r.status + ' from ' + path;
+      // Show both the error code AND the detail so the actual cause is visible in console
+      var errCode = errData.error || '';
+      var errDetail = errData.detail || '';
+      var fullDetail = [errCode, errDetail].filter(Boolean).join(' — ') || errText.substring(0, 400) || 'No detail';
+      throw new Error(msg + ': ' + fullDetail);
     }
     return await r.json();
   } catch (e) {
     clearTimeout(timer);
+    if (e.name === 'AbortError') throw new Error('Request timed out after ' + (timeoutMs/1000) + 's (' + path + ')');
     throw e;
   }
 }
 
+// Per-pipeline-run flag: show OpenAI quota note max once across all image slots/variants
+var _imgQuotaNoticeShown = false;
+
 async function _generateImagesForVariant(imageReqs, variant, stylelock) {
-  // Calls /api/ai/image directly (existing endpoint) up to 3× per slot.
+  // Calls /api/ai/image directly (multi-key cascade endpoint) up to 3× per slot.
   // Returns { hero: dataUrl|null, product: dataUrl|null, lifestyle: dataUrl|null }
   var MAX_RETRIES = 3;
   var results = {};
+  var _validImgSizes = ['1024x1024', '1536x1024', '1024x1536'];
   var promises = (imageReqs || []).slice(0, 3).map(async function(req) {
     var slot = req.slot || 'hero';
     var fullPrompt = [(stylelock||''), (req.prompt||''), (req.negative_prompt ? 'Avoid: '+req.negative_prompt : '')]
       .filter(Boolean).join(' ').trim();
+    // Ensure valid size — invalid sizes (e.g. 1024x1792) cause silent 400 errors
+    var reqSize = req.size || (slot === 'hero' ? '1536x1024' : '1024x1024');
+    var safeSize = _validImgSizes.indexOf(reqSize) >= 0 ? reqSize : '1024x1024';
     var dataUrl = null;
     for (var attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
         var r = await fetch('/api/ai/image', {
           method: 'POST',
+          cache: 'no-store',   // prevent browser returning cached image for identical prompts
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt: fullPrompt, size: req.size || '1024x1024', quality: 'high' })
+          body: JSON.stringify({ prompt: fullPrompt, size: safeSize, quality: 'high' })
         });
         if (!r.ok) {
           var eBody = await r.json().catch(function(){return{};});
@@ -4585,7 +5283,23 @@ async function _generateImagesForVariant(imageReqs, variant, stylelock) {
         }
         var d = await r.json();
         var url = d && d.image_data_url;
-        if (url && url.length > 2000) { dataUrl = url; break; }
+        if (url && url.length > 2000) {
+          dataUrl = url;
+          var providerLabel = d.provider || 'unknown';
+          if (d.provider === 'openai' && d.key_index && d.key_index > 1) {
+            providerLabel += ' (key #' + d.key_index + ')';
+          }
+          console.log('[pipeline/img]', variant, slot, 'OK · provider:', providerLabel, '· model:', d.model || '?');
+
+          // ── Quota warning: show user-facing note once per pipeline run ──────
+          if (d.quota_warning && !_imgQuotaNoticeShown) {
+            _imgQuotaNoticeShown = true;
+            var noteMsg = d.quota_note ||
+              'OpenAI image quota reached on all configured keys — images are being generated via Pollinations (free). To restore high-quality gpt-image-1 images, add credits at platform.openai.com or add OPENAI_API_KEY_2 / OPENAI_API_KEY_3 in Vercel env.';
+            _pipelineLog(3, '⚠ ' + noteMsg, 'warn');
+          }
+          break;
+        }
         console.warn('[pipeline/img]', variant, slot, 'attempt', attempt, '→ empty/short response');
       } catch (imgErr) {
         console.warn('[pipeline/img]', variant, slot, 'attempt', attempt, '→', imgErr.message);
@@ -4597,14 +5311,25 @@ async function _generateImagesForVariant(imageReqs, variant, stylelock) {
   return results;
 }
 
+// Outer _injectImages: handles BOTH {{PLACEHOLDER}} format (template builders)
+// AND IMAGE_X_URL plain format (html.js pipeline output) — both are valid.
+// The inner version defined inside _runPipeline uses the same logic.
 function _injectImages(html, images) {
   if (!html) return html;
   var h = html;
-  if (images.hero)      h = h.replace(/\{\{HERO_IMAGE_URL\}\}/g, images.hero);
-  if (images.product)   h = h.replace(/\{\{PRODUCT_IMAGE_URL\}\}/g, images.product);
-  if (images.lifestyle) h = h.replace(/\{\{LIFESTYLE_IMAGE_URL\}\}/g, images.lifestyle);
-  // Any remaining placeholders → grey placeholder
-  h = h.replace(/\{\{[A-Z_]+_IMAGE_URL\}\}/g, 'https://placehold.co/600x300/fdf6e8/0f2a1c?text=Image+Generating');
+  var fallbackHero    = 'https://placehold.co/600x400/0f2a1c/fdf6e8?text=Hero+Image';
+  var fallbackProduct = 'https://placehold.co/400x400/0f2a1c/fdf6e8?text=Product';
+  var fallbackLife    = 'https://placehold.co/600x400/0f2a1c/fdf6e8?text=Lifestyle';
+  // {{BRACE}} format — used by template builders
+  h = h.replace(/\{\{HERO_IMAGE_URL\}\}/g,      images.hero      || fallbackHero);
+  h = h.replace(/\{\{PRODUCT_IMAGE_URL\}\}/g,   images.product   || fallbackProduct);
+  h = h.replace(/\{\{LIFESTYLE_IMAGE_URL\}\}/g, images.lifestyle || fallbackLife);
+  // Plain format — used by html.js AI pipeline output
+  h = h.replace(/IMAGE_HERO_URL/g,              images.hero      || fallbackHero);
+  h = h.replace(/IMAGE_PRODUCT_URL/g,           images.product   || fallbackProduct);
+  h = h.replace(/IMAGE_LIFESTYLE_URL/g,         images.lifestyle || fallbackLife);
+  // Catch-all for any remaining {{...}} placeholders
+  h = h.replace(/\{\{[A-Z_]+_IMAGE_URL\}\}/g, fallbackHero);
   return h;
 }
 
@@ -4612,6 +5337,7 @@ async function _runPipeline(mkt, opts) {
   if (_PLN_RUNNING) return;
   _PLN_RUNNING = true;
   _PLN_ABORT = false;
+  _imgQuotaNoticeShown = false; // reset per-run quota notice flag
   opts = opts || {};
   var regen = opts.regenerate_counter || 0;
 
@@ -4620,26 +5346,105 @@ async function _runPipeline(mkt, opts) {
 
   var brief = (window.S && (S.activePrompt || S.prompt)) || '';
   var type  = (window.S && S.type) || '';
-  var prods = (window.S && S.selectedProducts) || (window.S && S.finalProds) || [];
+  var prods = (window.S && S.finalProds) || [];
   var market = mkt || (window.S && S.activeMarket) || 'US';
 
   try {
+    // ─── Health check: verify endpoints are deployed before spending time ─
+    _pipelineLog(0, 'Checking pipeline endpoints…', '');
+    try {
+      var healthRes = await fetch('/api/ai/pipeline/health', { method: 'GET', cache: 'no-store' });
+      if (!healthRes.ok) {
+        var hStatus = healthRes.status;
+        if (hStatus === 404) {
+          _PLN_RUNNING = false;
+          _pipelineShowError(
+            'Pipeline endpoints not deployed yet (HTTP 404)',
+            'GET /api/ai/pipeline/health returned 404. The new pipeline files have not been picked up by Vercel yet.',
+            'Wait 1-2 minutes for the deployment to finish, then click "Cancel & use template fallback" and retry.'
+          );
+          return;
+        }
+        // Non-404 error — log a warning but continue (health endpoint may just be misconfigured)
+        _pipelineLog(0, 'Health check returned HTTP ' + hStatus + ' — continuing anyway', 'warn');
+      } else {
+        var hData = await healthRes.json().catch(function(){ return {}; });
+        if (hData && !hData.ok) {
+          _PLN_RUNNING = false;
+          _pipelineShowError(
+            'Pipeline blocked: no LLM provider configured',
+            hData.verdict || 'Neither OPENAI_API_KEY nor GEMINI_API_KEY is set.',
+            'Go to Vercel dashboard → Settings → Environment Variables and add GEMINI_API_KEY (free) or OPENAI_API_KEY, then redeploy.'
+          );
+          return;
+        }
+        var providerMsg = (hData.checks && hData.checks.at_least_one_provider)
+          ? 'Provider: ' + (hData.checks.openai_key_set ? 'OpenAI' : 'Gemini') + ' · Node ' + (hData.checks.node_version || '?')
+          : 'provider unknown';
+        _pipelineLog(0, 'Health OK — ' + providerMsg, 'ok');
+        if (hData.warnings && hData.warnings.length) {
+          hData.warnings.forEach(function(w){ _pipelineLog(0, '⚠ ' + w, 'warn'); });
+        }
+      }
+    } catch (hErr) {
+      // Network-level failure hitting the health endpoint — very likely means the pipeline files aren't deployed
+      _PLN_RUNNING = false;
+      _pipelineShowError(
+        'Cannot reach pipeline endpoint (' + hErr.message + ')',
+        'Network error on GET /api/ai/pipeline/health — this usually means the Vercel deployment is still in progress or the files are missing.',
+        'Check Vercel dashboard for deployment status. If the deployment is complete, redeploy from the Vercel dashboard.'
+      );
+      return;
+    }
+
     // ─── Stage 1: Decision Engine ─────────────────────────────────────────
-    _pipelineSetStep(1, 'active', 'Analysing brief + locking strategy...');
-    _pipelineLog(1, 'Decision Engine — parsing inputs, selecting strategy', '');
+    // If strategy was pre-computed on Step 1→2 transition, reuse it (saves ~30s).
+    // Only skip if regen=0 (fresh run); re-run on retry so fresh variation is forced.
+    var strategy;
+    var _precomp = (window.S && S.precomputedStrategy && S.precomputedStrategy.ok && regen === 0)
+      ? S.precomputedStrategy : null;
 
-    var strategy = await _pipelinePost('/api/ai/pipeline/strategy', {
-      brief: brief, market: market, type: type,
-      products: (Array.isArray(prods) ? prods : []).slice(0, 15),
-      regenerate_counter: regen
-    }, 28000);
+    if (_precomp) {
+      strategy = _precomp;
+      S.precomputedStrategy = null; // use once
+      _strategyPrefetch = null;
+      _pipelineSetStep(1, 'done', (strategy.strategy || '?') + ' · ' + ((strategy.theme||{}).name || '') + ' ⚡ pre-computed');
+      _pipelineLog(1, '⚡ Strategy pre-computed while user selected products — Stage 1 skipped · ' + strategy.strategy, 'ok');
+    } else {
+      _pipelineSetStep(1, 'active', 'Analysing brief + locking strategy...');
+      _pipelineLog(1, 'Decision Engine — parsing inputs, selecting strategy', '');
 
-    _pipelineSetStep(1, 'done', (strategy.strategy || '?') + ' · ' + ((strategy.theme||{}).name || ''));
-    _pipelineLog(1, 'Strategy: ' + strategy.strategy + ' · Theme: ' + ((strategy.theme||{}).name||''), 'ok');
+      strategy = await _pipelinePost('/api/ai/pipeline/strategy', {
+        brief: brief, market: market, type: type,
+        products: (Array.isArray(prods) ? prods : []).slice(0, 15),
+        regenerate_counter: regen
+      }, 42000);   // 42s client; strategy.js vercel maxDuration 45s
+
+      _pipelineSetStep(1, 'done', (strategy.strategy || '?') + ' · ' + ((strategy.theme||{}).name || ''));
+      _pipelineLog(1, 'Strategy: ' + strategy.strategy + ' · Theme: ' + ((strategy.theme||{}).name||''), 'ok');
+    }
+    // Surface LLM provider quota note if OpenAI keys rotated or exhausted
+    if (strategy.quota_warning) {
+      _pipelineLog(1, '⚠ OpenAI text quota reached on ' + (strategy.exhausted_keys||1) + ' key(s) — ran on Gemini fallback. Add credits or backup keys (OPENAI_API_KEY_2/3) in Vercel env.', 'warn');
+    }
+
+    // Log variant divergence contract if present
+    var _dc = strategy.variant_divergence_contract || {};
+    var _aconcept = (strategy.variant_a_concept || {});
+    var _bconcept = (strategy.variant_b_concept || {});
+    if (_aconcept.color_approach || _bconcept.color_approach) {
+      _pipelineLog(1, 'A: ' + (_aconcept.color_approach || 'light-cream') + ' · B: ' + (_bconcept.color_approach || 'dark-inverted'), 'ok');
+    }
+    if (_dc.layout_difference) {
+      _pipelineLog(1, 'Divergence: ' + _dc.layout_difference, 'ok');
+    }
+    if (strategy._divergence_warning) {
+      _pipelineLog(1, '⚠ ' + strategy._divergence_warning, 'warn');
+    }
 
     // ─── Stage 2: Creative Plans (A and B in parallel, separate calls) ────
     _pipelineSetStep(2, 'active', 'Building Variant A + B plans (separate LLM calls)...');
-    _pipelineLog(2, 'Variant A (product-led, structured) + B (narrative, editorial) — parallel', '');
+    _pipelineLog(2, 'Variant A (product-led · light cream) + B (editorial narrative · dark inverted) — parallel', '');
 
     var [planA, planB] = await Promise.all([
       _pipelinePost('/api/ai/pipeline/variant', {
@@ -4647,23 +5452,32 @@ async function _runPipeline(mkt, opts) {
         brief: brief, market: market,
         products: (Array.isArray(prods) ? prods : []).slice(0, 5),
         regenerate_counter: regen
-      }, 38000),
+      }, 52000),   // 52s client; variant.js vercel maxDuration 55s
       _pipelinePost('/api/ai/pipeline/variant', {
         strategy_output: strategy, variant: 'B',
         brief: brief, market: market,
         products: (Array.isArray(prods) ? prods : []).slice(0, 5),
         regenerate_counter: regen
-      }, 38000)
+      }, 52000)
     ]);
 
     var secA = (planA.sections || []).length;
     var secB = (planB.sections || []).length;
-    _pipelineSetStep(2, 'done', 'A: ' + secA + ' sections (' + ((planA.layout_plan||{}).flow||'structured') + ') · B: ' + secB + ' sections (' + ((planB.layout_plan||{}).flow||'editorial') + ')');
-    _pipelineLog(2, 'Plans locked — A: '+secA+' sections, B: '+secB+' sections', 'ok');
+    var flowA = (planA.layout_plan||{}).flow || 'structured-conversion';
+    var flowB = (planB.layout_plan||{}).flow || 'editorial-narrative';
+    var bgA = ((planA.layout_plan||{}).color_scheme||{}).background || '#fdf6e8';
+    var bgB = ((planB.layout_plan||{}).color_scheme||{}).background || '#0f2a1c';
+    _pipelineSetStep(2, 'done', 'A: ' + secA + ' sections (' + flowA + ') · B: ' + secB + ' sections (' + flowB + ')');
+    _pipelineLog(2, 'Plans locked — A: '+secA+' sections (bg:'+bgA+') · B: '+secB+' sections (bg:'+bgB+')', 'ok');
+    if (planA.quota_warning || planB.quota_warning) {
+      _pipelineLog(2, '⚠ OpenAI text quota reached on variant plan generation — ran on Gemini fallback. Add credits or OPENAI_API_KEY_2/3 in Vercel env.', 'warn');
+    }
 
     // ─── Stage 3: Images (A and B in parallel, 3 slots each) ─────────────
-    _pipelineSetStep(3, 'active', 'Generating gpt-image-1 images (hero+product+lifestyle)...');
-    _pipelineLog(3, 'gpt-image-1: 3 images × 2 variants = 6 total (with retry)', '');
+    // Multi-key cascade: OPENAI_API_KEY → OPENAI_API_KEY_2 → OPENAI_API_KEY_3 → Pollinations
+    // Each slot retried up to 3× if generation fails.
+    _pipelineSetStep(3, 'active', 'Generating images (hero+product+lifestyle) via AI...');
+    _pipelineLog(3, 'Image generation: 3 slots × 2 variants = 6 total · OpenAI keys cascade → Pollinations fallback', '');
 
     var stylelock = strategy.image_style_lock || '';
     var [imgsA, imgsB] = await Promise.all([
@@ -4682,43 +5496,163 @@ async function _runPipeline(mkt, opts) {
     if (imgsA.hero) window.S.openaiImages[market].A = imgsA.hero;
     if (imgsB.hero) window.S.openaiImages[market].B = imgsB.hero;
 
-    // ─── Stage 4: HTML generation (A and B in parallel) ──────────────────
-    _pipelineSetStep(4, 'active', 'Generating HTML (tightly bound to layout plans)...');
-    _pipelineLog(4, 'HTML: Variant A + B in parallel — layout-plan bound, placeholders injected', '');
+    // ─── Stage 4: AI-driven HTML via html.js (custom layout per run) ────────
+    // html.js takes the locked creative plan from Stage 2 + strategy from
+    // Stage 1 and generates completely custom HTML using the master prompt.
+    // Different output every time because the plan is AI-generated.
+    // Images are NOT sent to the LLM (too large) — placeholder strings are
+    // replaced client-side with the real data URLs from Stage 3.
+    // Uses Promise.allSettled so a single variant failure never kills the other.
+    _pipelineSetStep(4, 'active', 'AI building custom HTML (master prompt Steps 9-10)...');
+    _pipelineLog(4, 'html.js: Variant A + B in parallel — plan-driven, 10K token budget, 85s timeout', '');
 
-    var [htmlResA, htmlResB] = await Promise.all([
+    // Image injector: replaces placeholder strings with real data URLs from Stage 3
+    function _injectImages(html, imgs) {
+      if (!html) return '';
+      var h = html;
+      // Use placeholder images if AI images are missing (Pollinations fallback or not generated)
+      var fallbackHero    = 'https://placehold.co/600x400/0f2a1c/fdf6e8?text=Hero+Image';
+      var fallbackProduct = 'https://placehold.co/400x400/0f2a1c/fdf6e8?text=Product';
+      var fallbackLife    = 'https://placehold.co/600x400/0f2a1c/fdf6e8?text=Lifestyle';
+      h = h.replace(/IMAGE_HERO_URL/g,      imgs.hero      || fallbackHero);
+      h = h.replace(/IMAGE_PRODUCT_URL/g,   imgs.product   || fallbackProduct);
+      h = h.replace(/IMAGE_LIFESTYLE_URL/g, imgs.lifestyle || fallbackLife);
+      return h;
+    }
+
+    var finalA = '', finalB = '';
+    var _htmlASource = 'pending', _htmlBSource = 'pending';
+
+    // Use allSettled so that a failure on one variant does NOT discard the other.
+    // Promise.all would throw on first rejection and lose whichever variant succeeded.
+    var [htmlSettledA, htmlSettledB] = await Promise.allSettled([
       _pipelinePost('/api/ai/pipeline/html', {
-        variant: 'A', variant_plan: planA, strategy_output: strategy,
-        market: market, brief: brief,
-        products: (Array.isArray(prods) ? prods : []).slice(0, 4)
-      }, 55000),
+        variant: 'A',
+        plan: planA,
+        strategy: strategy,
+        brief: brief,
+        market: market,
+        regenerate_counter: regen
+      }, 85000),   // 85s client timeout; vercel maxDuration 90s
       _pipelinePost('/api/ai/pipeline/html', {
-        variant: 'B', variant_plan: planB, strategy_output: strategy,
-        market: market, brief: brief,
-        products: (Array.isArray(prods) ? prods : []).slice(0, 4)
-      }, 55000)
+        variant: 'B',
+        plan: planB,
+        strategy: strategy,
+        brief: brief,
+        market: market,
+        regenerate_counter: regen
+      }, 85000)
     ]);
 
-    // Replace {{IMAGE_URL}} placeholders with actual generated images
-    var finalA = _injectImages(htmlResA.html || '', imgsA);
-    var finalB = _injectImages(htmlResB.html || '', imgsB);
-    var kbA = Math.round(finalA.length / 1024);
-    var kbB = Math.round(finalB.length / 1024);
+    // Process Variant A result
+    if (htmlSettledA.status === 'fulfilled' && htmlSettledA.value && htmlSettledA.value.html) {
+      finalA = _injectImages(htmlSettledA.value.html, imgsA);
+      _htmlASource = 'ai';
+      if (htmlSettledA.value.quota_warning) {
+        _pipelineLog(4, '⚠ OpenAI text quota on Variant A — ran on Gemini fallback', 'warn');
+      }
+    } else {
+      var errA = htmlSettledA.status === 'rejected' ? htmlSettledA.reason.message : 'empty html returned';
+      _pipelineLog(4, 'Variant A html.js failed (' + errA + ') — using template fallback for A', 'warn');
+    }
 
-    _pipelineSetStep(4, 'done', 'A: ' + kbA + 'KB · B: ' + kbB + 'KB');
-    _pipelineLog(4, 'HTML built — A: '+kbA+'KB, B: '+kbB+'KB', 'ok');
+    // Process Variant B result
+    if (htmlSettledB.status === 'fulfilled' && htmlSettledB.value && htmlSettledB.value.html) {
+      finalB = _injectImages(htmlSettledB.value.html, imgsB);
+      _htmlBSource = 'ai';
+      if (htmlSettledB.value.quota_warning) {
+        _pipelineLog(4, '⚠ OpenAI text quota on Variant B — ran on Gemini fallback', 'warn');
+      }
+    } else {
+      var errB = htmlSettledB.status === 'rejected' ? htmlSettledB.reason.message : 'empty html returned';
+      _pipelineLog(4, 'Variant B html.js failed (' + errB + ') — using template fallback for B', 'warn');
+    }
+
+    // Log combined result
+    var kbA = finalA ? Math.round(finalA.length / 1024) : 0;
+    var kbB = finalB ? Math.round(finalB.length / 1024) : 0;
+    if (finalA && finalB) {
+      _pipelineSetStep(4, 'done', 'A: ' + kbA + 'KB · B: ' + kbB + 'KB — AI-generated');
+      _pipelineLog(4, 'HTML: A=' + kbA + 'KB (' + _htmlASource + '), B=' + kbB + 'KB (' + _htmlBSource + ')', 'ok');
+    } else if (finalA || finalB) {
+      _pipelineSetStep(4, 'warn', 'Partial: A=' + kbA + 'KB, B=' + kbB + 'KB — one variant needs template fallback');
+      _pipelineLog(4, 'Partial AI HTML — one variant fell back to template', 'warn');
+    }
+
+    // Template fallback only for whichever variant(s) failed — not both
+    if (!finalA || !finalB) {
+      _pipelineLog(4, 'Applying template fallback for missing variant(s)', 'warn');
+      if (!finalA && !finalB) _pipelineSetStep(4, 'warn', 'Template fallback active — html.js failed on both variants');
+      else _pipelineSetStep(4, 'warn', 'Partial fallback — one variant used template builder');
+
+      // Extract AI copy from plan to feed template builders
+      var _fbHeroA = (planA.sections || []).find(function(s){ return s.id==='hero'||s.image_slot==='hero'; }) || (planA.sections||[])[0] || {};
+      var _fbCtaA  = (planA.sections || []).find(function(s){ return s.id==='cta'||s.type==='button-row'; }) || {};
+      var _fbHeroB = (planB.sections || []).find(function(s){ return s.id==='hero'||s.image_slot==='hero'; }) || (planB.sections||[])[0] || {};
+      var _fbCtaB  = (planB.sections || []).find(function(s){ return s.id==='cta'||s.type==='button-row'; }) || {};
+      var _fbCopyA = _fbHeroA.copy || {};
+      var _fbCopyB = _fbHeroB.copy || {};
+
+      var _snapArch  = window.S._conceptArchetype;
+      var _snapArchB = window.S._conceptArchetypeB;
+      var _snapStrat = window.S.strategy ? JSON.parse(JSON.stringify(window.S.strategy)) : {};
+      var _snapHeroA = window._vhdCurrentHeroA;
+      var _snapHeroB = window._vhdCurrentHeroB;
+
+      if (!window.S.strategy) window.S.strategy = {};
+      window.S.strategy._pipeline = true;
+
+      if (!finalA && typeof buildEmail === 'function') {
+        window._vhdCurrentHeroA = imgsA.hero || null;
+        window._vhdCurrentHeroB = null;
+        if (_fbCopyA.headline) window.S.strategy.headline = _fbCopyA.headline;
+        if (_fbCopyA.subcopy)  window.S.strategy.subCopy  = _fbCopyA.subcopy;
+        if ((_fbCtaA.copy || _fbCopyA).cta) window.S.strategy.cta = (_fbCtaA.copy || _fbCopyA).cta;
+        finalA = buildEmail(null, market) || '';
+        _htmlASource = 'template-fallback';
+      }
+
+      if (!finalB && typeof buildEmailVariantB === 'function') {
+        window._vhdCurrentHeroA = null;
+        window._vhdCurrentHeroB = imgsB.hero || null;
+        if (_fbCopyB.headline) window.S.strategy.headline = _fbCopyB.headline;
+        if (_fbCopyB.subcopy)  window.S.strategy.subCopy  = _fbCopyB.subcopy;
+        if ((_fbCtaB.copy || _fbCopyB).cta) window.S.strategy.cta = (_fbCtaB.copy || _fbCopyB).cta;
+        finalB = buildEmailVariantB(null, market) || '';
+        _htmlBSource = 'template-fallback';
+      }
+
+      // Restore S state
+      window.S._conceptArchetype  = _snapArch;
+      window.S._conceptArchetypeB = _snapArchB;
+      window._vhdCurrentHeroA = _snapHeroA;
+      window._vhdCurrentHeroB = _snapHeroB;
+      window.S.strategy._pipeline = false;
+      if (_snapStrat.headline !== undefined) window.S.strategy.headline = _snapStrat.headline;
+      if (_snapStrat.subCopy  !== undefined) window.S.strategy.subCopy  = _snapStrat.subCopy;
+      if (_snapStrat.cta      !== undefined) window.S.strategy.cta      = _snapStrat.cta;
+    }
+
+    if (!finalA || !finalB) {
+      throw new Error('html_stage_empty: html.js and template fallback both returned empty — check S.finalProds and market.');
+    }
 
     // ─── Stage 5: Quality Scoring ─────────────────────────────────────────
     _pipelineSetStep(5, 'active', 'Quality scoring...');
-    _pipelineLog(5, 'Scoring strategy alignment, structural uniqueness, variant divergence', '');
+    _pipelineLog(5, 'Scoring: strategy_alignment · content_density · copy_quality · variant_divergence', '');
 
     var scoreRes = null;
     try {
+      // Trim HTML before scoring: score.js uses fingerprinting (regex over full HTML),
+      // but the LLM only sees a 800-char copy sample. Trimming to 80KB max avoids
+      // hitting Vercel's 6MB body limit on high-density emails without losing any signals.
+      var _scoreA = finalA.length > 80000 ? finalA.substring(0, 80000) : finalA;
+      var _scoreB = finalB.length > 80000 ? finalB.substring(0, 80000) : finalB;
       scoreRes = await _pipelinePost('/api/ai/pipeline/score', {
-        html_a: finalA, html_b: finalB,
+        html_a: _scoreA, html_b: _scoreB,
         variant_a_plan: planA, variant_b_plan: planB,
         strategy_output: strategy
-      }, 22000);
+      }, 25000);
     } catch (scoreErr) {
       console.warn('[pipeline] Scoring non-fatal error:', scoreErr.message);
     }
@@ -4743,19 +5677,21 @@ async function _runPipeline(mkt, opts) {
       A: finalA,
       B: finalB,
       _pipelineMeta: {
-        strategy: strategy.strategy,
-        theme: (strategy.theme||{}).name,
-        subject_lines_a: htmlResA.subject_lines || [],
-        subject_lines_b: htmlResB.subject_lines || [],
-        preheader: htmlResA.preheader || '',
-        scores: scoreRes,
-        generated_at: new Date().toISOString(),
-        regen_count: regen
+        strategy:       strategy.strategy,
+        theme:          (strategy.theme||{}).name,
+        archetype_a:    _htmlASource || 'ai',
+        archetype_b:    _htmlBSource || 'ai',
+        subject_lines_a: planA.subject_lines || [],
+        subject_lines_b: planB.subject_lines || [],
+        preheader:       planA.preheader     || '',
+        scores:          scoreRes,
+        generated_at:    new Date().toISOString(),
+        regen_count:     regen
       }
     };
 
-    if (htmlResA.subject_lines && htmlResA.subject_lines.length) window.S.subjectLines = htmlResA.subject_lines;
-    if (htmlResA.preheader) window.S.preheader = htmlResA.preheader;
+    if (planA.subject_lines && planA.subject_lines.length) window.S.subjectLines = planA.subject_lines;
+    if (planA.preheader) window.S.preheader = planA.preheader;
 
     _pipelineLog(0, '✓ Pipeline complete — Variant A + B ready', 'ok');
 
@@ -4780,17 +5716,51 @@ async function _runPipeline(mkt, opts) {
 
   } catch (e) {
     console.error('[pipeline] Fatal:', e);
-    _pipelineLog(0, 'Pipeline error: ' + e.message + ' — falling back to template builders', 'error');
     _PLN_RUNNING = false;
-    setTimeout(function() {
+    var errMsg  = (e && e.message) ? e.message : String(e);
+    var isAbort = errMsg.indexOf('Aborted') !== -1 || errMsg.indexOf('abort') !== -1;
+    _pipelineLog(0, 'Pipeline error: ' + errMsg, 'error');
+    if (isAbort) {
+      // User-initiated cancel — close overlay and run template fallback immediately
       _showPipelineOverlay(false);
-      approveAndBuild(true); // true = skip pipeline, use templates
-    }, 1200);
+      approveAndBuild(true);
+    } else {
+      // Real error — show persistent panel so the user can read the error
+      // Extract stage hint from the error message if available
+      var stageHint = '';
+      if (errMsg.indexOf('strategy') !== -1)      stageHint = ' (Stage 1 – Strategy)';
+      else if (errMsg.indexOf('variant') !== -1)  stageHint = ' (Stage 2 – Variant Plan)';
+      else if (errMsg.indexOf('image') !== -1)    stageHint = ' (Stage 3 – Images)';
+      else if (errMsg.indexOf('html') !== -1)     stageHint = ' (Stage 4 – HTML)';
+      else if (errMsg.indexOf('score') !== -1)    stageHint = ' (Stage 5 – Score)';
+
+      var suggestion = errMsg.indexOf('404') !== -1
+        ? 'Vercel may not have deployed the pipeline files yet. Wait 1-2 min and retry.'
+        : errMsg.indexOf('timeout') !== -1 || errMsg.indexOf('timed out') !== -1
+        ? 'An API call timed out. Check your OPENAI/GEMINI key limits and Vercel function maxDuration.'
+        : errMsg.indexOf('No LLM provider') !== -1 || errMsg.indexOf('API key') !== -1
+        ? 'Set GEMINI_API_KEY or OPENAI_API_KEY in Vercel dashboard → Settings → Environment Variables.'
+        : 'Check Vercel function logs for details, or click "Use Template Fallback" to continue without AI.';
+
+      _pipelineShowError(
+        'Pipeline failed' + stageHint,
+        errMsg,
+        suggestion
+      );
+    }
   }
 }
 // ── End pipeline orchestrator ─────────────────────────────────────────────
 
+// Debounce guard — prevents double-fires from rapid button clicks
+var _approveBuildDebounce = false;
 async function approveAndBuild(skipPipeline){
+  // Rapid-click protection: block if already running or within 800ms of last call
+  if (_approveBuildDebounce && !skipPipeline) return;
+  if (_PLN_RUNNING && !skipPipeline) return;
+  _approveBuildDebounce = true;
+  setTimeout(function(){ _approveBuildDebounce = false; }, 800);
+
   showOnly(5);
   // ── v80: MULTI-STAGE PIPELINE for primary market (if not already running
   //   and not explicitly skipped by fallback path).

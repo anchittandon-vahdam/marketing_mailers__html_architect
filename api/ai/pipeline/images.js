@@ -17,15 +17,19 @@ const { corsHeaders } = require('../../_shared/llm');
 const OPENAI_BASE = 'https://api.openai.com/v1';
 const POLLINATIONS_BASE = 'https://image.pollinations.ai/prompt';
 
-// Hero-photography preamble — same safeguard as /api/ai/image.js
-const PHOTO_PREAMBLE = `PREMIUM PRODUCT PHOTOGRAPH ONLY. NOT a mailer design. NOT a UI mockup. NOT a layout.
+// Image preamble — tight, non-negotiable constraints.
+// All composition/mood/lighting comes from the caller's scene prompt.
+// gpt-image-1 (ChatGPT Image, aka GPT-4o native image generation) needs clear negative constraints
+// to avoid adding text overlays, logos, or email UI into the scene.
+const PHOTO_PREAMBLE = `Ultra-photorealistic lifestyle/product photograph for VAHDAM India premium tea brand. Style: luxury editorial photography, cinematic shallow depth-of-field, gallery-print resolution.
 
-Luxury editorial lifestyle photography. Soft natural light. Shallow depth of field — product sharp, background gently blurred. Organic surfaces only: raw linen, brushed stone, aged wood, cream paper, brass. NEVER plastic, never white seamless studio.
+MANDATORY CONSTRAINTS:
+- Absolutely NO text, NO letters, NO words, NO logos, NO watermarks, NO brand marks
+- NO email layout, NO UI frames, NO mockup frames, NO device screens
+- NO stock photography look, NO artificial studio lighting
+- Tactile textures visible, natural cinematic lighting only
 
-NO TEXT IN IMAGE. NO LOGOS. NO BUTTONS. NO UI ELEMENTS. NO WATERMARKS.
-Render at maximum resolution: razor-crisp surfaces, gallery-print quality, zero AI smear artifacts.
-
-SCENE BRIEF:
+SCENE:
 `;
 
 const VALID_SIZES = ['1024x1024', '1536x1024', '1024x1536'];
@@ -36,16 +40,20 @@ async function generateImage(prompt, size, openaiKey) {
   const finalPrompt = (PHOTO_PREAMBLE + prompt).substring(0, 4000);
 
   if (openaiKey) {
+    // gpt-image-1 = OpenAI's GPT-4o native image generation model (ChatGPT Image 2 in the product UI)
+    // This is the most capable model for photorealistic editorial images
+    const imageModel = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
     const r = await fetch(OPENAI_BASE + '/images/generations', {
       method: 'POST',
       cache: 'no-store',   // disable fetch-level caching — each image must be unique
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + openaiKey },
       body: JSON.stringify({
-        model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1',
+        model: imageModel,
         prompt: finalPrompt,
         n: 1,
         size: safeSize,
-        quality: 'high'
+        quality: 'high',   // 'high' = max detail for product/lifestyle photography
+        output_format: 'b64_json'  // always request base64 to avoid expiring URLs
       })
     });
     if (!r.ok) {

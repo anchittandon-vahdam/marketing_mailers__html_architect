@@ -1,7 +1,14 @@
 'use strict';
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared LLM caller — OpenAI → Gemini waterfall
+// Shared LLM caller — OpenAI (multi-key) → Gemini waterfall
 // Used by all pipeline stages. Keeps provider logic in ONE place.
+//
+// Multi-key support (v90):
+//   • Tries OPENAI_API_KEY → OPENAI_API_KEY_2 → OPENAI_API_KEY_3 in sequence
+//   • Rotates on 429 with insufficient_quota error code (billing quota)
+//   • Falls back to Gemini on rate-limit 429 (non-quota)
+//   • Sets result._quota_exhausted_keys = count of exhausted OpenAI keys
+//   • Sets result._quota_warning if all OpenAI keys exhausted but Gemini succeeded
 //
 // Anti-repetition hardening (v81):
 //   • cache: 'no-store' on every fetch — prevents CDN/network response caching
@@ -21,118 +28,222 @@ function genSeed() {
 
 /**
  * callLLM({ systemPrompt, userMessage, responseFormat, maxTokens, temperature, timeoutMs, stage })
- * Returns { text, provider, model, seed }
+ * Returns { text, provider, model, seed, quota_warning?, exhausted_keys? }
  * Throws on provider error or timeout.
  */
 module.exports = async function callLLM(opts) {
   const {
     systemPrompt = '',
     userMessage = '',
-    responseFormat = null,   // { type: 'json_object' } or null
+    responseFormat = null,
     maxTokens = 2000,
     temperature = 0.7,
     timeoutMs = 30000,
-    stage = 'llm'            // debug label — logged to console
+    stage = 'llm'
   } = opts;
 
-  const openaiKey = process.env.OPENAI_API_KEY;
+  // Collect all configured OpenAI keys (primary + backups)
+  const openaiKeys = [
+    process.env.OPENAI_API_KEY,
+    process.env.OPENAI_API_KEY_2,
+    process.env.OPENAI_API_KEY_3
+  ].filter(Boolean);
+
   const geminiKey = process.env.GEMINI_API_KEY;
 
-  if (!openaiKey && !geminiKey) {
+  if (openaiKeys.length === 0 && !geminiKey) {
     throw new Error('No AI provider configured. Set OPENAI_API_KEY or GEMINI_API_KEY in Vercel env.');
   }
 
-  const provider = openaiKey ? 'openai' : 'gemini';
-  const textModel = provider === 'openai'
-    ? (process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini')
-    : (process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash');
-
-  // Unique seed — injected into user message to defeat any response caching
+  const primaryProvider = openaiKeys.length > 0 ? 'openai' : 'gemini';
   const seed = genSeed();
-  // Append seed as a non-visible JSON comment so the LLM ignores it
-  // but the request body hash is always unique
   const seededUserMessage = userMessage + '\n\n<!-- gen_seed:' + seed + ' -->';
 
-  console.log('[llm][' + stage + '] provider=' + provider + ' model=' + textModel +
-    ' temp=' + temperature + ' maxTokens=' + maxTokens + ' seed=' + seed);
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    let text = '';
-
-    if (provider === 'openai') {
+  // ── Internal fetch helper: OpenAI (accepts specific key) ────────────────────
+  async function _openai(model, key) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    console.log('[llm][' + stage + '] openai model=' + model + ' temp=' + temperature + ' maxTokens=' + maxTokens + ' seed=' + seed + ' key_suffix=...' + key.slice(-4));
+    try {
       const r = await fetch(OPENAI_BASE + '/chat/completions', {
-        method: 'POST',
-        cache: 'no-store',   // ← disable fetch-level caching
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + openaiKey },
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
         body: JSON.stringify({
-          model: textModel,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: seededUserMessage }
-          ],
-          max_tokens: maxTokens,
-          temperature,
+          model,
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: seededUserMessage }],
+          max_tokens: maxTokens, temperature,
           ...(responseFormat ? { response_format: responseFormat } : {})
         }),
-        signal: controller.signal
+        signal: ctrl.signal
       });
-      clearTimeout(timer);
+      clearTimeout(t);
       if (!r.ok) {
-        const err = await r.text().catch(() => '');
-        console.error('[llm][' + stage + '] OpenAI error', r.status, err.substring(0, 200));
-        throw new Error('OpenAI ' + r.status + ': ' + err.substring(0, 300));
+        const errText = await r.text().catch(() => '');
+        console.error('[llm][' + stage + '] OpenAI ' + r.status, errText.substring(0, 200));
+        // Detect quota exhaustion — OpenAI returns 429 with code=insufficient_quota
+        const isQuotaExhausted = r.status === 429 &&
+          (errText.includes('insufficient_quota') || errText.includes('quota') || errText.includes('billing'));
+        return { ok: false, status: r.status, err: errText, quotaExhausted: isQuotaExhausted };
       }
       const data = await r.json();
-      text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+      const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+      console.log('[llm][' + stage + '] openai ok len=' + text.length);
+      return { ok: true, text, provider: 'openai', model };
+    } catch (e) {
+      clearTimeout(t);
+      return { ok: false, status: 0, err: e.message || String(e) };
+    }
+  }
 
-    } else {
-      // Gemini — system prompt prepended to user message (different message shape)
-      const combined = systemPrompt + '\n\n---\nUSER REQUEST:\n' + seededUserMessage;
+  // ── Internal fetch helper: Gemini ────────────────────────────────────────
+  async function _gemini(model) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    const combined = systemPrompt + '\n\n---\nUSER REQUEST:\n' + seededUserMessage;
+    console.log('[llm][' + stage + '] gemini model=' + model + ' temp=' + temperature + ' maxTokens=' + maxTokens + ' seed=' + seed);
+    try {
       const r = await fetch(
-        GEMINI_BASE + '/models/' + encodeURIComponent(textModel) + ':generateContent?key=' + encodeURIComponent(geminiKey),
+        GEMINI_BASE + '/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(geminiKey),
         {
-          method: 'POST',
-          cache: 'no-store',   // ← disable fetch-level caching
+          method: 'POST', cache: 'no-store',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: combined }] }],
             generationConfig: {
-              temperature,
-              maxOutputTokens: maxTokens,
+              temperature, maxOutputTokens: maxTokens,
               ...(responseFormat ? { responseMimeType: 'application/json' } : {})
             }
           }),
-          signal: controller.signal
+          signal: ctrl.signal
         }
       );
-      clearTimeout(timer);
+      clearTimeout(t);
       if (!r.ok) {
         const err = await r.text().catch(() => '');
-        console.error('[llm][' + stage + '] Gemini error', r.status, err.substring(0, 200));
-        throw new Error('Gemini ' + r.status + ': ' + err.substring(0, 300));
+        console.error('[llm][' + stage + '] Gemini ' + r.status + ' model=' + model, err.substring(0, 200));
+        return { ok: false, status: r.status, err, model };
       }
       const data = await r.json();
-      text = (
-        data.candidates &&
-        data.candidates[0] &&
-        data.candidates[0].content &&
-        data.candidates[0].content.parts &&
-        data.candidates[0].content.parts[0] &&
-        data.candidates[0].content.parts[0].text
+      const text = (
+        data.candidates && data.candidates[0] &&
+        data.candidates[0].content && data.candidates[0].content.parts &&
+        data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text
       ) || '';
+      console.log('[llm][' + stage + '] gemini ok model=' + model + ' len=' + text.length);
+      return { ok: true, text, provider: 'gemini', model };
+    } catch (e) {
+      clearTimeout(t);
+      return { ok: false, status: 0, err: e.message || String(e), model };
+    }
+  }
+
+  // ── Model cascade ─────────────────────────────────────────────────────────
+  let result = null;
+  let openaiKeysExhausted = 0;
+  let allKeysQuotaExhausted = false;
+
+  if (primaryProvider === 'openai') {
+    const oModel = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
+
+    // Try each OpenAI key in sequence — rotate on quota exhaustion
+    for (let ki = 0; ki < openaiKeys.length; ki++) {
+      result = await _openai(oModel, openaiKeys[ki]);
+      if (result.ok) break;
+
+      if (result.quotaExhausted) {
+        openaiKeysExhausted++;
+        console.warn('[llm][' + stage + '] OpenAI key #' + (ki + 1) + ' quota exhausted — trying next key (' + (ki + 2) + '/' + openaiKeys.length + ')');
+        continue; // try next key
+      }
+
+      // Non-quota error (rate limit 429, 500, etc.)
+      if (result.status === 429 && geminiKey) {
+        console.warn('[llm][' + stage + '] OpenAI 429 (rate limit) on key #' + (ki + 1) + ' — falling back to Gemini');
+        break; // handled below
+      }
+      break; // other error (400, 401, 500) — stop OpenAI cascade
     }
 
-    console.log('[llm][' + stage + '] response length=' + text.length + ' chars');
-    return { text, provider, model: textModel, seed };
+    // All OpenAI keys exhausted → fall back to Gemini
+    if (!result.ok && openaiKeysExhausted === openaiKeys.length && geminiKey) {
+      allKeysQuotaExhausted = true;
+      console.warn('[llm][' + stage + '] All ' + openaiKeys.length + ' OpenAI key(s) quota exhausted — trying Gemini fallback');
+      for (const gm of ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']) {
+        result = await _gemini(gm);
+        if (result.ok) break;
+        if (result.status === 429 || result.status === 503) {
+          console.warn('[llm][' + stage + '] Gemini ' + result.status + ' on ' + gm + ' — trying next Gemini model');
+          continue;
+        }
+        break;
+      }
+    }
+    // OpenAI rate-limit (non-quota) → fall back to Gemini
+    else if (!result.ok && result.status === 429 && !result.quotaExhausted && geminiKey) {
+      for (const gm of ['gemini-2.0-flash', 'gemini-1.5-flash']) {
+        result = await _gemini(gm);
+        if (result.ok || result.status !== 429) break;
+      }
+    }
 
-  } catch (e) {
-    clearTimeout(timer);
-    console.error('[llm][' + stage + '] threw:', e.message);
-    throw e;
+  } else {
+    // Gemini primary — cascade models on 429/503 (each model has its own quota bucket)
+    const geminiCascade = [
+      process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', // 10 RPM free
+      'gemini-2.0-flash',                                   // 15 RPM free — separate bucket
+      'gemini-1.5-flash',                                   // 15 RPM free — separate bucket
+      'gemini-2.0-flash-lite'                               // 30 RPM free — highest free quota
+    ];
+    for (const gm of geminiCascade) {
+      result = await _gemini(gm);
+      if (result.ok) break;
+      // 429 = rate limited, 503 = RESOURCE_EXHAUSTED (Gemini uses both) — cascade to next model
+      if (result.status === 429 || result.status === 503) {
+        console.warn('[llm][' + stage + '] Gemini ' + result.status + ' on ' + gm + ' — trying next model');
+        continue; // try next model immediately — separate quota bucket
+      }
+      break; // other error (400, 401, 500) — stop cascade, won't help
+    }
+    // All Gemini models rate-limited → try OpenAI keys if available
+    if (!result.ok && (result.status === 429 || result.status === 503) && openaiKeys.length > 0) {
+      const oModel = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
+      console.warn('[llm][' + stage + '] All Gemini models rate-limited — trying OpenAI fallback');
+      for (let ki = 0; ki < openaiKeys.length; ki++) {
+        result = await _openai(oModel, openaiKeys[ki]);
+        if (result.ok) break;
+        if (result.quotaExhausted) {
+          openaiKeysExhausted++;
+          console.warn('[llm][' + stage + '] OpenAI key #' + (ki + 1) + ' quota exhausted during Gemini fallback — trying next');
+          continue;
+        }
+        break;
+      }
+    }
   }
+
+  if (!result || !result.ok) {
+    const errMsg = (result && result.err) ? result.err : 'All providers failed';
+    const status = result && result.status;
+    const isQuota = allKeysQuotaExhausted || (result && result.quotaExhausted);
+    throw new Error(
+      (isQuota
+        ? 'OpenAI quota exhausted on all ' + openaiKeys.length + ' key(s)'
+        : status === 429 || status === 503
+          ? 'Rate limited (' + status + ')'
+          : 'Provider error ' + (status || '')) +
+      ' [' + stage + ']: ' + String(errMsg).substring(0, 250)
+    );
+  }
+
+  return {
+    text: result.text,
+    provider: result.provider,
+    model: result.model,
+    seed,
+    // Surfaced so callers can show user-facing notes
+    quota_warning: allKeysQuotaExhausted || openaiKeysExhausted > 0,
+    exhausted_keys: openaiKeysExhausted
+  };
 };
 
 /**
