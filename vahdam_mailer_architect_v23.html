@@ -477,6 +477,68 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
     <div id="dashRecordBody" style="display:flex;flex-direction:column"></div>
   </div>
 </div>
+<!-- ═══════════════════════════════════════════════════════════════════════
+     PIPELINE PROGRESS OVERLAY — v80 multi-stage generation
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="pipelineOverlay" style="display:none;position:fixed;inset:0;z-index:99998;background:rgba(8,24,16,0.92);backdrop-filter:blur(8px);align-items:center;justify-content:center;flex-direction:column">
+  <div style="background:#fff;border-radius:16px;padding:36px 40px;max-width:520px;width:90%;box-shadow:0 32px 80px rgba(0,0,0,0.5)">
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="font-family:'DM Sans',sans-serif;font-size:9px;font-weight:800;letter-spacing:0.18em;text-transform:uppercase;color:#d4873a;margin-bottom:6px">VAHDAM Mailer Architect</div>
+      <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:600;color:#0f2a1c;line-height:1.2">Generating Production Mailers</div>
+      <div style="font-family:'DM Sans',sans-serif;font-size:12px;color:#7a6e65;margin-top:6px">5-stage pipeline · Variant A + B · gpt-image-1 hero</div>
+    </div>
+    <!-- Step indicators -->
+    <div id="pipelineSteps" style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+      <div id="pstep-1" class="pstep" data-status="pending">
+        <div class="pstep-icon">⏳</div>
+        <div class="pstep-body"><div class="pstep-label">Stage 1 — Decision Engine</div><div class="pstep-msg">Strategy · Theme · Variant concept lock</div></div>
+      </div>
+      <div id="pstep-2" class="pstep" data-status="pending">
+        <div class="pstep-icon">⏳</div>
+        <div class="pstep-body"><div class="pstep-label">Stage 2 — Creative Plans</div><div class="pstep-msg">Variant A (product-led) + B (narrative) in separate calls</div></div>
+      </div>
+      <div id="pstep-3" class="pstep" data-status="pending">
+        <div class="pstep-icon">⏳</div>
+        <div class="pstep-body"><div class="pstep-label">Stage 3 — Image Generation</div><div class="pstep-msg">Hero + product + lifestyle via gpt-image-1 (3 retries each)</div></div>
+      </div>
+      <div id="pstep-4" class="pstep" data-status="pending">
+        <div class="pstep-icon">⏳</div>
+        <div class="pstep-body"><div class="pstep-label">Stage 4 — HTML Generation</div><div class="pstep-msg">Tightly bound to layout plan · Image placeholders injected</div></div>
+      </div>
+      <div id="pstep-5" class="pstep" data-status="pending">
+        <div class="pstep-icon">⏳</div>
+        <div class="pstep-body"><div class="pstep-label">Stage 5 — Quality Scoring</div><div class="pstep-msg">Auto-retry if score &lt; 7/10</div></div>
+      </div>
+    </div>
+    <!-- Live log -->
+    <div id="pipelineLog" style="background:#f7f3ee;border-radius:8px;padding:12px;max-height:140px;overflow-y:auto;font-family:'DM Sans',monospace;font-size:11px;color:#4a3f37;line-height:1.6"></div>
+    <!-- Abort -->
+    <div style="text-align:center;margin-top:16px">
+      <button onclick="_pipelineAbort()" style="background:none;border:1px solid #ccc;border-radius:6px;padding:7px 20px;font-family:'DM Sans',sans-serif;font-size:11px;color:#7a6e65;cursor:pointer">Cancel &amp; use template fallback</button>
+    </div>
+  </div>
+</div>
+<style>
+.pstep{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:8px;transition:background 0.2s,border-color 0.2s;border:1.5px solid #e8e0d8}
+.pstep[data-status="pending"]{background:#fafafa;opacity:0.55}
+.pstep[data-status="active"]{background:#fff8f0;border-color:#d4873a;opacity:1}
+.pstep[data-status="done"]{background:#f0faf4;border-color:#4caf77;opacity:1}
+.pstep[data-status="warn"]{background:#fff8e6;border-color:#e6a820;opacity:1}
+.pstep[data-status="error"]{background:#fff5f5;border-color:#e05050;opacity:1}
+.pstep-icon{font-size:16px;min-width:22px;margin-top:1px}
+.pstep[data-status="done"] .pstep-icon::before{content:"✅"}
+.pstep[data-status="active"] .pstep-icon::before{content:"⚙️"}
+.pstep[data-status="warn"] .pstep-icon::before{content:"⚠️"}
+.pstep[data-status="error"] .pstep-icon::before{content:"❌"}
+.pstep-icon{font-size:15px;min-width:20px}
+.pstep-label{font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;color:#0f2a1c;margin-bottom:2px}
+.pstep-msg{font-family:'DM Sans',sans-serif;font-size:11px;color:#7a6e65}
+.pl-item{display:flex;align-items:flex-start;gap:6px;padding:2px 0}
+.pl-icon{min-width:16px;font-size:11px}
+.pl-stage{font-weight:700;min-width:46px;color:#5c4f44}
+.pl-msg{color:#4a3f37}
+</style>
 <div id="authOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#f2ede4 0%,#e8f2ec 100%);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px">
   <div style="background:#fff;border-radius:20px;padding:clamp(24px,4vw,44px);max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,74,43,0.14);border:1px solid #e0d8cc">
     <div style="text-align:center;margin-bottom:18px">
@@ -4417,8 +4479,344 @@ async function _autoConceptThenBuild(uploadedImg){
   }
 }
 
-async function approveAndBuild(){
+// ═══════════════════════════════════════════════════════════════════════════
+// MULTI-STAGE PIPELINE ORCHESTRATOR — v80
+// Replaces single-pass generation with a 5-stage pipeline:
+//   Stage 1: Decision Engine → strategy, vibe, theme, variant concepts
+//   Stage 2: Creative Plans  → separate LLM call per variant (A ≠ B)
+//   Stage 3: Image Generation→ hero+product+lifestyle via gpt-image-1 (3 retries)
+//   Stage 4: HTML Generation → tightly bound to layout plan, images injected
+//   Stage 5: Quality Scoring → auto-retry if any score < 7/10
+// Fallback: if pipeline unavailable, calls original template builders.
+// ═══════════════════════════════════════════════════════════════════════════
+var _PLN_MAX_RETRIES = 2;
+var _PLN_RUNNING = false;
+var _PLN_ABORT = false;
+
+function _pipelineAbort() {
+  _PLN_ABORT = true;
+  _showPipelineOverlay(false);
+  _PLN_RUNNING = false;
+  // Fall back immediately to template-based build
+  approveAndBuild(true);
+}
+
+function _showPipelineOverlay(visible) {
+  var el = document.getElementById('pipelineOverlay');
+  if (!el) return;
+  el.style.display = visible ? 'flex' : 'none';
+  if (visible) {
+    // Reset all steps to pending
+    [1,2,3,4,5].forEach(function(i){
+      var s = document.getElementById('pstep-'+i);
+      if (s) s.setAttribute('data-status','pending');
+    });
+    var log = document.getElementById('pipelineLog');
+    if (log) log.innerHTML = '';
+  }
+}
+
+function _pipelineSetStep(stepNum, status, msg) {
+  var el = document.getElementById('pstep-' + stepNum);
+  if (!el) return;
+  el.setAttribute('data-status', status);
+  var msgEl = el.querySelector('.pstep-msg');
+  if (msgEl && msg) msgEl.textContent = msg;
+}
+
+function _pipelineLog(stepNum, msg, type) {
+  var log = document.getElementById('pipelineLog');
+  if (!log) return;
+  var icon = type==='ok'?'✓':type==='warn'?'⚠':type==='error'?'✗':'·';
+  var row = document.createElement('div');
+  row.className = 'pl-item';
+  row.innerHTML = '<span class="pl-icon">'+icon+'</span>'
+    + (stepNum ? '<span class="pl-stage">S'+stepNum+'</span>' : '')
+    + '<span class="pl-msg">'+msg+'</span>';
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function _pipelinePost(path, body, timeoutMs) {
+  if (_PLN_ABORT) throw new Error('Aborted by user');
+  timeoutMs = timeoutMs || 35000;
+  var ctrl = new AbortController();
+  var timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs);
+  try {
+    var r = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    if (!r.ok) {
+      var errData = await r.json().catch(function(){ return {}; });
+      throw new Error(path + ' → HTTP ' + r.status + ': ' + (errData.error || errData.detail || 'unknown'));
+    }
+    return await r.json();
+  } catch (e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
+
+async function _generateImagesForVariant(imageReqs, variant, stylelock) {
+  // Calls /api/ai/image directly (existing endpoint) up to 3× per slot.
+  // Returns { hero: dataUrl|null, product: dataUrl|null, lifestyle: dataUrl|null }
+  var MAX_RETRIES = 3;
+  var results = {};
+  var promises = (imageReqs || []).slice(0, 3).map(async function(req) {
+    var slot = req.slot || 'hero';
+    var fullPrompt = [(stylelock||''), (req.prompt||''), (req.negative_prompt ? 'Avoid: '+req.negative_prompt : '')]
+      .filter(Boolean).join(' ').trim();
+    var dataUrl = null;
+    for (var attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        var r = await fetch('/api/ai/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: fullPrompt, size: req.size || '1024x1024', quality: 'high' })
+        });
+        if (!r.ok) {
+          var eBody = await r.json().catch(function(){return{};});
+          console.warn('[pipeline/img]', variant, slot, 'attempt', attempt, '→', r.status, eBody.error || '');
+          continue;
+        }
+        var d = await r.json();
+        var url = d && d.image_data_url;
+        if (url && url.length > 2000) { dataUrl = url; break; }
+        console.warn('[pipeline/img]', variant, slot, 'attempt', attempt, '→ empty/short response');
+      } catch (imgErr) {
+        console.warn('[pipeline/img]', variant, slot, 'attempt', attempt, '→', imgErr.message);
+      }
+    }
+    results[slot] = dataUrl;
+  });
+  await Promise.allSettled(promises);
+  return results;
+}
+
+function _injectImages(html, images) {
+  if (!html) return html;
+  var h = html;
+  if (images.hero)      h = h.replace(/\{\{HERO_IMAGE_URL\}\}/g, images.hero);
+  if (images.product)   h = h.replace(/\{\{PRODUCT_IMAGE_URL\}\}/g, images.product);
+  if (images.lifestyle) h = h.replace(/\{\{LIFESTYLE_IMAGE_URL\}\}/g, images.lifestyle);
+  // Any remaining placeholders → grey placeholder
+  h = h.replace(/\{\{[A-Z_]+_IMAGE_URL\}\}/g, 'https://placehold.co/600x300/fdf6e8/0f2a1c?text=Image+Generating');
+  return h;
+}
+
+async function _runPipeline(mkt, opts) {
+  if (_PLN_RUNNING) return;
+  _PLN_RUNNING = true;
+  _PLN_ABORT = false;
+  opts = opts || {};
+  var regen = opts.regenerate_counter || 0;
+
+  _showPipelineOverlay(true);
+  _pipelineLog(0, 'Pipeline started — market: ' + mkt + (regen > 0 ? ' (retry '+regen+')' : ''), 'ok');
+
+  var brief = (window.S && (S.activePrompt || S.prompt)) || '';
+  var type  = (window.S && S.type) || '';
+  var prods = (window.S && S.selectedProducts) || (window.S && S.finalProds) || [];
+  var market = mkt || (window.S && S.activeMarket) || 'US';
+
+  try {
+    // ─── Stage 1: Decision Engine ─────────────────────────────────────────
+    _pipelineSetStep(1, 'active', 'Analysing brief + locking strategy...');
+    _pipelineLog(1, 'Decision Engine — parsing inputs, selecting strategy', '');
+
+    var strategy = await _pipelinePost('/api/ai/pipeline/strategy', {
+      brief: brief, market: market, type: type,
+      products: (Array.isArray(prods) ? prods : []).slice(0, 15),
+      regenerate_counter: regen
+    }, 28000);
+
+    _pipelineSetStep(1, 'done', (strategy.strategy || '?') + ' · ' + ((strategy.theme||{}).name || ''));
+    _pipelineLog(1, 'Strategy: ' + strategy.strategy + ' · Theme: ' + ((strategy.theme||{}).name||''), 'ok');
+
+    // ─── Stage 2: Creative Plans (A and B in parallel, separate calls) ────
+    _pipelineSetStep(2, 'active', 'Building Variant A + B plans (separate LLM calls)...');
+    _pipelineLog(2, 'Variant A (product-led, structured) + B (narrative, editorial) — parallel', '');
+
+    var [planA, planB] = await Promise.all([
+      _pipelinePost('/api/ai/pipeline/variant', {
+        strategy_output: strategy, variant: 'A',
+        brief: brief, market: market,
+        products: (Array.isArray(prods) ? prods : []).slice(0, 5),
+        regenerate_counter: regen
+      }, 38000),
+      _pipelinePost('/api/ai/pipeline/variant', {
+        strategy_output: strategy, variant: 'B',
+        brief: brief, market: market,
+        products: (Array.isArray(prods) ? prods : []).slice(0, 5),
+        regenerate_counter: regen
+      }, 38000)
+    ]);
+
+    var secA = (planA.sections || []).length;
+    var secB = (planB.sections || []).length;
+    _pipelineSetStep(2, 'done', 'A: ' + secA + ' sections (' + ((planA.layout_plan||{}).flow||'structured') + ') · B: ' + secB + ' sections (' + ((planB.layout_plan||{}).flow||'editorial') + ')');
+    _pipelineLog(2, 'Plans locked — A: '+secA+' sections, B: '+secB+' sections', 'ok');
+
+    // ─── Stage 3: Images (A and B in parallel, 3 slots each) ─────────────
+    _pipelineSetStep(3, 'active', 'Generating gpt-image-1 images (hero+product+lifestyle)...');
+    _pipelineLog(3, 'gpt-image-1: 3 images × 2 variants = 6 total (with retry)', '');
+
+    var stylelock = strategy.image_style_lock || '';
+    var [imgsA, imgsB] = await Promise.all([
+      _generateImagesForVariant(planA.image_requirements || [], 'A', stylelock),
+      _generateImagesForVariant(planB.image_requirements || [], 'B', stylelock)
+    ]);
+
+    var countA = Object.values(imgsA).filter(Boolean).length;
+    var countB = Object.values(imgsB).filter(Boolean).length;
+    _pipelineSetStep(3, countA+countB > 0 ? 'done' : 'warn', 'A: '+countA+'/3 · B: '+countB+'/3 images generated');
+    _pipelineLog(3, 'Images: A='+countA+'/3, B='+countB+'/3', countA+countB > 0 ? 'ok' : 'warn');
+
+    // Store in S.openaiImages so the existing preview system can also use them
+    if (!window.S.openaiImages) window.S.openaiImages = {};
+    if (!window.S.openaiImages[market]) window.S.openaiImages[market] = {};
+    if (imgsA.hero) window.S.openaiImages[market].A = imgsA.hero;
+    if (imgsB.hero) window.S.openaiImages[market].B = imgsB.hero;
+
+    // ─── Stage 4: HTML generation (A and B in parallel) ──────────────────
+    _pipelineSetStep(4, 'active', 'Generating HTML (tightly bound to layout plans)...');
+    _pipelineLog(4, 'HTML: Variant A + B in parallel — layout-plan bound, placeholders injected', '');
+
+    var [htmlResA, htmlResB] = await Promise.all([
+      _pipelinePost('/api/ai/pipeline/html', {
+        variant: 'A', variant_plan: planA, strategy_output: strategy,
+        market: market, brief: brief,
+        products: (Array.isArray(prods) ? prods : []).slice(0, 4)
+      }, 55000),
+      _pipelinePost('/api/ai/pipeline/html', {
+        variant: 'B', variant_plan: planB, strategy_output: strategy,
+        market: market, brief: brief,
+        products: (Array.isArray(prods) ? prods : []).slice(0, 4)
+      }, 55000)
+    ]);
+
+    // Replace {{IMAGE_URL}} placeholders with actual generated images
+    var finalA = _injectImages(htmlResA.html || '', imgsA);
+    var finalB = _injectImages(htmlResB.html || '', imgsB);
+    var kbA = Math.round(finalA.length / 1024);
+    var kbB = Math.round(finalB.length / 1024);
+
+    _pipelineSetStep(4, 'done', 'A: ' + kbA + 'KB · B: ' + kbB + 'KB');
+    _pipelineLog(4, 'HTML built — A: '+kbA+'KB, B: '+kbB+'KB', 'ok');
+
+    // ─── Stage 5: Quality Scoring ─────────────────────────────────────────
+    _pipelineSetStep(5, 'active', 'Quality scoring...');
+    _pipelineLog(5, 'Scoring strategy alignment, structural uniqueness, variant divergence', '');
+
+    var scoreRes = null;
+    try {
+      scoreRes = await _pipelinePost('/api/ai/pipeline/score', {
+        html_a: finalA, html_b: finalB,
+        variant_a_plan: planA, variant_b_plan: planB,
+        strategy_output: strategy
+      }, 22000);
+    } catch (scoreErr) {
+      console.warn('[pipeline] Scoring non-fatal error:', scoreErr.message);
+    }
+
+    // Auto-retry if quality gate fails and retries remain
+    if (scoreRes && !scoreRes.pass && regen < _PLN_MAX_RETRIES) {
+      var weak = scoreRes.weak_variant || 'both';
+      _pipelineSetStep(5, 'warn', 'Score below threshold for Variant ' + weak + ' — retrying ('+regen+'/'+ _PLN_MAX_RETRIES+')');
+      _pipelineLog(5, 'Auto-retry: ' + (scoreRes.retry_reason || 'quality below 7/10'), 'warn');
+      _PLN_RUNNING = false;
+      return _runPipeline(mkt, { regenerate_counter: regen + 1 });
+    }
+
+    var oA = scoreRes && scoreRes.scores_a && scoreRes.scores_a.overall != null ? scoreRes.scores_a.overall : '–';
+    var oB = scoreRes && scoreRes.scores_b && scoreRes.scores_b.overall != null ? scoreRes.scores_b.overall : '–';
+    _pipelineSetStep(5, 'done', 'A: ' + oA + '/10 · B: ' + oB + '/10' + (scoreRes && scoreRes.pass ? ' ✓' : ''));
+    _pipelineLog(5, 'Scores — A: '+oA+'/10, B: '+oB+'/10 '+(scoreRes&&scoreRes.pass?'PASS':'(final attempt)'), scoreRes&&scoreRes.pass?'ok':'warn');
+
+    // ─── Commit results to S.marketMailers ───────────────────────────────
+    if (!window.S.marketMailers) window.S.marketMailers = {};
+    window.S.marketMailers[market] = {
+      A: finalA,
+      B: finalB,
+      _pipelineMeta: {
+        strategy: strategy.strategy,
+        theme: (strategy.theme||{}).name,
+        subject_lines_a: htmlResA.subject_lines || [],
+        subject_lines_b: htmlResB.subject_lines || [],
+        preheader: htmlResA.preheader || '',
+        scores: scoreRes,
+        generated_at: new Date().toISOString(),
+        regen_count: regen
+      }
+    };
+
+    if (htmlResA.subject_lines && htmlResA.subject_lines.length) window.S.subjectLines = htmlResA.subject_lines;
+    if (htmlResA.preheader) window.S.preheader = htmlResA.preheader;
+
+    _pipelineLog(0, '✓ Pipeline complete — Variant A + B ready', 'ok');
+
+    setTimeout(function() {
+      _showPipelineOverlay(false);
+      _PLN_RUNNING = false;
+      // Trigger existing display infrastructure
+      S.activeVariant = S.activeVariant || 'A';
+      S.finalHTML = (window.S.marketMailers[market] || {})[S.activeVariant] || finalA;
+      var frEl = document.getElementById('emailFr');
+      if (frEl) frEl.srcdoc = S.finalHTML;
+      var rawEl = document.getElementById('htmlRaw');
+      if (rawEl) rawEl.textContent = S.finalHTML;
+      if (typeof buildStep5UI === 'function') buildStep5UI(S.prompt, S.finalProds, market);
+      if (typeof renderMarketTabs === 'function') renderMarketTabs();
+      if (typeof renderVariantSwitcher === 'function') renderVariantSwitcher();
+      if (typeof renderAllMailersMatrix === 'function') renderAllMailersMatrix();
+      if (typeof renderStrategicBrief === 'function') renderStrategicBrief();
+      if (typeof renderStep5UnifiedPanel === 'function') renderStep5UnifiedPanel();
+      if (typeof saveMailerToDashboard === 'function') saveMailerToDashboard();
+    }, 600);
+
+  } catch (e) {
+    console.error('[pipeline] Fatal:', e);
+    _pipelineLog(0, 'Pipeline error: ' + e.message + ' — falling back to template builders', 'error');
+    _PLN_RUNNING = false;
+    setTimeout(function() {
+      _showPipelineOverlay(false);
+      approveAndBuild(true); // true = skip pipeline, use templates
+    }, 1200);
+  }
+}
+// ── End pipeline orchestrator ─────────────────────────────────────────────
+
+async function approveAndBuild(skipPipeline){
   showOnly(5);
+  // ── v80: MULTI-STAGE PIPELINE for primary market (if not already running
+  //   and not explicitly skipped by fallback path).
+  if (!skipPipeline && !_PLN_RUNNING) {
+    var primaryMkt = (S.markets && S.markets.length > 0 ? S.markets[0] : null) || 'US';
+    // Build secondary markets with template builders in parallel
+    var allMkts = S.markets && S.markets.length > 0 ? S.markets : ['US'];
+    var secondaryMkts = allMkts.slice(1);
+    if (secondaryMkts.length > 0) {
+      // Pre-populate secondary markets with template builds so they're not empty
+      if (!S.marketMailers) S.marketMailers = {};
+      await _autoConceptThenBuild(null);
+      refreshStrategy();
+      S.activeVariant = S.strategy && S.strategy.primaryVariant ? S.strategy.primaryVariant : 'A';
+      S.activeMarket = primaryMkt;
+      secondaryMkts.forEach(function(mkt) {
+        window._vhdCurrentHeroA = _resolveImageUrl(mkt,'A');
+        window._vhdCurrentHeroB = _resolveImageUrl(mkt,'B');
+        S.marketMailers[mkt] = { A: buildEmail(null,mkt), B: buildEmailVariantB(null,mkt) };
+        window._vhdCurrentHeroA = null; window._vhdCurrentHeroB = null;
+      });
+    }
+    // Hand off primary market to pipeline — pipeline overlays the result
+    return _runPipeline(primaryMkt, { regenerate_counter: 0 });
+  }
+  // ── TEMPLATE FALLBACK PATH (skipPipeline=true or pipeline aborted) ────────
   // ── v68: AUTO-CONCEPT first. Smart fallback if no API key.
   await _autoConceptThenBuild(null);
   S.marketMailers={};
