@@ -6,6 +6,32 @@
 <title>VAHDAM® Mailer Studio</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23004A2B'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Georgia,serif' font-size='34' font-weight='700' fill='%23AB8743'%3EV%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<!-- Web Vitals tracking — v83. FCP / LCP / CLS / TTFB via PerformanceObserver,
+     stashed on window.__VITALS so devtools / forensics can inspect. Zero deps. -->
+<script>
+(function(){
+  window.__VITALS = window.__VITALS || { fcp:null, lcp:null, cls:0, ttfb:null };
+  try {
+    var navEntry = performance.getEntriesByType('navigation')[0];
+    if (navEntry) window.__VITALS.ttfb = Math.round(navEntry.responseStart - navEntry.requestStart);
+    new PerformanceObserver(function(list){
+      list.getEntries().forEach(function(e){
+        if (e.name === 'first-contentful-paint') window.__VITALS.fcp = Math.round(e.startTime);
+      });
+    }).observe({ type:'paint', buffered:true });
+    new PerformanceObserver(function(list){
+      var entries = list.getEntries();
+      var last = entries[entries.length - 1];
+      if (last) window.__VITALS.lcp = Math.round(last.startTime);
+    }).observe({ type:'largest-contentful-paint', buffered:true });
+    new PerformanceObserver(function(list){
+      list.getEntries().forEach(function(e){
+        if (!e.hadRecentInput) window.__VITALS.cls = (window.__VITALS.cls || 0) + e.value;
+      });
+    }).observe({ type:'layout-shift', buffered:true });
+  } catch (_) { /* unsupported in this browser */ }
+})();
+</script>
 <!-- Supabase JS SDK (used for cross-device dashboard storage) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
@@ -1108,7 +1134,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null,precomputedStrategy:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='free-providers-v76';
+window.__VAHDAM_BUILD__='audit-additions-v83';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
