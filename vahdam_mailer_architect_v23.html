@@ -4089,7 +4089,14 @@ async function generateWithOpenAI(){
     var dataUrl=data&&data.image_data_url;
     if(!dataUrl)throw new Error('No image returned by server');
     // Load into upload tab and auto-switch
-    S.uploadedDesignUrl=dataUrl;
+    // Store in S.openaiImages (NOT uploadedDesignUrl) so it is used as the hero image
+    // in the concept-based template, not as a "full design upload" that bypasses all routing
+    var mktKey=window.S&&S.activeMarket?S.activeMarket:'US';
+    if(!S.openaiImages)S.openaiImages={};
+    if(!S.openaiImages[mktKey])S.openaiImages[mktKey]={};
+    S.openaiImages[mktKey].A=dataUrl;
+    S.openaiImages[mktKey].B=dataUrl;
+    // Also show in upload preview so user can see what was generated
     var img=document.getElementById('uploadedImg');
     var preview=document.getElementById('uploadPreview');
     var zone=document.getElementById('uploadZone');
@@ -4097,7 +4104,7 @@ async function generateWithOpenAI(){
     if(preview)preview.style.display='block';
     if(zone)zone.style.display='none';
     switchP4Tab('upload',document.getElementById('tab-upload'));
-    showCopyToast('Image generated! Review then click Approve.');
+    showCopyToast('Image generated! Now click Approve to build mailers with this hero.');
   }catch(e){
     showCopyToast('OpenAI error: '+e.message);
     console.warn('generateWithOpenAI (non-critical):',e.message);
@@ -4149,10 +4156,13 @@ async function approveWithUpload(){
   // Variant B — rule-based "Narrative Story" layout (always available locally)
   var primaryB=buildEmailVariantB(_resolveImageUrl(S.activeMarket,'B'),S.activeMarket);
   S.marketMailers[S.activeMarket]={A:primaryA,B:primaryB};
-  // Build both variants for remaining markets using uploaded design
+  // Build both variants for remaining markets using AI hero image globals
   mkts.forEach(function(mkt){
     if(mkt!==S.activeMarket){
-      S.marketMailers[mkt]={A:buildEmail(_resolveImageUrl(mkt,'A'),mkt),B:buildEmailVariantB(_resolveImageUrl(mkt,'B'),mkt)};
+      window._vhdCurrentHeroA=_resolveImageUrl(mkt,'A');
+      window._vhdCurrentHeroB=_resolveImageUrl(mkt,'B');
+      S.marketMailers[mkt]={A:buildEmail(null,mkt),B:buildEmailVariantB(null,mkt)};
+      window._vhdCurrentHeroA=null;window._vhdCurrentHeroB=null;
     }
   });
   S.finalHTML=(S.marketMailers[S.activeMarket]||{})[S.activeVariant]||'';
@@ -4172,7 +4182,11 @@ async function approveWithUpload(){
 function _ensureMailerBuilt(mkt,v){
   if(!S.marketMailers[mkt])S.marketMailers[mkt]={};
   if(S.marketMailers[mkt][v])return S.marketMailers[mkt][v];
-  var html=v==='B'?buildEmailVariantB(_resolveImageUrl(mkt,'B'),mkt):buildEmail(_resolveImageUrl(mkt,'A'),mkt);
+  // v78: inject hero globals so concept routing and gpt-image-1 hero both work
+  window._vhdCurrentHeroA=_resolveImageUrl(mkt,'A');
+  window._vhdCurrentHeroB=_resolveImageUrl(mkt,'B');
+  var html=v==='B'?buildEmailVariantB(null,mkt):buildEmail(null,mkt);
+  window._vhdCurrentHeroA=null;window._vhdCurrentHeroB=null;
   S.marketMailers[mkt][v]=html;
   return html;
 }
@@ -4416,10 +4430,14 @@ async function approveAndBuild(){
   // A (Editorial Hero) AND B (Narrative Story) consistently. The save flow
   // and dashboard rely on this being complete before saveMailerToDashboard fires.
   mkts.forEach(function(mkt){
+    // Set hero image globals so builders can use gpt-image-1/Pollinations as hero
+    window._vhdCurrentHeroA=_resolveImageUrl(mkt,'A');
+    window._vhdCurrentHeroB=_resolveImageUrl(mkt,'B');
     S.marketMailers[mkt]={
       A: buildEmail(null, mkt),
-      B: buildEmailVariantB(_resolveImageUrl(mkt,'B'), mkt)
+      B: buildEmailVariantB(null, mkt)
     };
+    window._vhdCurrentHeroA=null;window._vhdCurrentHeroB=null;
   });
   S.finalHTML=(S.marketMailers[S.activeMarket]||{})[S.activeVariant]||'';
   var frEl=document.getElementById('emailFr');if(frEl)frEl.srcdoc=S.finalHTML;
@@ -4713,33 +4731,38 @@ async function _autoGenerateOpenAIImages(){
   if(!S.openaiImages)S.openaiImages={};
   if(!S.openaiImages[mkt])S.openaiImages[mkt]={};
   var directorPrefix='Ultra-premium D2C email hero. Editorial luxury photography. Phase One medium format aesthetic. Macro texture, shallow depth of field, matte surfaces. Cinematic. No text, no UI, no watermarks. ';
+  // Size map: api/ai/image accepts '1024x1024'|'1536x1024'|'1024x1536' ONLY
+  // A=landscape hero, B=portrait hero for full-width narrative layout
   var genImage=async function(sz,v){
     try{
       var r=await fetch('/api/ai/image',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({prompt:directorPrefix+prompt,size:sz,quality:'high'})
       });
-      if(!r.ok)return;
+      if(!r.ok){var err=await r.json().catch(function(){return{};});console.warn('[autoImg]',v,err);return;}
       var d=await r.json();
-      var url=d&&(d.url||d.b64_url||(d.data&&d.data[0]&&d.data[0].url));
+      // Server returns image_data_url (base64 data URL), not url/b64_url
+      var url=d&&(d.image_data_url||d.url||d.b64_url||(d.data&&d.data[0]&&d.data[0].url));
       if(url){
         S.openaiImages[mkt][v]=url;
-        // Rebuild this market's mailers with the upgraded image
+        // v78: Rebuild using _vhdCurrentHero globals so concept archetype routing fires correctly
         if(S.marketMailers&&S.marketMailers[mkt]){
-          S.marketMailers[mkt][v]=v==='B'?buildEmailVariantB(_resolveImageUrl(mkt,'B'),mkt):buildEmail(_resolveImageUrl(mkt,'A'),mkt);
-          // Refresh preview if this is the active market+variant
+          window._vhdCurrentHeroA=v==='A'?url:_resolveImageUrl(mkt,'A');
+          window._vhdCurrentHeroB=v==='B'?url:_resolveImageUrl(mkt,'B');
+          S.marketMailers[mkt][v]=v==='B'?buildEmailVariantB(null,mkt):buildEmail(null,mkt);
+          window._vhdCurrentHeroA=null;window._vhdCurrentHeroB=null;
           if(mkt===S.activeMarket){
-            var fr=document.getElementById('emailPreview');
-            if(fr&&fr.contentDocument){
-              var src=S.marketMailers[mkt][S.activeVariant||'A'];
-              if(src){fr.contentDocument.open();fr.contentDocument.write(src);fr.contentDocument.close();}
-            }
+            var frEl=document.getElementById('emailFr');
+            if(frEl){var src2=S.marketMailers[mkt][S.activeVariant||'A'];if(src2)frEl.srcdoc=src2;}
+            var rawEl3=document.getElementById('htmlRaw');
+            if(rawEl3)rawEl3.textContent=S.marketMailers[mkt][S.activeVariant||'A']||'';
+            if(typeof statusPill==='function')statusPill('ok','Mailer upgraded with gpt-image-1 hero','OpenAI image generation complete');
           }
         }
       }
     }catch(e){console.warn('[_autoGenerateOpenAIImages]',v,e.message);}
   };
-  Promise.allSettled([genImage('1792x1024','A'),genImage('1024x1792','B')]);
+  Promise.allSettled([genImage('1536x1024','A'),genImage('1024x1536','B')]);
 }
 // Build the region × variant image URL matrix and cache.
 // `forceNewSeeds` = true reseeds every cell (used by regen-with-feedback so the
@@ -5800,7 +5823,10 @@ window.pickConcept=function(id){
       var mkts=(S.markets&&S.markets.length)?S.markets:[S.activeMarket||'US'];
       S.marketMailers={};
       mkts.forEach(function(mkt){
-        S.marketMailers[mkt]={A:buildEmail(_resolveImageUrl(mkt,'A'),mkt),B:buildEmailVariantB(_resolveImageUrl(mkt,'B'),mkt)};
+        window._vhdCurrentHeroA=_resolveImageUrl(mkt,'A');
+        window._vhdCurrentHeroB=_resolveImageUrl(mkt,'B');
+        S.marketMailers[mkt]={A:buildEmail(null,mkt),B:buildEmailVariantB(null,mkt)};
+        window._vhdCurrentHeroA=null;window._vhdCurrentHeroB=null;
       });
       S.finalHTML=(S.marketMailers[S.activeMarket]||{})[S.activeVariant||'A']||'';
       var fr=document.getElementById('emailFr');if(fr)fr.srcdoc=S.finalHTML;
@@ -5885,45 +5911,47 @@ async function analyzeImageAndBuildEmail(base64DataUrl,prods,prompt,market){
 // Uses the SAME strategy data (headline, sub, CTA, products, offer) — only
 // the visual structure differs. User picks the better strategic angle.
 function buildEmailVariantB(uploadedDesignImg,mktOverride){
-  // v73: same auto-pickup as buildEmail — if S.uploadedDesignUrl is set, use it.
-  if(!uploadedDesignImg && window.S && S.uploadedDesignUrl){
+  // v78: Variant B ALWAYS routes on _conceptArchetypeB (different from A).
+  // AI hero images are threaded via _vhdCurrentHeroB global — NOT as uploadedDesignImg.
+  // Only actual user-uploaded full email designs use the delegate-to-buildEmail path.
+  const _aiHeroB = window._vhdCurrentHeroB || null;
+  // Auto-pickup S.uploadedDesignUrl ONLY when no AI hero is set and no param passed
+  if(!uploadedDesignImg && !_aiHeroB && window.S && S.uploadedDesignUrl){
     uploadedDesignImg = S.uploadedDesignUrl;
   }
-  // ── Full type-specific dispatcher (Variant B mirrors Variant A) ─────────
-  // Both variants now route to the same type-specific template.
-  // Variant choice (A vs B) only matters for the legacy fallback.
+  const _isActualUpload = uploadedDesignImg && S.uploadedDesignUrl && uploadedDesignImg===S.uploadedDesignUrl;
+  const _heroForBuilder = _aiHeroB || (_isActualUpload ? null : uploadedDesignImg) || null;
   const _type=S.type||detectType(S.activePrompt||S.prompt||'');
-  // Concept layout_archetype OVERRIDES the type dispatcher when a concept is picked.
-  // VARIANT B uses _conceptArchetypeB (set by applyConceptToPipeline) so A and B
-  // ALWAYS render structurally different archetypes from the same compatible pool.
+  // VARIANT B uses _conceptArchetypeB — ALWAYS a DIFFERENT archetype from Variant A.
+  // This guarantees structural divergence between A and B on every generation.
   const _archB=S._conceptArchetypeB||S._conceptArchetype||null;
-  if(!uploadedDesignImg && _archB){
-    if(_archB==='single-product-spotlight') return _compactHTML(buildLaunchMailer(uploadedDesignImg,mktOverride));
-    if(_archB==='gift-bundle-showcase')     return _compactHTML(buildGiftMailer(uploadedDesignImg,mktOverride));
-    if(_archB==='storytelling-narrative')   return _compactHTML(buildStoryMailer(uploadedDesignImg,mktOverride));
-    if(_archB==='ritual-journey')           return _compactHTML(buildRoutineMailer(uploadedDesignImg,mktOverride));
-    if(_archB==='comparison-discovery')     return _compactHTML(buildDiscoveryMailer(uploadedDesignImg,mktOverride));
-    if(_archB==='product-grid-conversion')  return _compactHTML(buildSaleMailer(uploadedDesignImg,mktOverride));
-    if(_archB==='founder-note')             return _compactHTML(buildFounderNoteMailer(uploadedDesignImg,mktOverride));
-    if(_archB==='editorial-trend-roundup')  return _compactHTML(buildEditorialEditMailer(uploadedDesignImg,mktOverride));
-    if(_archB==='limited-drop-countdown')   return _compactHTML(buildLaunchMailer(uploadedDesignImg,mktOverride));
-    if(_archB==='subscription-anchor')      return _compactHTML(buildLaunchMailer(uploadedDesignImg,mktOverride));
+  // Concept archetype routing — fires even with AI hero image, NEVER delegates to buildEmail
+  if(_archB && !_isActualUpload){
+    if(_archB==='single-product-spotlight') return _compactHTML(buildLaunchMailer(_heroForBuilder,mktOverride));
+    if(_archB==='gift-bundle-showcase')     return _compactHTML(buildGiftMailer(_heroForBuilder,mktOverride));
+    if(_archB==='storytelling-narrative')   return _compactHTML(buildStoryMailer(_heroForBuilder,mktOverride));
+    if(_archB==='ritual-journey')           return _compactHTML(buildRoutineMailer(_heroForBuilder,mktOverride));
+    if(_archB==='comparison-discovery')     return _compactHTML(buildDiscoveryMailer(_heroForBuilder,mktOverride));
+    if(_archB==='product-grid-conversion')  return _compactHTML(buildSaleMailer(_heroForBuilder,mktOverride));
+    if(_archB==='founder-note')             return _compactHTML(buildFounderNoteMailer(_heroForBuilder,mktOverride));
+    if(_archB==='editorial-trend-roundup')  return _compactHTML(buildEditorialEditMailer(_heroForBuilder,mktOverride));
+    if(_archB==='limited-drop-countdown')   return _compactHTML(buildLaunchMailer(_heroForBuilder,mktOverride));
+    if(_archB==='subscription-anchor')      return _compactHTML(buildLaunchMailer(_heroForBuilder,mktOverride));
   }
-  // v73: when uploadedDesignImg is present, delegate to buildEmail's trim path
-  // (canonical for upload flow). Prevents variantB rendering its own ann-bar +
-  // brand mark on top of an AI image with its own baked-in chrome.
-  if(uploadedDesignImg){
+  // Actual user full-design upload → delegate to buildEmail (keeps chrome-free trim path)
+  if(_isActualUpload){
     return _compactHTML(buildEmail(uploadedDesignImg,mktOverride));
   }
-  if(!uploadedDesignImg){
-    if(_type==='Sale')        return _compactHTML(buildSaleMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Story')       return _compactHTML(buildStoryMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Gift')        return _compactHTML(buildGiftMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Launch')      return _compactHTML(buildLaunchMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Bestseller')  return _compactHTML(buildBestsellerMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Discovery')   return _compactHTML(buildDiscoveryMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Routine')     return _compactHTML(buildRoutineMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Seasonal')    return _compactHTML(buildSeasonalMailer(uploadedDesignImg,mktOverride));
+  // Type-based routing fallback (no concept archetype set)
+  if(!_isActualUpload){
+    if(_type==='Sale')        return _compactHTML(buildSaleMailer(_heroForBuilder,mktOverride));
+    if(_type==='Story')       return _compactHTML(buildStoryMailer(_heroForBuilder,mktOverride));
+    if(_type==='Gift')        return _compactHTML(buildGiftMailer(_heroForBuilder,mktOverride));
+    if(_type==='Launch')      return _compactHTML(buildLaunchMailer(_heroForBuilder,mktOverride));
+    if(_type==='Bestseller')  return _compactHTML(buildBestsellerMailer(_heroForBuilder,mktOverride));
+    if(_type==='Discovery')   return _compactHTML(buildDiscoveryMailer(_heroForBuilder,mktOverride));
+    if(_type==='Routine')     return _compactHTML(buildRoutineMailer(_heroForBuilder,mktOverride));
+    if(_type==='Seasonal')    return _compactHTML(buildSeasonalMailer(_heroForBuilder,mktOverride));
   }
   refreshStrategy();
   const st=S.strategy||buildCampaignStrategy();
@@ -6807,43 +6835,46 @@ function buildSaleMailer(uploadedDesignImg,mktOverride){
 }
 
 function buildEmail(uploadedDesignImg,mktOverride){
-  // v73: if a hero image was uploaded/generated this session, ALWAYS use it
-  // even if the caller passed null. Prevents the duplicate-chrome bug where
-  // approveAndBuild passes null but S.uploadedDesignUrl is set from an earlier
-  // gpt-image-1 generation, causing the standard editorial template's ann-bar
-  // + brand block to stack ON TOP of an AI image that already has its own
-  // ann-bar + brand mark baked into the photograph.
-  if(!uploadedDesignImg && window.S && S.uploadedDesignUrl){
+  // v78: Use AI hero image (_vhdCurrentHeroA) as the hero in concept-based templates.
+  // Only treat S.uploadedDesignUrl as an actual user-uploaded full email design.
+  // AI-generated images (OpenAI / Pollinations) now route through the concept
+  // archetype dispatcher and appear as the hero inside the template — not as a
+  // full-bleed design that bypasses layout differentiation.
+  const _aiHeroA = window._vhdCurrentHeroA || null;
+  // Only auto-pickup S.uploadedDesignUrl when it is a real user upload (no AI hero set)
+  if(!uploadedDesignImg && !_aiHeroA && window.S && S.uploadedDesignUrl){
     uploadedDesignImg = S.uploadedDesignUrl;
   }
+  const _isActualUpload = uploadedDesignImg && S.uploadedDesignUrl && uploadedDesignImg===S.uploadedDesignUrl;
+  // heroImg for type-specific builders: prefer AI hero, then actual upload, then nothing
+  const _heroForBuilder = _aiHeroA || (_isActualUpload ? null : uploadedDesignImg) || null;
   // ── Full type-specific dispatcher ──────────────────────────────────────
-  // Every campaign type has its own structurally distinct template.
-  // The standard editorial below is the fallback for "Campaign" / unknown.
   const _type=S.type||detectType(S.activePrompt||S.prompt||'');
-  // Concept layout_archetype OVERRIDES the type dispatcher when a concept is picked
   const _arch=S._conceptArchetype||null;
-  if(!uploadedDesignImg && _arch){
-    if(_arch==='single-product-spotlight') return buildLaunchMailer(uploadedDesignImg,mktOverride);
-    if(_arch==='gift-bundle-showcase')     return buildGiftMailer(uploadedDesignImg,mktOverride);
-    if(_arch==='storytelling-narrative')   return buildStoryMailer(uploadedDesignImg,mktOverride);
-    if(_arch==='ritual-journey')           return buildRoutineMailer(uploadedDesignImg,mktOverride);
-    if(_arch==='comparison-discovery')     return buildDiscoveryMailer(uploadedDesignImg,mktOverride);
-    if(_arch==='product-grid-conversion')  return _compactHTML(buildSaleMailer(uploadedDesignImg,mktOverride));
-    if(_arch==='founder-note')             return _compactHTML(buildFounderNoteMailer(uploadedDesignImg,mktOverride));
-    if(_arch==='editorial-trend-roundup')  return _compactHTML(buildEditorialEditMailer(uploadedDesignImg,mktOverride));
-    if(_arch==='limited-drop-countdown')   return _compactHTML(buildLaunchMailer(uploadedDesignImg,mktOverride));
-    if(_arch==='subscription-anchor')      return _compactHTML(buildLaunchMailer(uploadedDesignImg,mktOverride));
+  // Concept archetype routing — always fires (except for actual full-design uploads)
+  if(_arch && !_isActualUpload){
+    if(_arch==='single-product-spotlight') return buildLaunchMailer(_heroForBuilder,mktOverride);
+    if(_arch==='gift-bundle-showcase')     return buildGiftMailer(_heroForBuilder,mktOverride);
+    if(_arch==='storytelling-narrative')   return buildStoryMailer(_heroForBuilder,mktOverride);
+    if(_arch==='ritual-journey')           return buildRoutineMailer(_heroForBuilder,mktOverride);
+    if(_arch==='comparison-discovery')     return buildDiscoveryMailer(_heroForBuilder,mktOverride);
+    if(_arch==='product-grid-conversion')  return _compactHTML(buildSaleMailer(_heroForBuilder,mktOverride));
+    if(_arch==='founder-note')             return _compactHTML(buildFounderNoteMailer(_heroForBuilder,mktOverride));
+    if(_arch==='editorial-trend-roundup')  return _compactHTML(buildEditorialEditMailer(_heroForBuilder,mktOverride));
+    if(_arch==='limited-drop-countdown')   return _compactHTML(buildLaunchMailer(_heroForBuilder,mktOverride));
+    if(_arch==='subscription-anchor')      return _compactHTML(buildLaunchMailer(_heroForBuilder,mktOverride));
     // hero-led-editorial → fall through to standard editorial path below
   }
-  if(!uploadedDesignImg){
-    if(_type==='Sale')        return _compactHTML(buildSaleMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Story')       return _compactHTML(buildStoryMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Gift')        return _compactHTML(buildGiftMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Launch')      return _compactHTML(buildLaunchMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Bestseller')  return _compactHTML(buildBestsellerMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Discovery')   return _compactHTML(buildDiscoveryMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Routine')     return _compactHTML(buildRoutineMailer(uploadedDesignImg,mktOverride));
-    if(_type==='Seasonal')    return _compactHTML(buildSeasonalMailer(uploadedDesignImg,mktOverride));
+  // Type-based routing (no concept archetype, or hero-led-editorial fallback)
+  if(!_isActualUpload){
+    if(_type==='Sale')        return _compactHTML(buildSaleMailer(_heroForBuilder,mktOverride));
+    if(_type==='Story')       return _compactHTML(buildStoryMailer(_heroForBuilder,mktOverride));
+    if(_type==='Gift')        return _compactHTML(buildGiftMailer(_heroForBuilder,mktOverride));
+    if(_type==='Launch')      return _compactHTML(buildLaunchMailer(_heroForBuilder,mktOverride));
+    if(_type==='Bestseller')  return _compactHTML(buildBestsellerMailer(_heroForBuilder,mktOverride));
+    if(_type==='Discovery')   return _compactHTML(buildDiscoveryMailer(_heroForBuilder,mktOverride));
+    if(_type==='Routine')     return _compactHTML(buildRoutineMailer(_heroForBuilder,mktOverride));
+    if(_type==='Seasonal')    return _compactHTML(buildSeasonalMailer(_heroForBuilder,mktOverride));
   }
   const prods=S.finalProds;
   // Use feedback-enriched prompt (S.activePrompt) when available so regenerate-with-feedback
