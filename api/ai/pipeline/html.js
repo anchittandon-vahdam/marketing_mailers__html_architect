@@ -146,7 +146,8 @@ Generate the complete Variant ${variant} HTML now. Start with <!DOCTYPE html>. F
       userMessage,
       maxTokens: 8500,
       temperature: 0.25,  // Low — deterministic HTML, not creative
-      timeoutMs: 50000
+      timeoutMs: 50000,
+      stage: 'html-variant-' + variant
     });
 
     // Strip accidental markdown fences

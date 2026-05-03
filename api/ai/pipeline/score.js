@@ -144,7 +144,8 @@ Score both variants now and return the JSON.`;
       responseFormat: { type: 'json_object' },
       maxTokens: 700,
       temperature: 0.15,  // Near-deterministic — scoring should be consistent
-      timeoutMs: 20000
+      timeoutMs: 20000,
+      stage: 'score'
     });
 
     let parsed;

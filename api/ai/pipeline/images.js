@@ -38,6 +38,7 @@ async function generateImage(prompt, size, openaiKey) {
   if (openaiKey) {
     const r = await fetch(OPENAI_BASE + '/images/generations', {
       method: 'POST',
+      cache: 'no-store',   // disable fetch-level caching — each image must be unique
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + openaiKey },
       body: JSON.stringify({
         model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1',
@@ -56,14 +57,14 @@ async function generateImage(prompt, size, openaiKey) {
     if (!entry) throw new Error('OpenAI: no image in response');
     if (entry.b64_json) return 'data:image/png;base64,' + entry.b64_json;
     if (entry.url) {
-      const imgR = await fetch(entry.url);
+      const imgR = await fetch(entry.url, { cache: 'no-store' });
       const buf = await imgR.arrayBuffer();
       return 'data:image/png;base64,' + Buffer.from(buf).toString('base64');
     }
     throw new Error('OpenAI: unrecognised image response shape');
 
   } else {
-    // Pollinations fallback
+    // Pollinations fallback — random seed per call ensures different output
     const sizeMap = {
       '1024x1024': { w: 1024, h: 1024 },
       '1536x1024': { w: 1536, h: 1024 },
@@ -76,7 +77,7 @@ async function generateImage(prompt, size, openaiKey) {
       '?width=' + dim.w + '&height=' + dim.h +
       '&seed=' + seed + '&nologo=true&model=flux&enhance=true';
 
-    const imgR = await fetch(url);
+    const imgR = await fetch(url, { cache: 'no-store' });
     if (!imgR.ok) throw new Error('Pollinations ' + imgR.status);
     const buf = await imgR.arrayBuffer();
     const ct = imgR.headers.get('content-type') || 'image/jpeg';

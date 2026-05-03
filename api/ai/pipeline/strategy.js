@@ -116,7 +116,8 @@ Generate the strategic decision JSON now. Think carefully. Every field matters.`
       responseFormat: { type: 'json_object' },
       maxTokens: 1800,
       temperature: 0.6 + Math.min(0.3, regenerate_counter * 0.1),
-      timeoutMs: 28000
+      timeoutMs: 28000,
+      stage: 'strategy[regen=' + regenerate_counter + ']'
     });
 
     let parsed;

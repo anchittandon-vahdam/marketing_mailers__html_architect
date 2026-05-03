@@ -202,7 +202,8 @@ Generate the complete Variant ${variant} creative plan now. Every image prompt m
       responseFormat: { type: 'json_object' },
       maxTokens: 3500,
       temperature: 0.65 + Math.min(0.25, regenerate_counter * 0.1),
-      timeoutMs: 35000
+      timeoutMs: 35000,
+      stage: 'variant-' + variant + '[regen=' + regenerate_counter + ']'
     });
 
     let parsed;

@@ -72,6 +72,7 @@ module.exports = async function handler(req, res) {
     if (provider === 'openai') {
       const fetchRes = await fetch(OPENAI_BASE + '/images/generations', {
         method: 'POST',
+        cache: 'no-store',   // disable fetch-level caching — every generation must be unique
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + openaiKey },
         body: JSON.stringify({ model: imageModel, prompt: finalPrompt, n: 1, size, quality }),
         signal: controller.signal
