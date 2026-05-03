@@ -2,6 +2,9 @@
 .netlify/
 .cache/
 
+# Vercel CLI link state (org/project IDs — not secrets, but no need to track)
+.vercel/
+
 # Node / npm
 node_modules/
 npm-debug.log*
