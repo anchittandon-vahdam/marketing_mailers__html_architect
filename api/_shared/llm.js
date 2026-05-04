@@ -111,11 +111,12 @@ module.exports = async function callLLM(opts) {
             contents: [{ role: 'user', parts: [{ text: combined }] }],
             generationConfig: {
               temperature, maxOutputTokens: maxTokens,
-              ...(responseFormat ? { responseMimeType: 'application/json' } : {})
-            },
-            // Disable thinking for JSON-mode requests — thinking tokens contaminate JSON output
-            // and cause json_parse_failed. thinkingBudget:0 is a no-op on models without thinking.
-            ...(responseFormat ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+              ...(responseFormat ? { responseMimeType: 'application/json' } : {}),
+              // thinkingBudget:0 must be INSIDE generationConfig for v1beta.
+              // Disables thinking tokens that leak into JSON output and break parsing.
+              // No-op on models that don't support thinking (2.0-flash, 2.0-flash-lite).
+              ...(responseFormat ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+            }
           }),
           signal: ctrl.signal
         }

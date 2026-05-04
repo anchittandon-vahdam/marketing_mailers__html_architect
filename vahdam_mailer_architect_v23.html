@@ -2129,14 +2129,43 @@ async function createPromptWithAI(){
   }
 }
 
-function enhancePrompt(){
+async function enhancePrompt(){
   var ta=document.getElementById('promptIn');
   var raw=(ta?ta.value:'').trim();
+
+  // ── Try LLM-powered enhancement first ────────────────────────────────────
+  var primaryMkt=(window.S&&S.markets&&S.markets[0])?S.markets[0]:'US';
+  var type=(window.S&&S.type)?S.type:'Auto';
+  var selProds=(window.S&&Array.isArray(S.finalProds))?S.finalProds:[];
+  var btn=document.getElementById('enhanceBtn')||document.querySelector('[onclick*="enhancePrompt"]');
+  if(btn){btn.disabled=true;btn.textContent='Enhancing...';}
+  try{
+    var res=await fetch('/api/ai/generate',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        mode:'create_brief',
+        market:primaryMkt,
+        theme:type,
+        campaign_brief:raw||'(no brief — generate a strong campaign concept)',
+        selected_products:selProds.slice(0,6).map(function(p){return{name:p.name||p.n||'',handle:p.handle||p.id||'',category:p.category||'',price:p.price||'',compare_at:p.compare_at||''};})
+      })
+    });
+    if(res.ok){
+      var data=await res.json();
+      if(data.ok&&data.text&&data.text.length>100){
+        if(ta){ta.value=data.text;ta.style.height='280px';ta.scrollTop=0;ta.setSelectionRange(0,0);}
+        if(btn){btn.disabled=false;btn.textContent='✦ Enhance';}
+        if(typeof statusPill==='function')statusPill('ok','Brief enhanced with AI — review and click Generate');
+        return;
+      }
+    }
+  }catch(e){/* fall through to heuristic */}
+  if(btn){btn.disabled=false;btn.textContent='✦ Enhance';}
+  // ── Heuristic fallback (no LLM) ──────────────────────────────────────────
   if(!raw){
     showValidErr('promptIn','Write your campaign idea first — even one line. Enhance will add the D2C strategy layer on top without changing your idea.');
     return;
   }
-  var type=(window.S&&S.type)?S.type:'Auto';
   var mkts=(window.S&&S.markets&&S.markets.length>0)?S.markets.join(', '):'US';
   var enhanced=buildEnhancedPrompt(raw);
   if(ta){
@@ -2213,57 +2242,53 @@ function buildEnhancedPrompt(raw){
   };
   var mktHook=mktHooks[primaryMkt]||mktHooks.US;
 
-  // ── CONVERSION MECHANICS ──────────────────────────────────────────────────
-  var mechanics=[];
-  if(oc){
-    var displayInstruction=has(l,'display','prominently','hero','banner','front')?'':('. Display the code '+oc+' in a visually bold, isolated hero moment — full-width, large type, impossible to miss.');
-    mechanics.push('OFFER MECHANIC: Promo code '+oc+(ot?' — '+ot:'')+''+displayInstruction+' Show the code in the announcement bar AND in the hero section. Create a sense that this code is exclusive to this subscriber list.');
+  // ── Build product block from selected products ────────────────────────────
+  var selProds=(window.S&&Array.isArray(S.finalProds))?S.finalProds:[];
+  var prodLines=selProds.slice(0,4).map(function(p){
+    var parts=[p.name||p.n||''];
+    if(p.price)parts.push('$'+p.price);
+    if(p.compare_at&&p.compare_at!==p.price)parts.push('(was $'+p.compare_at+')');
+    if(p.category)parts.push(p.category);
+    return '  · '+parts.join(' | ');
+  });
+
+  // ── Offer / discount detection ────────────────────────────────────────────
+  var offerLine='';
+  if(oc)offerLine='Code: '+oc+(ot?' ('+ot+')':'')+' · Show in announcement bar + hero';
+  else if(!has(l,'free ship'))offerLine='Free shipping $49+ (US) / £35 (UK) / $65 (AU) · show in hero + bar';
+
+  // ── Urgency signal ────────────────────────────────────────────────────────
+  var urgency='';
+  if(!has(l,'urgency','expires','limited','today','ends','deadline','hours left','days left')){
+    urgency={Sale:'"Offer ends midnight Sunday" or "Only 200 units at this price"',
+             Seasonal:'Season is the urgency — "This harvest only, while stocks last"',
+             Gift:'Shipping deadline — "Order by [date] for guaranteed delivery"',
+             Launch:'"Be among the first 500 — subscriber-only early access"'}[type]||
+            '"Limited batch — shop before it sells out"';
   }
-  if(!has(l,'free shipping','complimentary shipping','ship free'))
-    mechanics.push('SHIPPING HOOK: Offer free shipping on orders above the market threshold (US $49 / UK £35 / AU $65). This is a proven AOV lever — display it in the hero, near the CTA, and in the announcement bar.');
-  if(!has(l,'urgency','expires','limited','today only','ends','deadline','hours','days left'))
-    mechanics.push('URGENCY LEVER: '+(type==='Sale'?'Add a deadline or stock-scarcity signal — "Offer ends Sunday midnight" or "Only 200 units at this price". Urgency is the single biggest conversion driver in sale emails.':type==='Launch'?'Create FOMO — "Be among the first to try this". Subscribers should feel like insiders getting early access.':type==='Seasonal'?'The season itself is the urgency — "This blend is only available while the season lasts." Natural scarcity requires no fabrication.':'Introduce soft urgency — "Shop before it sells out" or "This offer is for our subscriber community only."'));
-  if(!has(l,'social proof','reviews','rated','customers','50,000','stars'))
-    mechanics.push('SOCIAL PROOF: Anchor credibility with "Rated 4.8/5 by 50,000+ tea lovers worldwide" in the product section or hero sub-copy. Social proof reduces purchase hesitation significantly in D2C email.');
 
-  // ── COPY DIRECTION (tone + sensory) ──────────────────────────────────────
-  var copyDir={
-    Sale:'Copy tone: Direct, punchy, conversion-first. Hero headline should lead with the offer value — don\'t bury it. Sub-copy should justify quality ("farm-direct freshness — even at '+(ot||'this')+(ot?' off':'discount')+'"). CTAs: action-driven verbs — "Shop Now", "Claim Your Discount", "Save Today".',
-    Launch:'Copy tone: Exclusive and anticipatory. Write as if you\'re letting the subscriber in on a secret. Hero should name the product boldly. Sub-copy: origin story, first-sip sensory detail. CTA: "Be First to Try", "Discover Now", "Meet [Product Name]".',
-    Gift:'Copy tone: Warm, thoughtful, emotionally resonant. Speak to the gifter — their desire to surprise and delight. Hero: speak to the recipient\'s joy. Sub-copy: unboxing experience, freshness, premium packaging. CTA: "Gift Now", "Shop Gift Sets", "Make Someone\'s Morning".',
-    Seasonal:'Copy tone: Evocative and occasion-specific. Transport the reader to the season/moment. Hero: bold seasonal headline. Sub-copy: sensory mood, ritual, togetherness. CTA: "Shop the Season", "Embrace [Season]", "[Occasion]-Ready Teas".',
-    Bestseller:'Copy tone: Confident and community-endorsed. Lead with the number — "50,000+ customers". Hero: bold social proof statement. Sub-copy: what makes these the bestsellers (taste, quality, freshness). CTA: "Shop What Everyone Loves", "Join 50K+ Tea Lovers".',
-    Discovery:'Copy tone: Curious and adventurous. Make the reader feel like an explorer. Hero: invite discovery ("Your next favourite tea is waiting"). Sub-copy: range breadth, Indian estate diversity. CTA: "Explore Now", "Start Your Tea Journey", "Discover Indian Teas".',
-    Routine:'Copy tone: Calm, aspirational, ritual-forward. Paint the morning in words. Hero: the ritual moment. Sub-copy: wellness benefits woven into daily habit narrative. CTA: "Start Your Ritual", "Shop Daily Wellness", "Make It a Habit".',
-    Story:'Copy tone: Authentic, unhurried, emotive. Let the brand breathe. Hero: an evocative farm or origin image with a headline that anchors in place and purpose. Sub-copy: the VAHDAM story — direct trade, 150+ estates, farmer welfare. CTA: "Read Our Story", "Shop Farm-Direct", "Meet the Farmers".'
-  };
-  var copy=copyDir[type]||copyDir.Sale;
+  // ── CTA direction ─────────────────────────────────────────────────────────
+  var ctas={Sale:'Shop Now / Claim Discount / Save Today',
+            Gift:'Gift Now / Shop Gift Sets / Make Her Smile',
+            Seasonal:'Shop the Season / Embrace [Season]',
+            Launch:'Be First to Try / Discover Now',
+            Bestseller:'Shop What Everyone Loves / Join 50K+ Fans',
+            Routine:'Start Your Ritual / Shop Daily Wellness'}[type]||'Shop Now / Explore';
 
-  // ── MULTI-MARKET NOTE ─────────────────────────────────────────────────────
-  var multiNote=isMultiMkt?'MULTI-MARKET DEPLOYMENT: This campaign deploys across '+mkts.join(', ')+'. Each market version should adapt: currency, shipping threshold, British vs American English (UK vs US), and culturally resonant hooks. Core campaign theme and visual identity stay consistent across all markets.':'';
-
-  // ── ASSEMBLE THE FINAL ENHANCED BRIEF ─────────────────────────────────────
-  // Single coherent document — the user's idea is folded in as the BRIEF field
-  // (not duplicated above). What the textarea shows IS what downstream gets.
-  var lines=[];
-  lines.push('── D2C GROWTH BRIEF (Director of Growth & Marketing) ──────────────────');
-  lines.push('CAMPAIGN: '+type+' · MARKETS: '+mkts.join(', '));
-  lines.push('');
+  // ── Assemble concise brief ────────────────────────────────────────────────
+  var lines=['CAMPAIGN TYPE: '+type+' | MARKET: '+mkts.join(', '),''];
   lines.push('BRIEF: '+raw.trim());
+  if(prodLines.length){lines.push('');lines.push('PRODUCTS:');prodLines.forEach(function(p){lines.push(p);});}
+  if(offerLine){lines.push('');lines.push('OFFER: '+offerLine);}
+  if(urgency){lines.push('URGENCY: '+urgency);}
   lines.push('');
-  lines.push('CAMPAIGN OBJECTIVE: '+objective);
+  lines.push('AUDIENCE: '+audience);
   lines.push('');
-  lines.push('TARGET AUDIENCE: '+audience);
+  lines.push('OBJECTIVE: '+objective);
   lines.push('');
-  lines.push('CONVERSION MECHANICS:');
-  mechanics.forEach(function(m){lines.push('• '+m);});
-  lines.push('');
-  lines.push('COPY DIRECTION: '+copy);
-  lines.push('');
-  lines.push('MARKET INTELLIGENCE ('+primaryMkt+'): '+mktHook);
-  if(multiNote){lines.push('');lines.push(multiNote);}
-  lines.push('');
-  lines.push('BRAND VOICE: Premium yet human. Never corporate or cold. Authentic Indian heritage, farm-to-cup freshness, ethically sourced and women-empowered supply chain. Every line should feel like it was written by someone who has stood on a Darjeeling estate at sunrise — not in a call centre.');
+  lines.push('CTA OPTIONS: '+ctas);
+  lines.push('SOCIAL PROOF: "Rated 4.8/5 by 50,000+ tea lovers" — use in hero sub-copy or product section.');
+  if(isMultiMkt){lines.push('');lines.push('MULTI-MARKET: '+mkts.join(', ')+' — adapt currency, shipping threshold, and spelling (UK vs US) per market.');}
   return lines.join('\n');
 }
 

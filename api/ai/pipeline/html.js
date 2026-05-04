@@ -710,6 +710,20 @@ Output starts <!DOCTYPE html>, ends </html>. Nothing before or after.`;
       });
     }
 
+    // Placeholder validation: all three image slots must be present so the client can inject images
+    const missingPlaceholders = ['IMAGE_HERO_URL', 'IMAGE_PRODUCT_URL', 'IMAGE_LIFESTYLE_URL']
+      .filter(p => !html.includes(p));
+    if (missingPlaceholders.length === 3) {
+      // All three missing means the LLM ignored the image instructions entirely — reject
+      return res.status(502).json({
+        error: 'html_missing_images',
+        variant,
+        provider,
+        detail: 'HTML contains no image placeholders — LLM did not follow image slot instructions',
+        missing: missingPlaceholders
+      });
+    }
+
     return res.status(200).json({
       ok: true,
       stage: 'html',

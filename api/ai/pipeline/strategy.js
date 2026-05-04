@@ -247,7 +247,7 @@ Run Phase 1 → Phase 2 now. Think deeply before locking. Every field matters.`;
       systemPrompt: SYSTEM,
       userMessage,
       responseFormat: { type: 'json_object' },
-      maxTokens: 2200,
+      maxTokens: 3000,
       temperature: 0.65 + Math.min(0.3, regenerate_counter * 0.1),
       timeoutMs: 38000,        // 38s internal; vercel maxDuration 45s (7s headroom)
       stage: 'strategy[regen=' + regenerate_counter + ']'

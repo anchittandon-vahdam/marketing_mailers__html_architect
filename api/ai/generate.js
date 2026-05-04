@@ -399,10 +399,11 @@ module.exports = async function handler(req, res) {
             generationConfig: {
               temperature,
               maxOutputTokens: max_tokens,
-              ...(response_format ? { responseMimeType: 'application/json' } : {})
-            },
-            // Disable thinking for JSON-mode: thinking tokens leak into output and break parsing
-            ...(response_format ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+              ...(response_format ? { responseMimeType: 'application/json' } : {}),
+              // thinkingBudget:0 inside generationConfig — disables thinking tokens
+              // that leak before JSON and break parsing on gemini-2.5-flash
+              ...(response_format ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+            }
           }),
           signal: ctrl.signal
         }

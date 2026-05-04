@@ -213,19 +213,21 @@ Score both variants now on ALL criteria. Penalise heavily for: thin content, mis
     return res.status(200).json({ ok: true, stage: 'score', provider, model, ...parsed });
 
   } catch (e) {
-    // Scoring failure is non-fatal — return a synthetic pass so pipeline doesn't loop
-    console.warn('[pipeline/score] error:', e.message);
+    // Scoring LLM failed — pass through so pipeline completes rather than looping,
+    // but flag the error so the frontend can show a warning to the user.
+    console.warn('[pipeline/score] scoring failed — passing through with warning:', e.message);
     return res.status(200).json({
       ok: true,
       stage: 'score',
       provider: 'fallback',
       pass: true,
       weak_variant: null,
-      failure_reasons: [],
+      failure_reasons: ['scoring_unavailable'],
       retry_reason: null,
       _score_error: String(e.message || e).substring(0, 200),
-      scores_a: { overall: 8 },
-      scores_b: { overall: 8 }
+      _scoring_skipped: true,
+      scores_a: { strategy_alignment: 7, content_density: 7, copy_quality: 7, overall: 7 },
+      scores_b: { strategy_alignment: 7, content_density: 7, copy_quality: 7, variant_divergence: 8, overall: 7 }
     });
   }
 };
