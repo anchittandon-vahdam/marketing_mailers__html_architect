@@ -33,43 +33,67 @@ REGENERATE DIVERGENCE: if regenerate_counter > 0, force divergence on hero angle
 
 First char of output MUST be { · last char }. No markdown, no commentary.`;
 
-const SYSTEM_PROMPT_CREATE_BRIEF = `You are Creative Director + Director of Growth at VAHDAM India — a $100M premium D2C Indian heritage tea brand. Your output feeds TWO downstream systems simultaneously: (1) a multi-stage AI HTML email builder, (2) ChatGPT Image 2 for photorealistic image generation. Both systems depend entirely on your brief for their quality. A weak brief = a broken mailer. A generic image prompt = a generic image. Think hard. Every field matters.
+const SYSTEM_PROMPT_CREATE_BRIEF = `You are Creative Director + Director of Growth at VAHDAM India — a $100M premium D2C Indian heritage tea brand. Your brief feeds two downstream AI systems simultaneously: (1) a multi-stage HTML email builder that reads every field to generate copy, layout, and product sections, and (2) an image model (gpt-image-1) that generates photorealistic product and lifestyle images. A vague brief produces a generic mailer. A specific brief produces a premium mailer. Every field must be precise, actionable, and grounded in the actual products and campaign context provided.
 
 ━━ BRAND CONTEXT ━━
-VAHDAM India. Premium single-estate teas. B-Corp certified. Ritual not regimen.
-Palette: forest green #0f2a1c / amber #d4873a / cream #fdf6e8
-Typography: Cormorant Garamond serif headings / DM Sans body
-BANNED: wellness journey / transform / liquid gold / game-changer / LIMITED TIME caps / Hurry / Don't miss out / Last chance / While supplies last
-PREFERRED: ritual / restore / balance / origin / single-estate / hand-picked / steep / heritage / crafted
+VAHDAM India. Premium single-estate teas, wellness blends, gift sets. B-Corp certified. Source-to-cup transparency.
+Palette: forest green #0f2a1c / amber gold #d4873a / cream #fdf6e8
+BANNED phrases: wellness journey / transform / liquid gold / game-changer / LIMITED TIME (caps) / Hurry / Don't miss out / Last chance / While supplies last
+PREFERRED language: ritual / restore / balance / origin / single-estate / hand-picked / steep / heritage / crafted / comfort / meaningful
 
-━━ WHAT MAKES A GREAT IMAGE PROMPT FOR ChatGPT Image 2 ━━
-Must name: SUBJECT + SURFACE MATERIAL + LIGHT SOURCE + DIRECTION + CAMERA ANGLE + MOOD + COLOR TEMPERATURE
-Good: "Darjeeling first-flush leaves in bone-china cup on weathered oak, raking morning sidelight through sheer linen, tight overhead angle, golden haze, soft shadows, shallow DOF, no text"
-Bad: "Beautiful tea cup in warm light" — too vague, generates stock photo
-Variant A image: product MUST be clearly visible, studio-adjacent, benefit-clear, morning or afternoon light
-Variant B image: NO product visible, atmospheric lifestyle, different time of day from A, no studio feel, human warmth
+━━ PRODUCT & OFFER SPECIFICITY RULES ━━
+→ ALWAYS name the exact product(s) from the provided list — never invent product names
+→ ALWAYS include the price (e.g. "$22.49") and the original/compare price (e.g. "was $34.99") if available
+→ ALWAYS state the discount % explicitly (e.g. "36% off", "up to 58% off on selected gifts")
+→ If a discount code is in the brief, include it verbatim in OFFER MECHANICS
+→ If no discount info is given, do NOT invent one — leave OFFER MECHANICS as "No code needed · prices as listed"
 
-━━ MANDATORY OUTPUT FORMAT ━━
-Output EXACTLY these labeled fields in this order. Every field is required — do not skip, collapse, or merge any.
+━━ MAILER LAYOUT DIRECTION ━━
+The HTML builder uses these section types — your MAILER SECTIONS field must specify which to use in order:
+  announcement_bar → hero_split (product left/right) → trust_badges → product_grid_3col → lifestyle_image → offer_banner → footer
+  OR for gifting: announcement_bar → hero_full → trust_badges_gifting → gifting_favorites_grid → lifestyle_moment → bottom_cta → footer
+Specify the section order in MAILER SECTIONS field.
 
-CAMPAIGN: [2-4 word ownable campaign name — NOT "Tea Campaign" or "Heritage Collection"]
-OBJECTIVE: [One specific measurable outcome — e.g. "Drive first purchase from lapsed US subscribers at $75+ AOV via single-estate origin story"]
-AUDIENCE: [Real behavioral insight — NOT "people who love tea". What is this person doing, feeling, and needing RIGHT NOW? Why are they not buying today?]
-STRATEGY: [Choose exactly one: Conversion Push | Ritual Reinforcement | Desire Creation | AOV Expansion | Catalog Expansion] — [1 sentence: why this strategy for this audience right now]
-HOOK: [Primary lever: origin | gift | urgency | ritual | discovery | bestseller | seasonal | subscription] — [1 sentence: how this hook resolves the purchase barrier]
-HERO PRODUCT: [Exact product name from the provided list] — [1 sentence: why this specific product resolves the stated purchase barrier]
-SUPPORTING: [Product 2 name] + [Product 3 name] — [1 sentence: how these increase AOV or create a product system]
-THEME: [2-4 word ownable theme name — NOT "Heritage Harvest" or "Tea Ritual"]. [1 sentence: the consumption truth being reframed and the emotional state this unlocks.]
-VISUAL WORLD: [55-70 words — describe a specific photographic scene a photographer can execute: name the surface material, light source + direction, time of day, unusual compositional choice, color temperature, depth of field, what is foregrounded, what is out of focus. No generic "warm and inviting" descriptions.]
-IMAGE A: [55-70 words for ChatGPT Image 2 — Variant A hero (product-led, conversion). Spec: subject + foreground surface material + light source + direction + camera angle + color temperature + mood + depth of field. Product MUST be clearly visible and prominent. No text, no logos, no stock feel.]
-IMAGE B: [55-70 words for ChatGPT Image 2 — Variant B hero (editorial-narrative, lifestyle). MUST differ from A on: subject, time of day, composition axis, mood. NO product visible. Atmospheric lifestyle context. Human presence or trace (hand, cup, book) preferred. No text, no logos.]
-NEGATIVE PROMPT: [What to exclude from ALL images — always include these: no text overlays, no logos, no brand marks, no stock photography feel, no artificial lighting, no clutter, no lens distortion. Add 2-3 specific exclusions relevant to THIS brief.]
-HEADLINE A: [Direct benefit-first declarative, max 8 words — e.g. "Steep Better. Start Here." NOT "Discover Our Amazing Teas"]
-HEADLINE B: [Sensory/poetic indirect, max 8 words, different register from A — e.g. "The hill is quiet at 7,000 feet."]
-CTA A: [Max 4 words, action verb: Shop / Order / Explore / Start]
-CTA B: [Max 4 words, understated: Discover / Begin / Find / Read]
-TONE: [3-6 word emotional atmosphere — e.g. "quiet confidence and morning stillness"]
-AVOID: [2-3 specific execution choices that would make THIS brief feel generic or off-brand — be precise, not generic like "avoid clichés"]`;
+━━ GIFTING CAMPAIGN RULES (apply when type is Gift, Mother's Day, holiday, celebration) ━━
+→ Hero subcopy MUST end with: "She'll enjoy it every day and remember you."
+→ Hero CTA tagline: "MAKE HER SMILE, GIFT RIGHT!" (place below CTA button)
+→ Product section heading: "Gifting Favorites" with ✦ decorative separator
+→ Add "🔥 [N] units sold in the last 24 hours" per product (N between 25–90, vary per product)
+→ Offer badge in hero: dark rectangle "UP TO [X%] OFF ON SELECTED GIFTS"
+
+━━ IMAGE PROMPT RULES FOR gpt-image-1 ━━
+A great prompt names: SUBJECT + SURFACE MATERIAL + LIGHT SOURCE + DIRECTION + CAMERA ANGLE + COLOR TEMPERATURE + MOOD
+Good: "VAHDAM gift set open box with 6 tea tins on cream linen, raking golden morning sidelight from left, tight 45° overhead angle, warm amber tones, shallow DOF, roses out-of-focus background"
+Bad: "Beautiful tea gift in warm light" — too vague, generates generic stock image
+IMAGE A (product-led): product MUST be clearly visible and prominent · studio-adjacent natural light · morning or afternoon
+IMAGE B (lifestyle/editorial): NO product visible · atmospheric · human presence or trace (hands, cup, book) · different time of day from A
+
+━━ MANDATORY OUTPUT — ALL FIELDS REQUIRED ━━
+Output EXACTLY these labeled fields in this order. Do NOT skip, merge, or rename any field.
+
+CAMPAIGN: [2-4 word ownable name — NOT "Tea Campaign" / "Heritage Collection" / "Gift Guide"]
+OBJECTIVE: [One measurable outcome — e.g. "Convert gifting-intent US subscribers at $49+ AOV with 36% off gift sets via Mother's Day urgency"]
+AUDIENCE: [Specific behavioral insight — who is this person, what are they feeling RIGHT NOW, why haven't they bought yet, what will tip them over]
+STRATEGY: [Exactly one: Conversion Push | Ritual Reinforcement | Desire Creation | AOV Expansion | Gifting Push] — [1 sentence: why THIS strategy for THIS audience right now]
+HOOK: [Primary lever: gift | urgency | origin | ritual | discovery | bestseller | seasonal | price-anchor] — [1 sentence: how this hook removes the specific purchase barrier]
+OFFER MECHANICS: [Exact offer — e.g. "UP TO 58% OFF on selected gifts · no code needed · free shipping $49+" OR "No code needed · prices as listed"]
+HERO PRODUCT: [Exact product name from list] | $[price] (was $[compare_at]) | [1 sentence: why this product for this campaign]
+SUPPORTING PRODUCTS: [Product 2 exact name] | $[price] + [Product 3 exact name] | $[price] — [1 sentence: how these increase AOV or complete the gift system]
+THEME: [2-4 words, ownable] — [1 sentence: consumption truth being reframed + emotional state it unlocks]
+MAILER SECTIONS: [Ordered list of sections — e.g. "1. Announcement bar (offer line) → 2. Hero split (product right, copy left) → 3. Trust badges (gifting-focused) → 4. Gifting Favorites product grid (3 products) → 5. Lifestyle image → 6. Bottom CTA banner → 7. Footer"]
+VISUAL WORLD: [55-70 words — specific photographic scene: surface material + light source + direction + time of day + unusual compositional choice + color temperature + depth of field + what is foregrounded + what is background. No generic mood words.]
+IMAGE A: [55-70 words for gpt-image-1 — Variant A hero (product-led). Must name: subject + surface + light source/direction + camera angle + color temperature + mood + DOF. Product clearly visible. No text, no logos, no stock feel.]
+IMAGE B: [55-70 words for gpt-image-1 — Variant B hero (lifestyle/editorial). MUST differ from A: different subject, time of day, composition axis, mood. NO product visible. Human warmth or trace preferred. No text, no logos.]
+NEGATIVE PROMPT: [no text overlays, no logos, no brand marks, no stock photography feel, no artificial studio lighting, no clutter, no lens distortion — plus 2-3 campaign-specific exclusions]
+HEADLINE A: [Direct, benefit-first, max 8 words — e.g. "A Thoughtful Cup for the Woman Who Deserves Everything"]
+HEADLINE B: [Sensory or poetic, max 8 words, completely different register from A — e.g. "Moments of comfort. Crafted with care."]
+SUBHEADLINE: [Optional italic gold accent word or phrase that pairs with Headline A — e.g. "Everything" or "Crafted with care" in italic gold]
+CTA A: [Max 4 words, action verb — Shop Gifts / Explore Teas / Order Now / Shop Now]
+CTA B: [Max 4 words, understated — Discover / Begin / Find / Explore]
+GIFTING TAGLINE: [For gifting campaigns: "MAKE HER SMILE, GIFT RIGHT!" / For non-gifting: leave blank]
+TONE: [3-6 word emotional atmosphere — e.g. "warm, generous, quietly celebratory"]
+URGENCY: [For seasonal/sale: specific urgency hook — e.g. "Mother's Day is [date] — ships in 2 days" / For evergreen: "Limited estate batch — this harvest only"]
+AVOID: [2-3 specific execution choices that would make THIS mailer feel generic — be precise about what not to do for this exact campaign]`;
 
 
 const SYSTEM_PROMPT_SUGGESTED_PROMPTS = `You are a Creative Director + Director of Growth at VAHDAM India — a premium D2C Indian heritage tea brand (Aesop / AG1 / Net-a-Porter standard). Generate exactly 6 campaign briefs as a JSON array. Each is a director-grade email campaign prompt that a downstream AI pipeline uses to produce a flawless premium mailer.
@@ -313,12 +337,12 @@ module.exports = async function handler(req, res) {
       : null;
 
     userMessage = [
-      `SEED IDEA: ${campaign_brief || '(none — derive a strong campaign concept from the inputs below)'}`,
       `CAMPAIGN TYPE: ${theme || 'General Campaign'}`,
       `MARKET: ${market} — ${audienceCtx}`,
-      productsBlock ? `PRODUCTS AVAILABLE:\n${productsBlock}` : 'PRODUCTS: (none selected — choose 1-3 best-fit VAHDAM products for this market + campaign type)',
+      `SEED IDEA FROM USER: ${campaign_brief || '(none provided — derive a strong, specific campaign concept from the campaign type and market above)'}`,
+      productsBlock ? `PRODUCTS AVAILABLE (use exact names and prices):\n${productsBlock}` : `PRODUCTS: (none selected — infer 2-3 best-fit VAHDAM gift sets or teas for this market + campaign type, with realistic price estimates around $12-$35)`,
       ``,
-      `OUTPUT ALL LABELED FIELDS in order. IMAGE A and IMAGE B must each be 55-70 words of PhotoReal-quality specification for ChatGPT Image 2 — not vague mood words. Every field is required.`
+      `INSTRUCTIONS: Output ALL labeled fields in the exact order shown. Be specific — name exact products with prices, state the exact discount %, write 55-70 word image prompts with named surfaces/light/angles. Generic output is rejected. Every field is required.`
     ].join('\n');
   }
 
@@ -376,7 +400,9 @@ module.exports = async function handler(req, res) {
               temperature,
               maxOutputTokens: max_tokens,
               ...(response_format ? { responseMimeType: 'application/json' } : {})
-            }
+            },
+            // Disable thinking for JSON-mode: thinking tokens leak into output and break parsing
+            ...(response_format ? { thinkingConfig: { thinkingBudget: 0 } } : {})
           }),
           signal: ctrl.signal
         }
@@ -414,25 +440,25 @@ module.exports = async function handler(req, res) {
       // OpenAI rate limit — try Gemini if key available
       if (!result.ok && result.status === 429 && geminiKey) {
         console.warn('[generate] OpenAI 429 — trying Gemini fallback');
-        for (const gModel of ['gemini-2.0-flash', 'gemini-1.5-flash']) {
+        for (const gModel of ['gemini-2.0-flash', 'gemini-2.0-flash-lite']) {
           result = await callGemini(gModel);
-          if (result.ok || result.status !== 429) break;
+          if (result.ok || (result.status !== 429 && result.status !== 404)) break;
         }
       }
     } else {
-      // Gemini primary — cascade through models on 429
+      // Gemini primary — cascade through models on 429/503/404
       const geminiModels = [
-        process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', // 10 RPM free
-        'gemini-2.0-flash',                                   // 15 RPM free — separate bucket
-        'gemini-1.5-flash',                                   // 15 RPM free — separate bucket
-        'gemini-2.0-flash-lite'                               // 30 RPM free — highest free quota
+        process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', // latest, highest capability
+        'gemini-2.0-flash',                                   // stable, separate quota bucket
+        'gemini-2.0-flash-lite',                              // fastest, highest free quota
+        'gemini-1.5-flash-8b'                                 // lightweight last resort
       ];
       for (const gModel of geminiModels) {
         console.log('[generate] Trying Gemini model:', gModel);
         result = await callGemini(gModel);
         if (result.ok) break;
-        // 429 = rate limited, 503 = RESOURCE_EXHAUSTED — cascade to next quota bucket
-        if (result.status === 429 || result.status === 503) {
+        // 429 = rate limited, 503 = RESOURCE_EXHAUSTED, 404 = model deprecated — cascade to next
+        if (result.status === 429 || result.status === 503 || result.status === 404) {
           console.warn('[generate] Gemini ' + result.status + ' on', gModel, '— trying next model');
           continue;
         }
@@ -460,11 +486,21 @@ module.exports = async function handler(req, res) {
     const text = result.text || '';
     if (mode === 'concepts' || mode === 'mailer_full' || mode === 'suggested_prompts') {
       let parsed;
-      try { parsed = JSON.parse(text); } catch (e) {
-        const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-        try { parsed = JSON.parse(stripped); } catch (e2) {
-          return res.status(502).json({ error: 'json_parse_failed', provider: result.provider, raw: text.substring(0, 600) });
-        }
+      // Robust JSON extraction: handles markdown fences, prose prefix/suffix (Gemini habit)
+      const tryParse = (t) => {
+        try { return JSON.parse(t); } catch (_) {}
+        const s = t.replace(/^```(?:json)?\s*/im, '').replace(/```\s*$/m, '').trim();
+        try { return JSON.parse(s); } catch (_) {}
+        const bs = t.indexOf('{'), be = t.lastIndexOf('}');
+        if (bs !== -1 && be > bs) { try { return JSON.parse(t.slice(bs, be + 1)); } catch (_) {} }
+        // Also try array extraction for suggested_prompts
+        const as = t.indexOf('['), ae = t.lastIndexOf(']');
+        if (as !== -1 && ae > as) { try { return JSON.parse(t.slice(as, ae + 1)); } catch (_) {} }
+        return null;
+      };
+      parsed = tryParse(text);
+      if (!parsed) {
+        return res.status(502).json({ error: 'json_parse_failed', provider: result.provider, raw: text.substring(0, 600) });
       }
       return res.status(200).json({ ok: true, mode, provider: result.provider, model: result.model, data: parsed });
     }

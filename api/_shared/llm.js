@@ -112,7 +112,10 @@ module.exports = async function callLLM(opts) {
             generationConfig: {
               temperature, maxOutputTokens: maxTokens,
               ...(responseFormat ? { responseMimeType: 'application/json' } : {})
-            }
+            },
+            // Disable thinking for JSON-mode requests — thinking tokens contaminate JSON output
+            // and cause json_parse_failed. thinkingBudget:0 is a no-op on models without thinking.
+            ...(responseFormat ? { thinkingConfig: { thinkingBudget: 0 } } : {})
           }),
           signal: ctrl.signal
         }
