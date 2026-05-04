@@ -117,7 +117,11 @@ module.exports = async function handler(req, res) {
   const requirements = Array.isArray(body.requirements) ? body.requirements : [];
   const variant = (body.variant || 'A').toString();
   const image_style_lock = (body.image_style_lock || '').toString();
-  const openaiKey = process.env.OPENAI_API_KEY;
+  const openaiKeys = [
+    process.env.OPENAI_API_KEY,
+    process.env.OPENAI_API_KEY_2,
+    process.env.OPENAI_API_KEY_3
+  ].filter(Boolean);
   const MAX_RETRIES = 3;
 
   // Generate all images in parallel (each with its own retry loop)
@@ -138,7 +142,32 @@ module.exports = async function handler(req, res) {
     while (attempts < MAX_RETRIES) {
       attempts++;
       try {
-        dataUrl = await generateImage(fullPrompt, size, openaiKey);
+        // Try OpenAI keys in cascade — rotate on quota exhaustion, fall back to Pollinations
+        let genDataUrl = null;
+        let keyRotated = false;
+        for (let ki = 0; ki < openaiKeys.length; ki++) {
+          try {
+            genDataUrl = await generateImage(fullPrompt, size, openaiKeys[ki]);
+            break;
+          } catch (e) {
+            const msg = String(e.message || e);
+            const isQuota = msg.includes('429') || msg.includes('402') ||
+                            msg.toLowerCase().includes('quota') ||
+                            msg.toLowerCase().includes('billing');
+            if (isQuota && ki < openaiKeys.length - 1) {
+              keyRotated = true;
+              console.warn('[pipeline/images]', variant, slot, 'key', ki + 1, 'quota exhausted — rotating to key', ki + 2);
+              continue;
+            }
+            throw e; // non-quota error or last key exhausted
+          }
+        }
+        // All OpenAI keys quota-exhausted → fall back to Pollinations
+        if (!genDataUrl) {
+          console.warn('[pipeline/images]', variant, slot, 'all OpenAI keys exhausted — using Pollinations fallback');
+          genDataUrl = await generateImage(fullPrompt, size, null);
+        }
+        dataUrl = genDataUrl;
         const validation = validateDataUrl(dataUrl);
         if (validation.valid) break;
         lastError = 'Validation: ' + validation.reason;
@@ -173,7 +202,7 @@ module.exports = async function handler(req, res) {
     ok: true,
     stage: 'images',
     variant,
-    provider: openaiKey ? 'openai' : 'pollinations',
+    provider: openaiKeys.length > 0 ? 'openai' : 'pollinations',
     images,
     success_count: successCount,
     all_success: successCount === images.length

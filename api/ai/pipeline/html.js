@@ -59,8 +59,21 @@ KNOWN FAILURE MODES — FIX THESE BEFORE GENERATING:
 ⑤ MISSING MARKETING SIGNALS — No ratings, no social proof numbers, no price context.
    FIX: Include ⭐ 4.8/5 · 50,000+ reviews in product sections; use compare-at pricing where available; add "Free Shipping on $49+" in offer sections; include 1-2 trust badge rows (Farm Direct · B-Corp · 100% Natural · Ships Worldwide).
 
-⑥ NON-RESPONSIVE LAYOUT — Split columns and product grids break on mobile.
-   FIX: Wrap the email in a <style> block with @media rules. Use MSO conditional comments for Outlook. Inner columns must stack on mobile.
+⑥ NON-RESPONSIVE LAYOUT — Split columns and product grids break on mobile (portrait mode issue).
+   FIX: Wrap the email in a <style> block with @media rules. Use MSO conditional comments for Outlook. Inner columns must stack on mobile. Add float:none!important and max-width:100%!important to .col2/.col3 to fix portrait orientation reflow in email clients.
+
+⑦ HIDDEN DISCOUNT — Offer/discount not visible in first 500px. Buyer has to scroll to find the price.
+   FIX: Inside the hero section (BEFORE the CTA button), include a prominent offer badge as a dark block:
+   <div style="display:inline-block;background:#0f2a1c;color:#fdf6e8;font-family:DM Sans,Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:10px 18px;margin-bottom:14px;line-height:1.5">UP TO [X%] OFF<br><span style="font-size:9px;font-weight:400;color:#d4873a;letter-spacing:0.04em">ON SELECTED [PRODUCT CATEGORY]</span></div>
+
+⑧ WEAK ADD TO CART — Small inline "Add to Cart" link blends into product card. No urgency signals on products.
+   FIX: Product cards MUST use a FULL-WIDTH dark green button spanning the entire card width:
+   <a href="..." style="display:block;background:#0f2a1c;color:#fdf6e8;font-family:DM Sans,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;text-decoration:none;padding:11px 16px;text-align:center">🛒 ADD TO CART</a>
+   AND add "🔥 [N] units sold in the last 24 hours" (N=25-90) above the price for social proof urgency.
+
+⑨ MISSING GIFTING TAGLINE — CTA button has no emotional reinforcement for gifting campaigns.
+   FIX: For any gift/Mother's Day/holiday campaign, add this line BELOW the hero CTA button:
+   <div style="font-family:DM Sans,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#d4873a;margin-top:10px">MAKE HER SMILE, GIFT RIGHT!</div>
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 HTML STRUCTURE RULES
@@ -96,8 +109,9 @@ Apply bgcolor to EVERY <td> that has a background color — no exceptions.
   a{color:#d4873a}
   @media only screen and (max-width:600px){
     .email-container{width:100%!important;max-width:100%!important}
-    .col2,.col3{display:block!important;width:100%!important;box-sizing:border-box!important}
-    .hero-img{width:100%!important;height:auto!important}
+    .col2,.col3{display:block!important;width:100%!important;max-width:100%!important;box-sizing:border-box!important;float:none!important}
+    .col2 img,.col3 img{width:100%!important;max-width:100%!important;height:auto!important;display:block!important}
+    .hero-img{width:100%!important;height:auto!important;max-width:100%!important}
     .hide-mobile{display:none!important}
     .show-mobile{display:block!important}
     .mobile-pad{padding:20px 16px!important}
@@ -162,15 +176,14 @@ Apply bgcolor to EVERY <td> that has a background color — no exceptions.
         <li>[BENEFIT 2 — origin, estate name, or quality certification]</li>
         <li>[BENEFIT 3 — use occasion or daily ritual context]</li>
       </ul>
-      <p class="mobile-text" style="font-family:DM Sans,Arial,sans-serif;font-size:13px;line-height:1.65;color:#4a5568;margin:0 0 16px 0">[SUBCOPY — full sentence from plan, never shortened]</p>
-      <!-- PRICE LINE — always show price -->
-      <div style="font-family:DM Sans,Arial,sans-serif;font-size:15px;font-weight:700;color:#0f2a1c;margin-bottom:16px">
-        <span style="color:#d4873a">[PRICE e.g. $24.99]</span>
-        <span style="font-size:11px;color:#888;text-decoration:line-through;margin-left:6px">[COMPARE $34.99]</span>
-        <span style="font-size:11px;color:#3d8a4a;font-weight:600;margin-left:6px">Save 28%</span>
-      </div>
-      <a href="https://vahdam.com/products/[HANDLE]" style="display:inline-block;background:#d4873a;color:#ffffff;font-family:DM Sans,Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;padding:13px 28px">[CTA e.g. SHOP NOW]</a>
-      <div style="font-family:DM Sans,Arial,sans-serif;font-size:10px;color:#8a9a8a;margin-top:10px">🚚 Free shipping on orders $49+</div>
+      <p class="mobile-text" style="font-family:DM Sans,Arial,sans-serif;font-size:13px;line-height:1.65;color:#4a5568;margin:0 0 14px 0">[SUBCOPY — full sentence from plan. For gifting: end with "She'll enjoy it every day and remember you."]</p>
+      <!-- OFFER BADGE — visible in first scroll, before CTA — MANDATORY for discount campaigns -->
+      <div style="display:inline-block;background:#0f2a1c;color:#fdf6e8;font-family:DM Sans,Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:10px 18px;margin-bottom:14px;line-height:1.5">UP TO [X%] OFF<br><span style="font-size:9px;font-weight:400;color:#d4873a;letter-spacing:0.04em">ON SELECTED [PRODUCT CATEGORY e.g. GIFTS]</span></div>
+      <br>
+      <a href="https://vahdam.com/products/[HANDLE]" style="display:inline-block;background:#d4873a;color:#ffffff;font-family:DM Sans,Arial,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;text-decoration:none;padding:13px 28px">[CTA e.g. SHOP GIFTS]</a>
+      <!-- GIFTING TAGLINE — for gift/Mother's Day/holiday campaigns -->
+      <div style="font-family:DM Sans,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#d4873a;margin-top:10px">MAKE HER SMILE, GIFT RIGHT!</div>
+      <div style="font-family:DM Sans,Arial,sans-serif;font-size:10px;color:#8a9a8a;margin-top:8px">🚚 Free shipping on orders $49+</div>
     </td>
     <!--[if mso]></td><![endif]-->
   </tr>
@@ -214,14 +227,19 @@ Apply bgcolor to EVERY <td> that has a background color — no exceptions.
   <tr><td style="padding:0;background:#fdf6e8" bgcolor="#fdf6e8">
     <img src="IMAGE_PRODUCT_URL" width="100%" height="auto" style="display:block;border:0;max-width:100%" alt="[FULL PRODUCT NAME] — VAHDAM India Premium Tea">
   </td></tr>
-  <tr><td style="padding:14px 14px 16px;text-align:center;background:#fdf6e8" bgcolor="#fdf6e8">
-    <div style="font-family:DM Sans,Arial,sans-serif;font-size:10px;color:#d4873a;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:5px">⭐ 4.8/5 &nbsp;·&nbsp; 50K+ Reviews</div>
-    <div style="font-family:Cormorant Garamond,Georgia,serif;font-size:16px;color:#0f2a1c;font-weight:600;line-height:1.3;margin-bottom:6px">[FULL PRODUCT NAME — no truncation]</div>
-    <div style="font-family:DM Sans,Arial,sans-serif;font-size:11.5px;color:#5a7a5a;line-height:1.5;margin-bottom:8px">[1 LINE PRODUCT DESCRIPTION — origin, harvest, or flavour note]</div>
-    <div style="font-family:DM Sans,Arial,sans-serif;font-size:14px;font-weight:700;color:#0f2a1c;margin-bottom:10px">
+  <tr><td style="padding:12px 12px 4px;text-align:left;background:#fdf6e8" bgcolor="#fdf6e8">
+    <div style="font-family:DM Sans,Arial,sans-serif;font-size:11px;color:#d4873a;margin-bottom:3px">⭐⭐⭐⭐⭐ <span style="color:#888;font-size:10px">([REVIEW_COUNT — realistic number e.g. 70] reviews)</span></div>
+    <div style="font-family:Cormorant Garamond,Georgia,serif;font-size:15px;color:#0f2a1c;font-weight:600;line-height:1.3;margin-bottom:4px">[FULL PRODUCT NAME — no truncation]</div>
+    <!-- URGENCY LINE — social proof, use realistic N between 25-90 -->
+    <div style="font-family:DM Sans,Arial,sans-serif;font-size:10px;color:#cc4400;font-weight:600;margin-bottom:7px">🔥 [N] units sold in the last 24 hours</div>
+    <div style="font-family:DM Sans,Arial,sans-serif;font-size:14px;font-weight:700;color:#0f2a1c;margin-bottom:4px">
       $[PRICE] <span style="font-size:10px;color:#aaa;text-decoration:line-through;font-weight:400">$[ORIG_PRICE]</span>
+      &nbsp;<span style="font-size:9px;font-weight:800;color:#2a7a3a">[X%] OFF</span>
     </div>
-    <a href="https://vahdam.com/products/[HANDLE]" style="display:inline-block;background:#0f2a1c;color:#fdf6e8;font-family:DM Sans,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;text-decoration:none;padding:9px 20px">Add to Cart</a>
+  </td></tr>
+  <!-- FULL-WIDTH ADD TO CART — spans entire card width, dark green background -->
+  <tr><td style="padding:8px 12px 12px;background:#fdf6e8" bgcolor="#fdf6e8">
+    <a href="https://vahdam.com/products/[HANDLE]" style="display:block;background:#0f2a1c;color:#fdf6e8;font-family:DM Sans,Arial,sans-serif;font-size:10px;font-weight:700;letter-spacing:0.09em;text-transform:uppercase;text-decoration:none;padding:11px 0;text-align:center">🛒 ADD TO CART</a>
   </td></tr>
 </table>
 
@@ -385,6 +403,16 @@ PROVEN D2C EMAIL MARKETING PATTERNS — APPLY THESE:
 
 10. SPECIFICITY OVER VAGUENESS: "50,000+ tea lovers" beats "thousands of customers". "First-flush, 7,000ft elevation" beats "premium quality".
 
+11. SOCIAL PROOF URGENCY IN PRODUCT CARDS: Add "🔥 [N] units sold in the last 24 hours" text below the product name. Use realistic N between 25-90. Pair with explicit review count: "⭐⭐⭐⭐⭐ (N reviews)" not just a generic "50K+ reviews" line. Specificity = credibility.
+
+12. OFFER CONTINUITY: Show the discount at two points — (a) as a badge inside the hero section visible without scrolling, AND (b) as a "% OFF" label on each product card. Never surface the offer only once in the email.
+
+13. FULL-WIDTH ADD TO CART: Product card CTAs must span the FULL card width using display:block. Use dark green background (#0f2a1c). Text: "🛒 ADD TO CART" all-caps. Never use a small inline button — it gets missed on mobile.
+
+14. GIFTING CAMPAIGN TAGLINE: For any campaign involving gifts, Mother's Day, birthdays, or celebrating her: add "MAKE HER SMILE, GIFT RIGHT!" as a small uppercase line directly below the hero CTA button. This emotional hook lifts gifting click-through.
+
+15. EMOTIONAL HERO SUBCOPY (GIFTING): For gifting-context campaigns, end the hero subcopy with: "She'll enjoy it every day and remember you." — this single line consistently outperforms generic product copy on gifting mailers by building emotional purchase justification.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SECTION CONTENT REQUIREMENTS (every section must be filled):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -393,18 +421,19 @@ HERO SECTION must include:
 - Eyebrow label (product category / campaign name)
 - Full headline from plan (no truncation)
 - 2-3 benefit bullets (derive from product type if not in plan)
-- Full subcopy sentence
-- Price or value indicator
+- Full subcopy sentence (gifting campaigns: end with "She'll enjoy it every day and remember you.")
+- Offer badge: dark rectangle "UP TO [X%] OFF ON SELECTED [CATEGORY]" BEFORE the CTA button
 - Primary CTA button
+- Gifting campaigns: "MAKE HER SMILE, GIFT RIGHT!" tagline below CTA button
 - "Free shipping" micro-line
 
 PRODUCT SECTION must include per card:
 - Product image (use IMAGE_PRODUCT_URL placeholder for first, exact product URL for others)
-- Star rating + review count
+- Star rating with explicit review count (e.g., "⭐⭐⭐⭐⭐ (70 reviews)" — specific count, not generic)
 - Product name (full, not truncated)
-- 1-line product description
-- Price (and compare-at if available)
-- Add-to-Cart / Shop Now CTA link
+- "🔥 [N] units sold in the last 24 hours" urgency line (N between 25-90)
+- Price with strikethrough compare-at AND "[X%] OFF" badge in green
+- FULL-WIDTH "🛒 ADD TO CART" button spanning entire card (display:block, dark green bg #0f2a1c)
 
 SOCIAL PROOF must include:
 - Actual review text (2 reviews, quoted)
@@ -436,6 +465,11 @@ Before outputting, verify:
 □ Variant B: dark opening sections (#0f2a1c bg), ghost CTA, no product grid, 44px+ headlines
 □ Variant A: cream background (#fdf6e8 bg), amber CTA (#d4873a), product in section 1, benefit bullets
 □ No [BRACKET PLACEHOLDERS] remaining — every bracket replaced with real content
+□ Hero section: offer badge (dark rectangle) visible BEFORE CTA button
+□ Product cards: full-width "🛒 ADD TO CART" button, "🔥 N units sold" urgency line, "% OFF" price badge
+□ Gifting campaigns: "MAKE HER SMILE, GIFT RIGHT!" tagline below hero CTA
+□ Gifting subcopy: ends with "She'll enjoy it every day and remember you."
+□ Responsive CSS: .col2/.col3 have float:none!important and max-width:100%!important for portrait fix
 
 If ANY check fails → fix it before outputting.
 

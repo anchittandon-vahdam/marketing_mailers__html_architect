@@ -46,6 +46,14 @@ COPY REGISTER FOR A:
 - Sub-copy: specific, factual, benefit-rich — no vague poetry
 - CTA verbs: Shop / Order / Explore / Start
 
+GIFTING CAMPAIGN COPY RULES (apply when brief mentions: gift, Mother's Day, her, women, birthday, holiday, celebration):
+- Hero subcopy MUST end with: "She'll enjoy it every day and remember you."
+- Include tagline in hero CTA section: "MAKE HER SMILE, GIFT RIGHT!"
+- Hero copy section must include a discount badge hint: "UP TO [X%] OFF ON SELECTED GIFTS" as a separate copy element before the CTA
+- Product section heading: "Gifting Favorites" or "Perfect Gifts for Her" (with ✦ decorative separator)
+- Include "units sold" urgency per product (e.g., "🔥 52 units sold in the last 24 hours")
+- Keep sections tight and impactful — max 5-6 sections total. No filler. Every section earns its place.
+
 OUTPUT: STRICT JSON ONLY. First char {, last char }. No markdown.
 
 SCHEMA:
