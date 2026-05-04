@@ -41,18 +41,42 @@ VARIANT A EXECUTION RULES (non-negotiable):
 - CTA: single prominent button — amber background #d4873a, centered, max 4 words
 - Section count: 5-7 (what the campaign needs — never pad with filler)
 
-COPY REGISTER FOR A:
-- Headlines: direct, benefit-first declarative ("Steep Better. Start Here.")
-- Sub-copy: specific, factual, benefit-rich — no vague poetry
-- CTA verbs: Shop / Order / Explore / Start
+━━ MANDATORY SECTION STRUCTURE (follow this for Variant A — max 7 sections) ━━
+sections[] MUST be in this order:
+  1. announcement_bar  → offer + code + free shipping (first thing reader sees)
+  2. brand_header      → VAHDAM logo + nav
+  3. hero              → split layout (image + copy side-by-side)
+  4. benefit_strip     → 3-4 icon points, compact
+  5. product_section   → MAX 2-3 PRODUCTS (never more — kills CTR)
+  6. offer_bar         → repeat offer badge + urgency
+  7. footer
 
-GIFTING CAMPAIGN COPY RULES (apply when brief mentions: gift, Mother's Day, her, women, birthday, holiday, celebration):
-- Hero subcopy MUST end with: "She'll enjoy it every day and remember you."
-- Include tagline in hero CTA section: "MAKE HER SMILE, GIFT RIGHT!"
-- Hero copy section must include a discount badge hint: "UP TO [X%] OFF ON SELECTED GIFTS" as a separate copy element before the CTA
-- Product section heading: "Gifting Favorites" or "Perfect Gifts for Her" (with ✦ decorative separator)
-- Include "units sold" urgency per product (e.g., "🔥 52 units sold in the last 24 hours")
-- Keep sections tight and impactful — max 5-6 sections total. No filler. Every section earns its place.
+━━ HERO SECTION COPY (MANDATORY FIELDS) ━━
+- Emotional headline: occasion-specific, max 8 words
+- Subcopy: ≤80 chars. Gifting campaigns MUST end with: "She'll enjoy it every day and remember you."
+- Offer badge copy: "UP TO [X%] OFF ON SELECTED [CATEGORY]"
+- CTA: max 4 words (Shop Now / Grab Yours Now / Shop Before It's Gone / Get Yours Today)
+- CTA tagline (gifting): "MAKE HER SMILE, GIFT RIGHT!" — placed below CTA button
+- Urgency (if applicable): "Hurry Now Before They Finish"
+
+━━ PRODUCT SECTION COPY (MANDATORY PER CARD) ━━
+- MAX 2-3 products. HARD LIMIT.
+- Each card: name + price ($X.XX) + compare-at ($XX.XX strikethrough) + [X%] OFF badge
+- Urgency: "🔥 [N] units sold in the last 24 hours" (N: 25–90, vary per product)
+- ADD TO CART button: full-width, dark green #0f2a1c, every card — mandatory
+- Section heading: "Gifting Favorites" (with ✦) for gifting, "Bestsellers" for other types
+
+COPY REGISTER FOR A:
+- Headlines: direct, benefit-first declarative ("A Thoughtful Cup for the Woman Who Deserves Everything")
+- Sub-copy: specific, factual, benefit-rich — no vague poetry. Max 80 chars.
+- CTA verbs: Shop Now / Grab Yours Now / Shop Before It's Gone / Get Yours Today / Shop Gifts
+
+REGENERATION RULES (regenerate_counter > 0 — MANDATORY CHANGES FROM PRIOR RUN):
+- Change headline angle entirely (different emotional hook)
+- Change CTA text (pick different option from CTA TEST VARIANTS)
+- Change benefit framing (highlight different product attributes)
+- Change product order / hero product if possible
+- NEVER repeat the same headline or CTA from a previous regeneration
 
 OUTPUT: STRICT JSON ONLY. First char {, last char }. No markdown.
 
@@ -146,16 +170,25 @@ VARIANT B EXECUTION RULES (ALL MUST BE TRUE — verify before outputting):
 □ CTA: ghost-button (border: 2px solid #fdf6e8, transparent bg on dark sections) OR text-link — NOT amber filled button (A uses amber)
 □ Section padding: minimum 64px top and bottom throughout — generous editorial whitespace
 □ Headline font: 44px+ for editorial scale (A uses ~32px conversion headlines)
-□ Section count: 6-8 (narrative needs room)
+□ Section count: MAX 7 (narrative needs room but must stay tight — no filler)
 □ template_key MUST differ from Variant A's template_key
+□ MAX 2-3 PRODUCTS in product section (same hard limit as A — decision paralysis kills CTR on both variants)
+□ Each product MUST have ADD TO CART button (ghost-style border button on dark sections)
 
 COPY REGISTER FOR B:
-- Headlines: sensory, poetic, place-anchored ("The hill is quiet at 7,000 feet.")
-- Sub-copy: evocative prose, 1-2 sentences, creates desire through atmosphere and origin
+- Headlines: sensory, poetic, place-anchored ("The hill is quiet at 7,000 feet." / "Moments of comfort. Crafted with care.")
+- Sub-copy: evocative prose, 1-2 sentences, creates desire through atmosphere and origin. Max 80 chars.
 - CTA verbs: Discover / Begin / Explore / Find / Enter
+- Offer: stated subtly inline ("Up to [X%] off — no code needed") but MUST be present
 
-SECTION ORDER FOR B (narrative arc — do NOT use A's funnel order):
-Mood/atmosphere → Origin/context → Product reveal → Brand story/proof → Subtle offer → Ghost CTA
+SECTION ORDER FOR B (narrative arc — differs from A's funnel order):
+announcement_bar → brand_header → narrative/mood → lifestyle → product_reveal (1-2 products max) → offer_inline → footer
+
+REGENERATION RULES (regenerate_counter > 0 — MANDATORY CHANGES FROM PRIOR RUN):
+- Change atmospheric/mood angle entirely
+- Change hero_scene to a different time of day and setting
+- Change opening emotion
+- NEVER repeat the same opening scene or headline
 
 COLOR SCHEME FOR B layout_plan:
 {

@@ -116,13 +116,40 @@ COLOR DIVERGENCE REQUIREMENT (mandatory):
 - variant_b_concept must specify: color_approach = "dark-inverted" (background #0f2a1c, cream text) for hero/narrative sections
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PERFORMANCE MARKETING PRINCIPLES — APPLY TO EVERY STRATEGY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+These are embedded learnings from real VAHDAM mailer performance data. Every strategy MUST account for them:
+
+1. OFFER ABOVE THE FOLD — Discount/offer must be visible in the first scroll (Section 1 or 2). Never bury the price benefit.
+2. PRICE ALWAYS VISIBLE — Every product must show a price AND compare-at price. No price = no conversion.
+3. EXPLICIT CTA — Every section with a product must have an explicit ADD TO CART or SHOP NOW button. Never rely on the image being clickable.
+4. SHORT AND HIGH-IMPACT — Max 6-7 sections. Every section must earn its place. No padding.
+5. EMOTIONAL STORYTELLING — Emotional copy improves conversion. For gifting campaigns: "She'll enjoy it every day and remember you" is mandatory hero subcopy.
+6. CTA TAGLINE RECALL — For gifting: "MAKE HER SMILE, GIFT RIGHT!" near the CTA button. Repeat on second scroll for recall.
+7. MAX 2-3 PRODUCTS in product section. More than 3 causes decision paralysis and lowers click-through.
+8. URGENCY (when applicable) — "Hurry Now Before They Finish" or shipping deadline language increases urgency-driven conversion.
+
+MANDATORY SECTION STRUCTURE (both variants must follow this order):
+[S1] Announcement bar — offer + code + free shipping, visible immediately
+[S2] Brand header
+[S3] Hero — MOST IMPORTANT: emotional headline + subcopy + price + offer badge + CTA + CTA tagline
+[S4] Benefit strip — max 4 benefit points, visual-first
+[S5] Product section — MAX 2-3 products, each with: image, name, price/strikethrough, ADD TO CART button
+[S6] Offer reinforcement — repeat badge + urgency (if applicable)
+[S7] Footer
+
+The `structure.sections` array in your output MUST reflect this order exactly.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VAHDAM BRAND CONSTRAINTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Palette: forest green #0f2a1c / amber gold #d4873a / cream #fdf6e8
 Audience: urban professionals 30-55, health-conscious, value quality + story over price
-BANNED phrases: wellness journey / transform / liquid gold / game-changer / LIMITED TIME (caps) / Hurry / Don't miss out / Last chance
+BANNED phrases: wellness journey / transform / liquid gold / game-changer / LIMITED TIME (caps) / Last chance / While supplies last
 PREFERRED: ritual / restore / balance / origin / single-estate / hand-picked / steep / heritage / crafted
 IMAGE STYLE: luxury editorial photography — cinematic lighting, shallow DOF, tactile textures, no stock photography look, no clutter, no artificial lighting
+IMAGE MODEL: gpt-image-2 (primary) — prompts must be photorealistic, premium editorial, no text in image, minimal props (1-2), natural lighting, realistic product context
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT: STRICT JSON ONLY — first char {, last char }. No markdown, no commentary.

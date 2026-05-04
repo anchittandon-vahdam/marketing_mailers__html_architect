@@ -35,41 +35,58 @@ SCENE:
 const VALID_SIZES = ['1024x1024', '1536x1024', '1024x1536'];
 
 // ── Single image generation (one provider attempt) ───────────────────────────
-async function generateImage(prompt, size, openaiKey) {
+// Model cascade: gpt-image-2 (primary, highest quality) → gpt-image-1 (fallback)
+const IMAGE_MODELS = [
+  process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2',
+  'gpt-image-1'
+];
+
+async function generateImage(prompt, size, openaiKey, modelOverride) {
   const safeSize = VALID_SIZES.includes(size) ? size : '1024x1024';
   const finalPrompt = (PHOTO_PREAMBLE + prompt).substring(0, 4000);
 
   if (openaiKey) {
-    // gpt-image-1 = OpenAI's GPT-4o native image generation model (ChatGPT Image 2 in the product UI)
-    // This is the most capable model for photorealistic editorial images
-    const imageModel = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
-    const r = await fetch(OPENAI_BASE + '/images/generations', {
-      method: 'POST',
-      cache: 'no-store',   // disable fetch-level caching — each image must be unique
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + openaiKey },
-      body: JSON.stringify({
-        model: imageModel,
-        prompt: finalPrompt,
-        n: 1,
-        size: safeSize,
-        quality: 'high',   // 'high' = max detail for product/lifestyle photography
-        output_format: 'b64_json'  // always request base64 to avoid expiring URLs
-      })
-    });
-    if (!r.ok) {
-      const err = await r.text().catch(() => '');
-      throw new Error('OpenAI image ' + r.status + ': ' + err.substring(0, 200));
+    // Try specified model, or cascade through IMAGE_MODELS
+    const modelsToTry = modelOverride ? [modelOverride] : IMAGE_MODELS;
+    let lastErr = null;
+    for (const imageModel of modelsToTry) {
+      const r = await fetch(OPENAI_BASE + '/images/generations', {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + openaiKey },
+        body: JSON.stringify({
+          model: imageModel,
+          prompt: finalPrompt,
+          n: 1,
+          size: safeSize,
+          quality: 'high',
+          output_format: 'b64_json'
+        })
+      });
+      if (!r.ok) {
+        const err = await r.text().catch(() => '');
+        // Model not available → try next model in cascade
+        const isModelErr = r.status === 404 || err.includes('model_not_found') ||
+                           err.includes('does not exist') || err.includes('not supported');
+        if (isModelErr && modelsToTry.indexOf(imageModel) < modelsToTry.length - 1) {
+          console.warn('[pipeline/images] ' + imageModel + ' unavailable — trying next model');
+          lastErr = new Error('OpenAI image ' + r.status + ': ' + err.substring(0, 200));
+          continue;
+        }
+        throw new Error('OpenAI image ' + r.status + ': ' + err.substring(0, 200));
+      }
+      const data = await r.json();
+      const entry = data.data && data.data[0];
+      if (!entry) throw new Error('OpenAI: no image in response');
+      if (entry.b64_json) return 'data:image/png;base64,' + entry.b64_json;
+      if (entry.url) {
+        const imgR = await fetch(entry.url, { cache: 'no-store' });
+        const buf = await imgR.arrayBuffer();
+        return 'data:image/png;base64,' + Buffer.from(buf).toString('base64');
+      }
+      throw new Error('OpenAI: unrecognised image response shape');
     }
-    const data = await r.json();
-    const entry = data.data && data.data[0];
-    if (!entry) throw new Error('OpenAI: no image in response');
-    if (entry.b64_json) return 'data:image/png;base64,' + entry.b64_json;
-    if (entry.url) {
-      const imgR = await fetch(entry.url, { cache: 'no-store' });
-      const buf = await imgR.arrayBuffer();
-      return 'data:image/png;base64,' + Buffer.from(buf).toString('base64');
-    }
-    throw new Error('OpenAI: unrecognised image response shape');
+    if (lastErr) throw lastErr;
 
   } else {
     // Pollinations fallback — random seed per call ensures different output

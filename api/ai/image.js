@@ -44,7 +44,11 @@ module.exports = async function handler(req, res) {
     process.env.OPENAI_API_KEY_3
   ].filter(Boolean);
 
-  const imageModel = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-1';
+  // Model cascade: gpt-image-2 (primary, highest quality) → gpt-image-1 (fallback)
+  const imageModels = [
+    process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2',
+    'gpt-image-1'
+  ];
 
   let body = req.body;
   if (typeof body === 'string') {
@@ -63,109 +67,112 @@ module.exports = async function handler(req, res) {
   // Compose final prompt with brand safeguards prepended
   const finalPrompt = (IMAGE_PROMPT_PREAMBLE + userPrompt).substring(0, 4000);
 
-  // ── Try OpenAI keys in cascade, rotate on quota exhaustion ────────────────
+  // ── Try models in cascade: gpt-image-2 → gpt-image-1, each with all keys ─
   if (openaiKeys.length > 0) {
-    let lastError = null;
-    let exhaustedCount = 0;
+    let allQuotaExhausted = false;
 
-    for (let ki = 0; ki < openaiKeys.length; ki++) {
-      const key = openaiKeys[ki];
-      const keySuffix = '...' + key.slice(-4);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 90000);
+    for (let mi = 0; mi < imageModels.length; mi++) {
+      const imageModel = imageModels[mi];
+      let modelUnavailable = false;
+      let exhaustedCount = 0;
 
-      console.log('[image] Trying OpenAI key #' + (ki + 1) + ' (' + keySuffix + ') model=' + imageModel + ' size=' + size);
+      for (let ki = 0; ki < openaiKeys.length; ki++) {
+        const key = openaiKeys[ki];
+        const keySuffix = '...' + key.slice(-4);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 90000);
 
-      try {
-        const fetchRes = await fetch(OPENAI_BASE + '/images/generations', {
-          method: 'POST',
-          cache: 'no-store',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-          body: JSON.stringify({ model: imageModel, prompt: finalPrompt, n: 1, size, quality, output_format: 'b64_json' }),
-          signal: controller.signal
-        });
-        clearTimeout(timeout);
+        console.log('[image] Trying model=' + imageModel + ' key #' + (ki + 1) + ' (' + keySuffix + ') size=' + size);
 
-        if (!fetchRes.ok) {
-          const errText = await fetchRes.text().catch(() => '');
-          console.warn('[image] OpenAI key #' + (ki + 1) + ' → HTTP ' + fetchRes.status, errText.substring(0, 200));
-
-          // Quota exhaustion: 429 with insufficient_quota code, or 402 billing error
-          const isQuota = (fetchRes.status === 429 || fetchRes.status === 402) &&
-            (errText.includes('insufficient_quota') || errText.includes('quota') || errText.includes('billing') || errText.includes('credit'));
-
-          if (isQuota && ki < openaiKeys.length - 1) {
-            exhaustedCount++;
-            console.warn('[image] Key #' + (ki + 1) + ' quota exhausted — rotating to key #' + (ki + 2));
-            lastError = { status: fetchRes.status, detail: errText.substring(0, 300), quota: true };
-            continue; // try next key
-          }
-
-          // Last key exhausted — fall through to Pollinations
-          if (isQuota) {
-            exhaustedCount++;
-            console.warn('[image] All ' + openaiKeys.length + ' OpenAI key(s) quota exhausted — falling back to Pollinations');
-            lastError = { quota: true };
-            break;
-          }
-
-          // Non-quota error — return error immediately (rotating keys won't help)
-          return res.status(fetchRes.status).json({
-            error: 'openai_image_error',
-            status: fetchRes.status,
-            detail: errText.substring(0, 500)
+        try {
+          const fetchRes = await fetch(OPENAI_BASE + '/images/generations', {
+            method: 'POST',
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+            body: JSON.stringify({ model: imageModel, prompt: finalPrompt, n: 1, size, quality, output_format: 'b64_json' }),
+            signal: controller.signal
           });
-        }
+          clearTimeout(timeout);
 
-        // Success — parse and return
-        const data = await fetchRes.json();
-        const imgEntry = data.data && data.data[0];
-        if (!imgEntry) return res.status(502).json({ error: 'no_image_returned', provider: 'openai' });
+          if (!fetchRes.ok) {
+            const errText = await fetchRes.text().catch(() => '');
+            console.warn('[image] ' + imageModel + ' key #' + (ki + 1) + ' → HTTP ' + fetchRes.status, errText.substring(0, 200));
 
-        let dataUrl = '';
-        if (imgEntry.b64_json) {
-          dataUrl = 'data:image/png;base64,' + imgEntry.b64_json;
-        } else if (imgEntry.url) {
-          try {
-            const imgFetch = await fetch(imgEntry.url);
-            const buf = await imgFetch.arrayBuffer();
-            dataUrl = 'data:image/png;base64,' + Buffer.from(buf).toString('base64');
-          } catch (e) {
-            return res.status(502).json({ error: 'fetch_image_url_failed', provider: 'openai', url: imgEntry.url });
+            // Model not available — break inner loop, try next model
+            const isModelError = fetchRes.status === 404 ||
+              errText.includes('model_not_found') ||
+              errText.includes('does not exist') ||
+              errText.includes('not supported') ||
+              (fetchRes.status === 400 && errText.includes(imageModel));
+            if (isModelError) {
+              console.warn('[image] Model ' + imageModel + ' unavailable — falling back to gpt-image-1');
+              modelUnavailable = true;
+              break;
+            }
+
+            // Quota exhaustion — rotate to next key
+            const isQuota = (fetchRes.status === 429 || fetchRes.status === 402) &&
+              (errText.includes('insufficient_quota') || errText.includes('quota') || errText.includes('billing') || errText.includes('credit'));
+            if (isQuota && ki < openaiKeys.length - 1) {
+              exhaustedCount++;
+              console.warn('[image] Key #' + (ki + 1) + ' quota exhausted — rotating to key #' + (ki + 2));
+              continue;
+            }
+            if (isQuota) {
+              exhaustedCount++;
+              allQuotaExhausted = (exhaustedCount === openaiKeys.length);
+              console.warn('[image] All keys quota exhausted on ' + imageModel);
+              break; // all keys exhausted for this model — try next model or Pollinations
+            }
+
+            // Non-quota, non-model error — try next model before giving up
+            if (mi < imageModels.length - 1) {
+              console.warn('[image] ' + imageModel + ' error ' + fetchRes.status + ' — trying next model');
+              modelUnavailable = true;
+              break;
+            }
+            return res.status(fetchRes.status).json({ error: 'openai_image_error', status: fetchRes.status, detail: errText.substring(0, 500) });
           }
-        } else {
-          return res.status(502).json({ error: 'unrecognised_image_response', provider: 'openai' });
+
+          // ── Success ────────────────────────────────────────────────────────
+          const data = await fetchRes.json();
+          const imgEntry = data.data && data.data[0];
+          if (!imgEntry) return res.status(502).json({ error: 'no_image_returned', provider: 'openai' });
+
+          let dataUrl = '';
+          if (imgEntry.b64_json) {
+            dataUrl = 'data:image/png;base64,' + imgEntry.b64_json;
+          } else if (imgEntry.url) {
+            try {
+              const imgFetch = await fetch(imgEntry.url);
+              const buf = await imgFetch.arrayBuffer();
+              dataUrl = 'data:image/png;base64,' + Buffer.from(buf).toString('base64');
+            } catch (e) {
+              return res.status(502).json({ error: 'fetch_image_url_failed', provider: 'openai', url: imgEntry.url });
+            }
+          } else {
+            return res.status(502).json({ error: 'unrecognised_image_response', provider: 'openai' });
+          }
+
+          console.log('[image] Success · model=' + imageModel + ' key #' + (ki + 1) + ' size=' + size);
+          return res.status(200).json({
+            ok: true, provider: 'openai', model: imageModel, size, quality,
+            image_data_url: dataUrl, key_index: ki + 1
+          });
+
+        } catch (e) {
+          clearTimeout(timeout);
+          console.error('[image] ' + imageModel + ' key #' + (ki + 1) + ' exception:', String(e.message || e).substring(0, 200));
+          if (mi < imageModels.length - 1) { modelUnavailable = true; break; }
+          break;
         }
+      } // end key loop
 
-        console.log('[image] OpenAI key #' + (ki + 1) + ' success · model=' + imageModel + ' size=' + size);
-        return res.status(200).json({
-          ok: true,
-          provider: 'openai',
-          model: imageModel,
-          size, quality,
-          image_data_url: dataUrl,
-          key_index: ki + 1  // which key succeeded (useful for debugging)
-        });
-
-      } catch (e) {
-        clearTimeout(timeout);
-        console.error('[image] OpenAI key #' + (ki + 1) + ' exception:', String(e.message || e).substring(0, 200));
-        lastError = { status: 0, detail: String(e.message || e) };
-        // Don't cascade on exception (network error, timeout) — fall through
-        break;
+      if (!modelUnavailable && !allQuotaExhausted) {
+        // Non-recoverable error on all keys for this model
+        if (mi === imageModels.length - 1) break; // no more models — fall through to Pollinations
       }
-    }
-
-    // All OpenAI keys exhausted via quota — fall through to Pollinations below
-    if (lastError && !lastError.quota) {
-      // Non-quota final error — return it
-      return res.status(500).json({
-        error: 'openai_image_failed',
-        provider: 'openai',
-        detail: (lastError.detail || 'All OpenAI keys failed').substring(0, 300)
-      });
-    }
-    // quota exhaustion falls through to Pollinations
+    } // end model loop
   }
 
   // ── Pollinations fallback (free, no auth, FLUX model) ─────────────────────
