@@ -84,7 +84,8 @@ The HTML reads `KB.products[*].refreshed_at` and surfaces a freshness pill botto
 ## File map
 
 ```
-vahdam_mailer_architect_v23.html   — the entire SPA (~6.5k lines, single-file delivery)
+vahdam_mailer_architect_v23.html   — the current SPA (single-file delivery)
+vahdam_mailer_architect_v34.html   — experimental snapshot (direct-provider keys in browser)
 index.html                          — 612-byte redirect to the SPA
 vercel.json                         — clean URLs + cache headers
 update.ps1                          — git → GitHub → Vercel pipeline
