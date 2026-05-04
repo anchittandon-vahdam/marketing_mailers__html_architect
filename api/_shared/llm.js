@@ -1,27 +1,25 @@
 'use strict';
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared LLM caller — OpenAI (multi-key) → Gemini waterfall
-// Used by all pipeline stages. Keeps provider logic in ONE place.
+// Shared LLM caller — 4-provider waterfall
 //
-// Multi-key support (v90):
-//   • Tries OPENAI_API_KEY → OPENAI_API_KEY_2 → OPENAI_API_KEY_3 in sequence
-//   • Rotates on 429 with insufficient_quota error code (billing quota)
-//   • Falls back to Gemini on rate-limit 429 (non-quota)
-//   • Sets result._quota_exhausted_keys = count of exhausted OpenAI keys
-//   • Sets result._quota_warning if all OpenAI keys exhausted but Gemini succeeded
+// CASCADE ORDER (first available key wins at each tier):
+//   1. OpenAI    (OPENAI_API_KEY / _2 / _3)   — ChatGPT, highest quality
+//   2. Anthropic (ANTHROPIC_API_KEY)           — Claude, strong fallback
+//   3. Gemini    (GEMINI_API_KEY)              — free tier, multi-model
+//   4. Grok/xAI  (XAI_API_KEY)               — OpenAI-compatible fallback
 //
-// Anti-repetition hardening (v81):
-//   • cache: 'no-store' on every fetch — prevents CDN/network response caching
-//   • GEN_SEED appended to every user message — unique token makes each request
-//     body distinct so identical prompts cannot be served from any cache layer
-//   • Console logging at call + response — full debug trail per stage
+// Within each provider, quota exhaustion rotates keys/models before
+// falling to the next provider. Rate-limits also fall through.
+//
+// Anti-repetition: GEN_SEED appended to every user message so identical
+// prompts cannot be served from any response cache layer.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OPENAI_BASE = 'https://api.openai.com/v1';
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+const OPENAI_BASE    = 'https://api.openai.com/v1';
+const ANTHROPIC_BASE = 'https://api.anthropic.com/v1';
+const GEMINI_BASE    = 'https://generativelanguage.googleapis.com/v1beta';
+const GROK_BASE      = 'https://api.x.ai/v1';
 
-// Unique entropy seed: ms timestamp + 4 random hex chars.
-// Appended to every user message so no two requests share an identical body.
 function genSeed() {
   return Date.now().toString(36) + '-' + Math.floor(Math.random() * 0xffff).toString(16);
 }
@@ -29,41 +27,42 @@ function genSeed() {
 /**
  * callLLM({ systemPrompt, userMessage, responseFormat, maxTokens, temperature, timeoutMs, stage })
  * Returns { text, provider, model, seed, quota_warning?, exhausted_keys? }
- * Throws on provider error or timeout.
+ * Throws on all providers failing.
  */
 module.exports = async function callLLM(opts) {
   const {
-    systemPrompt = '',
-    userMessage = '',
-    responseFormat = null,
-    maxTokens = 2000,
-    temperature = 0.7,
-    timeoutMs = 30000,
-    stage = 'llm'
+    systemPrompt  = '',
+    userMessage   = '',
+    responseFormat = null,   // { type: 'json_object' } or null
+    maxTokens     = 2000,
+    temperature   = 0.7,
+    timeoutMs     = 30000,
+    stage         = 'llm'
   } = opts;
 
-  // Collect all configured OpenAI keys (primary + backups)
   const openaiKeys = [
     process.env.OPENAI_API_KEY,
     process.env.OPENAI_API_KEY_2,
     process.env.OPENAI_API_KEY_3
   ].filter(Boolean);
 
-  const geminiKey = process.env.GEMINI_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const geminiKey    = process.env.GEMINI_API_KEY;
+  const grokKey      = process.env.XAI_API_KEY;
 
-  if (openaiKeys.length === 0 && !geminiKey) {
-    throw new Error('No AI provider configured. Set OPENAI_API_KEY or GEMINI_API_KEY in Vercel env.');
+  if (!openaiKeys.length && !anthropicKey && !geminiKey && !grokKey) {
+    throw new Error('No AI provider configured. Set at least one of: OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, XAI_API_KEY');
   }
 
-  const primaryProvider = openaiKeys.length > 0 ? 'openai' : 'gemini';
-  const seed = genSeed();
+  const seed             = genSeed();
   const seededUserMessage = userMessage + '\n\n<!-- gen_seed:' + seed + ' -->';
 
-  // ── Internal fetch helper: OpenAI (accepts specific key) ────────────────────
+  // ── Provider helpers ────────────────────────────────────────────────────────
+
   async function _openai(model, key) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    console.log('[llm][' + stage + '] openai model=' + model + ' temp=' + temperature + ' maxTokens=' + maxTokens + ' seed=' + seed + ' key_suffix=...' + key.slice(-4));
+    console.log('[llm][' + stage + '] openai model=' + model + ' key=...' + key.slice(-4) + ' seed=' + seed);
     try {
       const r = await fetch(OPENAI_BASE + '/chat/completions', {
         method: 'POST', cache: 'no-store',
@@ -78,12 +77,11 @@ module.exports = async function callLLM(opts) {
       });
       clearTimeout(t);
       if (!r.ok) {
-        const errText = await r.text().catch(() => '');
-        console.error('[llm][' + stage + '] OpenAI ' + r.status, errText.substring(0, 200));
-        // Detect quota exhaustion — OpenAI returns 429 with code=insufficient_quota
-        const isQuotaExhausted = r.status === 429 &&
-          (errText.includes('insufficient_quota') || errText.includes('quota') || errText.includes('billing'));
-        return { ok: false, status: r.status, err: errText, quotaExhausted: isQuotaExhausted };
+        const err = await r.text().catch(() => '');
+        console.error('[llm][' + stage + '] OpenAI ' + r.status, err.substring(0, 200));
+        const isQuota = r.status === 429 &&
+          (err.includes('insufficient_quota') || err.includes('quota') || err.includes('billing'));
+        return { ok: false, status: r.status, err, quotaExhausted: isQuota };
       }
       const data = await r.json();
       const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
@@ -95,12 +93,52 @@ module.exports = async function callLLM(opts) {
     }
   }
 
-  // ── Internal fetch helper: Gemini ────────────────────────────────────────
+  async function _anthropic(model) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    console.log('[llm][' + stage + '] anthropic model=' + model + ' seed=' + seed);
+    // Claude has no native JSON mode — inject instruction into system prompt
+    const claudeSystem = responseFormat
+      ? systemPrompt + '\n\nCRITICAL: Return ONLY valid JSON. First character must be { and last must be }. No markdown fences, no commentary, no text before or after.'
+      : systemPrompt;
+    try {
+      const r = await fetch(ANTHROPIC_BASE + '/messages', {
+        method: 'POST', cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          temperature,
+          system: claudeSystem,
+          messages: [{ role: 'user', content: seededUserMessage }]
+        }),
+        signal: ctrl.signal
+      });
+      clearTimeout(t);
+      if (!r.ok) {
+        const err = await r.text().catch(() => '');
+        console.error('[llm][' + stage + '] Anthropic ' + r.status, err.substring(0, 200));
+        return { ok: false, status: r.status, err };
+      }
+      const data = await r.json();
+      const text = (data.content && data.content[0] && data.content[0].text) || '';
+      console.log('[llm][' + stage + '] anthropic ok model=' + model + ' len=' + text.length);
+      return { ok: true, text, provider: 'anthropic', model };
+    } catch (e) {
+      clearTimeout(t);
+      return { ok: false, status: 0, err: e.message || String(e) };
+    }
+  }
+
   async function _gemini(model) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     const combined = systemPrompt + '\n\n---\nUSER REQUEST:\n' + seededUserMessage;
-    console.log('[llm][' + stage + '] gemini model=' + model + ' temp=' + temperature + ' maxTokens=' + maxTokens + ' seed=' + seed);
+    console.log('[llm][' + stage + '] gemini model=' + model + ' seed=' + seed);
     try {
       const r = await fetch(
         GEMINI_BASE + '/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(geminiKey),
@@ -112,9 +150,7 @@ module.exports = async function callLLM(opts) {
             generationConfig: {
               temperature, maxOutputTokens: maxTokens,
               ...(responseFormat ? { responseMimeType: 'application/json' } : {}),
-              // thinkingConfig only supported by Gemini 2.5 thinking models.
-              // Sending it to 2.0-flash / 2.0-flash-lite causes HTTP 400, which breaks
-              // the cascade. Only apply when model name contains '2.5'.
+              // thinkingConfig only for 2.5 thinking models — causes 400 on 2.0-flash/lite
               ...(responseFormat && model.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
             }
           }),
@@ -125,7 +161,7 @@ module.exports = async function callLLM(opts) {
       if (!r.ok) {
         const err = await r.text().catch(() => '');
         console.error('[llm][' + stage + '] Gemini ' + r.status + ' model=' + model, err.substring(0, 200));
-        return { ok: false, status: r.status, err, model };
+        return { ok: false, status: r.status, err };
       }
       const data = await r.json();
       const text = (
@@ -137,151 +173,160 @@ module.exports = async function callLLM(opts) {
       return { ok: true, text, provider: 'gemini', model };
     } catch (e) {
       clearTimeout(t);
-      return { ok: false, status: 0, err: e.message || String(e), model };
+      return { ok: false, status: 0, err: e.message || String(e) };
     }
   }
 
-  // ── Model cascade ─────────────────────────────────────────────────────────
+  async function _grok(model) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    console.log('[llm][' + stage + '] grok model=' + model + ' seed=' + seed);
+    try {
+      const r = await fetch(GROK_BASE + '/chat/completions', {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + grokKey },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: seededUserMessage }],
+          max_tokens: maxTokens, temperature,
+          ...(responseFormat ? { response_format: responseFormat } : {})
+        }),
+        signal: ctrl.signal
+      });
+      clearTimeout(t);
+      if (!r.ok) {
+        const err = await r.text().catch(() => '');
+        console.error('[llm][' + stage + '] Grok ' + r.status, err.substring(0, 200));
+        return { ok: false, status: r.status, err };
+      }
+      const data = await r.json();
+      const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+      console.log('[llm][' + stage + '] grok ok model=' + model + ' len=' + text.length);
+      return { ok: true, text, provider: 'grok', model };
+    } catch (e) {
+      clearTimeout(t);
+      return { ok: false, status: 0, err: e.message || String(e) };
+    }
+  }
+
+  // ── Helper: is this a retryable error (rate limit / model issue) ────────────
+  function isRetryable(status) {
+    return status === 429 || status === 503 || status === 404 || status === 400 || status === 529;
+  }
+
+  // ── 4-provider cascade ──────────────────────────────────────────────────────
   let result = null;
   let openaiKeysExhausted = 0;
-  let allKeysQuotaExhausted = false;
 
-  if (primaryProvider === 'openai') {
-    const oModel = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
-
-    // Try each OpenAI key in sequence — rotate on quota exhaustion
+  // === 1. OpenAI (ChatGPT) ===
+  if (openaiKeys.length > 0) {
+    const model = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
     for (let ki = 0; ki < openaiKeys.length; ki++) {
-      result = await _openai(oModel, openaiKeys[ki]);
+      result = await _openai(model, openaiKeys[ki]);
       if (result.ok) break;
-
       if (result.quotaExhausted) {
         openaiKeysExhausted++;
-        console.warn('[llm][' + stage + '] OpenAI key #' + (ki + 1) + ' quota exhausted — trying next key (' + (ki + 2) + '/' + openaiKeys.length + ')');
-        continue; // try next key
+        console.warn('[llm][' + stage + '] OpenAI key #' + (ki + 1) + ' quota exhausted — rotating');
+        continue;
       }
-
-      // Non-quota error (rate limit 429, 500, etc.)
-      if (result.status === 429 && geminiKey) {
-        console.warn('[llm][' + stage + '] OpenAI 429 (rate limit) on key #' + (ki + 1) + ' — falling back to Gemini');
-        break; // handled below
-      }
-      break; // other error (400, 401, 500) — stop OpenAI cascade
+      // Rate limit or other error → fall to next provider
+      console.warn('[llm][' + stage + '] OpenAI ' + result.status + ' — falling through to Claude');
+      break;
     }
-
-    // All OpenAI keys exhausted → fall back to Gemini
-    if (!result.ok && openaiKeysExhausted === openaiKeys.length && geminiKey) {
-      allKeysQuotaExhausted = true;
-      console.warn('[llm][' + stage + '] All ' + openaiKeys.length + ' OpenAI key(s) quota exhausted — trying Gemini fallback');
-      for (const gm of ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-lite']) {
-        result = await _gemini(gm);
-        if (result.ok) break;
-        // 404 = model not found/deprecated (continue to next model, not just rate-limit)
-        if (result.status === 429 || result.status === 503 || result.status === 404 || result.status === 400) {
-          console.warn('[llm][' + stage + '] Gemini ' + result.status + ' on ' + gm + ' — trying next Gemini model');
-          continue;
-        }
-        break;
-      }
+    if (result.ok) {
+      return { text: result.text, provider: result.provider, model: result.model, seed,
+               quota_warning: openaiKeysExhausted > 0, exhausted_keys: openaiKeysExhausted };
     }
-    // OpenAI rate-limit (non-quota) → fall back to Gemini
-    else if (!result.ok && result.status === 429 && !result.quotaExhausted && geminiKey) {
-      for (const gm of ['gemini-2.0-flash', 'gemini-2.0-flash-lite']) {
-        result = await _gemini(gm);
-        if (result.ok || (result.status !== 429 && result.status !== 404)) break;
-      }
-    }
+  }
 
-  } else {
-    // Gemini primary — cascade models on 429/503/404 (each model has its own quota bucket)
-    const geminiCascade = [
-      process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash', // stable primary — confirmed working
-      'gemini-2.5-flash',                                   // higher quality, try if 2.0 rate-limits
-      'gemini-2.0-flash-lite'                               // fastest, highest free quota
+  // === 2. Anthropic (Claude) ===
+  if (anthropicKey && (!result || !result.ok)) {
+    console.warn('[llm][' + stage + '] Trying Anthropic (Claude)');
+    const claudeModels = [
+      process.env.ANTHROPIC_TEXT_MODEL || 'claude-3-5-haiku-20241022',
+      'claude-3-5-sonnet-20241022'
     ];
-    for (const gm of geminiCascade) {
-      result = await _gemini(gm);
+    for (const model of claudeModels) {
+      result = await _anthropic(model);
       if (result.ok) break;
-      // 429 = rate limited, 503 = RESOURCE_EXHAUSTED, 404 = model deprecated/not found
-      // All three: try next model (different quota bucket or model)
-      if (result.status === 429 || result.status === 503 || result.status === 404) {
-        console.warn('[llm][' + stage + '] Gemini ' + result.status + ' on ' + gm + ' — trying next model');
-        continue; // try next model immediately — separate quota bucket
+      if (isRetryable(result.status)) {
+        console.warn('[llm][' + stage + '] Anthropic ' + result.status + ' on ' + model + ' — trying next Claude model');
+        continue;
       }
-      break; // other error (400, 401, 500) — stop cascade, won't help
+      break; // auth or server error
     }
-    // All Gemini models rate-limited → try OpenAI keys if available
-    if (!result.ok && (result.status === 429 || result.status === 503) && openaiKeys.length > 0) {
-      const oModel = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
-      console.warn('[llm][' + stage + '] All Gemini models rate-limited — trying OpenAI fallback');
-      for (let ki = 0; ki < openaiKeys.length; ki++) {
-        result = await _openai(oModel, openaiKeys[ki]);
-        if (result.ok) break;
-        if (result.quotaExhausted) {
-          openaiKeysExhausted++;
-          console.warn('[llm][' + stage + '] OpenAI key #' + (ki + 1) + ' quota exhausted during Gemini fallback — trying next');
-          continue;
-        }
-        break;
-      }
+    if (result.ok) {
+      return { text: result.text, provider: result.provider, model: result.model, seed,
+               quota_warning: openaiKeysExhausted > 0, exhausted_keys: openaiKeysExhausted };
     }
   }
 
-  if (!result || !result.ok) {
-    const errMsg = (result && result.err) ? result.err : 'All providers failed';
-    const status = result && result.status;
-    const isQuota = allKeysQuotaExhausted || (result && result.quotaExhausted);
-    throw new Error(
-      (isQuota
-        ? 'OpenAI quota exhausted on all ' + openaiKeys.length + ' key(s)'
-        : status === 429 || status === 503
-          ? 'Rate limited (' + status + ')'
-          : 'Provider error ' + (status || '')) +
-      ' [' + stage + ']: ' + String(errMsg).substring(0, 250)
-    );
+  // === 3. Gemini ===
+  if (geminiKey && (!result || !result.ok)) {
+    console.warn('[llm][' + stage + '] Trying Gemini');
+    const geminiModels = [
+      process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash',
+      'gemini-2.5-flash',
+      'gemini-2.0-flash-lite'
+    ];
+    for (const model of geminiModels) {
+      result = await _gemini(model);
+      if (result.ok) break;
+      if (isRetryable(result.status)) {
+        console.warn('[llm][' + stage + '] Gemini ' + result.status + ' on ' + model + ' — trying next');
+        continue;
+      }
+      break;
+    }
+    if (result.ok) {
+      return { text: result.text, provider: result.provider, model: result.model, seed,
+               quota_warning: openaiKeysExhausted > 0, exhausted_keys: openaiKeysExhausted };
+    }
   }
 
-  return {
-    text: result.text,
-    provider: result.provider,
-    model: result.model,
-    seed,
-    // Surfaced so callers can show user-facing notes
-    quota_warning: allKeysQuotaExhausted || openaiKeysExhausted > 0,
-    exhausted_keys: openaiKeysExhausted
-  };
+  // === 4. Grok (xAI) ===
+  if (grokKey && (!result || !result.ok)) {
+    console.warn('[llm][' + stage + '] Trying Grok (xAI)');
+    const grokModels = [
+      process.env.GROK_TEXT_MODEL || 'grok-3-mini-fast',
+      'grok-3-mini'
+    ];
+    for (const model of grokModels) {
+      result = await _grok(model);
+      if (result.ok) break;
+      if (isRetryable(result.status)) {
+        console.warn('[llm][' + stage + '] Grok ' + result.status + ' on ' + model + ' — trying next');
+        continue;
+      }
+      break;
+    }
+    if (result.ok) {
+      return { text: result.text, provider: result.provider, model: result.model, seed,
+               quota_warning: openaiKeysExhausted > 0, exhausted_keys: openaiKeysExhausted };
+    }
+  }
+
+  // === All providers exhausted ===
+  const errMsg = (result && result.err) ? String(result.err).substring(0, 250) : 'All providers exhausted';
+  const status = result && result.status;
+  throw new Error(
+    'All providers failed [' + stage + '] status=' + (status || 'none') + ': ' + errMsg
+  );
 };
 
 /**
  * parseJSON(text) — multi-strategy JSON extractor.
- * Handles: clean JSON, markdown fences, prose prefix/suffix (Gemini habit), nested fences.
- * Throws SyntaxError only when all strategies fail.
+ * Handles: clean JSON, markdown fences, prose prefix/suffix, nested fences.
  */
 module.exports.parseJSON = function parseJSON(text) {
   if (!text || typeof text !== 'string') throw new SyntaxError('Empty or non-string LLM response');
-
-  // 1. Direct parse (fastest path — clean JSON response)
   try { return JSON.parse(text); } catch (_) {}
-
-  // 2. Strip markdown fences (```json ... ``` or ``` ... ```)
   const stripped = text.replace(/^```(?:json)?\s*/im, '').replace(/```\s*$/m, '').trim();
   try { return JSON.parse(stripped); } catch (_) {}
-
-  // 3. Extract first complete { ... } block — handles Gemini prose-before-JSON habit
-  //    Uses a greedy match from first { to last } to capture nested objects correctly
-  const braceStart = text.indexOf('{');
-  const braceEnd = text.lastIndexOf('}');
-  if (braceStart !== -1 && braceEnd > braceStart) {
-    try { return JSON.parse(text.slice(braceStart, braceEnd + 1)); } catch (_) {}
-  }
-
-  // 4. Same extraction on the stripped version (catches fence + prose combo)
-  const strippedStart = stripped.indexOf('{');
-  const strippedEnd = stripped.lastIndexOf('}');
-  if (strippedStart !== -1 && strippedEnd > strippedStart) {
-    try { return JSON.parse(stripped.slice(strippedStart, strippedEnd + 1)); } catch (_) {}
-  }
-
-  // All strategies failed — throw with context
+  const bs = text.indexOf('{'), be = text.lastIndexOf('}');
+  if (bs !== -1 && be > bs) { try { return JSON.parse(text.slice(bs, be + 1)); } catch (_) {} }
+  const ss = stripped.indexOf('{'), se = stripped.lastIndexOf('}');
+  if (ss !== -1 && se > ss) { try { return JSON.parse(stripped.slice(ss, se + 1)); } catch (_) {} }
   throw new SyntaxError('Could not parse JSON from LLM response. First 200 chars: ' + text.substring(0, 200));
 };
 
