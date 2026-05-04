@@ -254,16 +254,19 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
-  // PROVIDER WATERFALL: OpenAI → Gemini (free) → heuristic (client-side, handled separately)
-  const openaiKey = process.env.OPENAI_API_KEY;
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (!openaiKey && !geminiKey) {
-    return res.status(500).json({ error: 'server_misconfigured', detail: 'Neither OPENAI_API_KEY nor GEMINI_API_KEY set in Vercel env. Get a free Gemini key at https://aistudio.google.com/app/apikey' });
+  // PROVIDER WATERFALL: OpenAI → Anthropic (Claude) → Gemini → Grok
+  const openaiKey    = process.env.OPENAI_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const geminiKey    = process.env.GEMINI_API_KEY;
+  const grokKey      = process.env.XAI_API_KEY;
+  if (!openaiKey && !anthropicKey && !geminiKey && !grokKey) {
+    return res.status(500).json({ error: 'server_misconfigured', detail: 'No AI provider configured. Set OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY, or XAI_API_KEY.' });
   }
-  const provider = openaiKey ? 'openai' : 'gemini';
-  const textModel = provider === 'openai'
-    ? (process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini')
-    : (process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash');
+  const provider  = openaiKey ? 'openai' : anthropicKey ? 'anthropic' : geminiKey ? 'gemini' : 'grok';
+  const textModel = openaiKey    ? (process.env.OPENAI_TEXT_MODEL    || 'gpt-4o-mini')
+                  : anthropicKey ? (process.env.ANTHROPIC_TEXT_MODEL || 'claude-3-5-haiku-20241022')
+                  : geminiKey    ? (process.env.GEMINI_TEXT_MODEL    || 'gemini-2.0-flash')
+                  :                (process.env.GROK_TEXT_MODEL      || 'grok-3-mini-fast');
 
   let body = req.body;
   if (typeof body === 'string') {
@@ -351,15 +354,16 @@ module.exports = async function handler(req, res) {
   // create_brief: 1800 tokens handles the full labeled output (all fields ≈ 700-900 tokens) with headroom
   const max_tokens = mode === 'mailer_full' ? 7000 : (mode === 'concepts' ? 4500 : (mode === 'suggested_prompts' ? 3000 : 1800));
 
-  // ── Helper: call OpenAI ───────────────────────────────────────────────────
-  async function callOpenAI(model) {
+  function isRetryable(s) { return s === 429 || s === 503 || s === 404 || s === 400 || s === 529; }
+
+  // ── Provider helpers ───────────────────────────────────────────────────────
+  async function callOpenAI(model, key) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 30000);
     try {
       const r = await fetch(OPENAI_BASE + '/chat/completions', {
-        method: 'POST',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + openaiKey },
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
         body: JSON.stringify({
           model,
           messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMessage }],
@@ -371,36 +375,50 @@ module.exports = async function handler(req, res) {
       clearTimeout(t);
       if (!r.ok) {
         const err = await r.text().catch(() => '');
-        return { ok: false, status: r.status, error: 'openai_error', detail: err.substring(0, 400), provider: 'openai', model };
+        const isQuota = r.status === 429 && (err.includes('insufficient_quota') || err.includes('quota') || err.includes('billing'));
+        return { ok: false, status: r.status, error: 'openai_error', detail: err.substring(0, 400), provider: 'openai', model, quotaExhausted: isQuota };
       }
       const data = await r.json();
       const text = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
       return { ok: true, text, provider: 'openai', model };
-    } catch (e) {
-      clearTimeout(t);
-      return { ok: false, status: 500, error: 'openai_fetch_error', detail: String(e.message || e).substring(0, 200), provider: 'openai', model };
-    }
+    } catch (e) { clearTimeout(t); return { ok: false, status: 0, error: 'openai_fetch_error', detail: String(e.message||e).substring(0,200), provider: 'openai', model }; }
   }
 
-  // ── Helper: call Gemini with a specific model ─────────────────────────────
+  async function callAnthropic(model) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30000);
+    const claudeSys = response_format
+      ? systemPrompt + '\n\nCRITICAL: Return ONLY valid JSON. First char { last char }. No markdown, no commentary.'
+      : systemPrompt;
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model, max_tokens, temperature, system: claudeSys, messages: [{ role: 'user', content: userMessage }] }),
+        signal: ctrl.signal
+      });
+      clearTimeout(t);
+      if (!r.ok) { const err = await r.text().catch(()=>''); return { ok: false, status: r.status, error: 'anthropic_error', detail: err.substring(0,400), provider: 'anthropic', model }; }
+      const data = await r.json();
+      const text = (data.content && data.content[0] && data.content[0].text) || '';
+      return { ok: true, text, provider: 'anthropic', model };
+    } catch (e) { clearTimeout(t); return { ok: false, status: 0, error: 'anthropic_fetch_error', detail: String(e.message||e).substring(0,200), provider: 'anthropic', model }; }
+  }
+
   async function callGemini(model) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 30000);
-    const geminiPrompt = systemPrompt + '\n\n---\nUSER REQUEST:\n' + userMessage;
     try {
       const r = await fetch(
         GEMINI_BASE + '/models/' + encodeURIComponent(model) + ':generateContent?key=' + encodeURIComponent(geminiKey),
         {
-          method: 'POST',
-          cache: 'no-store',
+          method: 'POST', cache: 'no-store',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text: geminiPrompt }] }],
+            contents: [{ role: 'user', parts: [{ text: systemPrompt + '\n\n---\nUSER REQUEST:\n' + userMessage }] }],
             generationConfig: {
-              temperature,
-              maxOutputTokens: max_tokens,
+              temperature, maxOutputTokens: max_tokens,
               ...(response_format ? { responseMimeType: 'application/json' } : {}),
-              // thinkingConfig only for Gemini 2.5 thinking models — causes HTTP 400 on 2.0-flash/lite
               ...(response_format && model.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
             }
           }),
@@ -409,65 +427,87 @@ module.exports = async function handler(req, res) {
       );
       clearTimeout(t);
       if (!r.ok) {
-        const err = await r.text().catch(() => '');
-        // Parse retry-after seconds from Gemini error message if present
+        const err = await r.text().catch(()=>'');
         const retryMatch = err.match(/retry in ([\d.]+)s/i);
-        const retry_after = retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 30;
-        return { ok: false, status: r.status, error: 'gemini_error', detail: err.substring(0, 400), provider: 'gemini', model, retry_after };
+        return { ok: false, status: r.status, error: 'gemini_error', detail: err.substring(0,400), provider: 'gemini', model, retry_after: retryMatch ? Math.ceil(parseFloat(retryMatch[1])) : 30 };
       }
       const data = await r.json();
-      const text = (
-        data.candidates && data.candidates[0] &&
-        data.candidates[0].content && data.candidates[0].content.parts &&
-        data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text
-      ) || '';
+      const text = (data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0]&&data.candidates[0].content.parts[0].text)||'';
       return { ok: true, text, provider: 'gemini', model };
-    } catch (e) {
-      clearTimeout(t);
-      return { ok: false, status: 500, error: 'gemini_fetch_error', detail: String(e.message || e).substring(0, 200), provider: 'gemini', model };
-    }
+    } catch (e) { clearTimeout(t); return { ok: false, status: 0, error: 'gemini_fetch_error', detail: String(e.message||e).substring(0,200), provider: 'gemini', model }; }
   }
 
-  // ── Model cascade: try preferred provider first, then fallbacks ───────────
-  // Gemini free-tier model fallback order (separate quota buckets):
-  //   gemini-2.5-flash (10 RPM) → gemini-2.0-flash (15 RPM) → gemini-1.5-flash (15 RPM)
-  // OpenAI is tried if key is present and Gemini exhausted all fallbacks.
+  async function callGrok(model) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 30000);
+    try {
+      const r = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + grokKey },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userMessage }],
+          max_tokens, temperature,
+          ...(response_format ? { response_format } : {})
+        }),
+        signal: ctrl.signal
+      });
+      clearTimeout(t);
+      if (!r.ok) { const err = await r.text().catch(()=>''); return { ok: false, status: r.status, error: 'grok_error', detail: err.substring(0,400), provider: 'grok', model }; }
+      const data = await r.json();
+      const text = (data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content)||'';
+      return { ok: true, text, provider: 'grok', model };
+    } catch (e) { clearTimeout(t); return { ok: false, status: 0, error: 'grok_fetch_error', detail: String(e.message||e).substring(0,200), provider: 'grok', model }; }
+  }
+
+  // ── 4-provider cascade: OpenAI → Claude → Gemini → Grok ──────────────────
   let result = null;
 
   try {
-    if (provider === 'openai') {
-      result = await callOpenAI(textModel);
-      // OpenAI rate limit — try Gemini if key available
-      if (!result.ok && result.status === 429 && geminiKey) {
-        console.warn('[generate] OpenAI 429 — trying Gemini fallback');
-        for (const gModel of ['gemini-2.0-flash', 'gemini-2.0-flash-lite']) {
-          result = await callGemini(gModel);
-          if (result.ok || (result.status !== 429 && result.status !== 404)) break;
-        }
-      }
-    } else {
-      // Gemini primary — cascade through models on 429/503/404/400
-      const geminiModels = [
-        process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash', // stable primary — confirmed working
-        'gemini-2.5-flash',                                   // higher quality when available
-        'gemini-2.0-flash-lite'                               // fastest, highest free quota
-      ];
-      for (const gModel of geminiModels) {
-        console.log('[generate] Trying Gemini model:', gModel);
-        result = await callGemini(gModel);
+    // 1. OpenAI (multi-key rotation on quota exhaustion)
+    if (openaiKey) {
+      const openaiKeys = [openaiKey, process.env.OPENAI_API_KEY_2, process.env.OPENAI_API_KEY_3].filter(Boolean);
+      const model = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
+      for (const key of openaiKeys) {
+        result = await callOpenAI(model, key);
         if (result.ok) break;
-        // 429 = rate limited, 503 = RESOURCE_EXHAUSTED, 404 = model deprecated/not found,
-        // 400 = bad request (e.g. unsupported thinkingConfig on non-thinking model) — all cascade
-        if (result.status === 429 || result.status === 503 || result.status === 404 || result.status === 400) {
-          console.warn('[generate] Gemini ' + result.status + ' on', gModel, '— trying next model');
-          continue;
-        }
-        break; // 401 (auth), 500 (server error) — stop cascade, won't be helped by different model
+        if (result.quotaExhausted) { console.warn('[generate] OpenAI key quota exhausted — rotating'); continue; }
+        console.warn('[generate] OpenAI ' + result.status + ' — falling through to Claude');
+        break;
       }
-      // All Gemini models exhausted — try OpenAI if key exists
-      if (!result.ok && (result.status === 429 || result.status === 503) && openaiKey) {
-        console.warn('[generate] All Gemini models rate-limited — trying OpenAI fallback');
-        result = await callOpenAI(process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini');
+    }
+
+    // 2. Anthropic (Claude) — if OpenAI unavailable or failed
+    if (anthropicKey && (!result || !result.ok)) {
+      console.warn('[generate] Trying Anthropic (Claude)');
+      for (const model of [process.env.ANTHROPIC_TEXT_MODEL || 'claude-3-5-haiku-20241022', 'claude-3-5-sonnet-20241022']) {
+        result = await callAnthropic(model);
+        if (result.ok) break;
+        if (isRetryable(result.status)) { console.warn('[generate] Anthropic ' + result.status + ' on ' + model + ' — next model'); continue; }
+        break;
+      }
+    }
+
+    // 3. Gemini — if Claude unavailable or failed
+    if (geminiKey && (!result || !result.ok)) {
+      console.warn('[generate] Trying Gemini');
+      for (const model of [process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-lite']) {
+        console.log('[generate] Trying Gemini model:', model);
+        result = await callGemini(model);
+        if (result.ok) break;
+        if (isRetryable(result.status)) { console.warn('[generate] Gemini ' + result.status + ' on ' + model + ' — next model'); continue; }
+        break;
+      }
+    }
+
+    // 4. Grok (xAI) — final fallback
+    if (grokKey && (!result || !result.ok)) {
+      console.warn('[generate] Trying Grok (xAI)');
+      for (const model of [process.env.GROK_TEXT_MODEL || 'grok-3-mini-fast', 'grok-3-mini']) {
+        result = await callGrok(model);
+        if (result.ok) break;
+        if (isRetryable(result.status)) { console.warn('[generate] Grok ' + result.status + ' on ' + model + ' — next model'); continue; }
+        break;
       }
     }
 
