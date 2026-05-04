@@ -112,10 +112,10 @@ module.exports = async function callLLM(opts) {
             generationConfig: {
               temperature, maxOutputTokens: maxTokens,
               ...(responseFormat ? { responseMimeType: 'application/json' } : {}),
-              // thinkingBudget:0 must be INSIDE generationConfig for v1beta.
-              // Disables thinking tokens that leak into JSON output and break parsing.
-              // No-op on models that don't support thinking (2.0-flash, 2.0-flash-lite).
-              ...(responseFormat ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+              // thinkingConfig only supported by Gemini 2.5 thinking models.
+              // Sending it to 2.0-flash / 2.0-flash-lite causes HTTP 400, which breaks
+              // the cascade. Only apply when model name contains '2.5'.
+              ...(responseFormat && model.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
             }
           }),
           signal: ctrl.signal
@@ -176,7 +176,7 @@ module.exports = async function callLLM(opts) {
         result = await _gemini(gm);
         if (result.ok) break;
         // 404 = model not found/deprecated (continue to next model, not just rate-limit)
-        if (result.status === 429 || result.status === 503 || result.status === 404) {
+        if (result.status === 429 || result.status === 503 || result.status === 404 || result.status === 400) {
           console.warn('[llm][' + stage + '] Gemini ' + result.status + ' on ' + gm + ' — trying next Gemini model');
           continue;
         }

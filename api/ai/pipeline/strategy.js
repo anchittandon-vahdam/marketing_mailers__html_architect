@@ -139,7 +139,7 @@ MANDATORY SECTION STRUCTURE (both variants must follow this order):
 [S6] Offer reinforcement — repeat badge + urgency (if applicable)
 [S7] Footer
 
-The `structure.sections` array in your output MUST reflect this order exactly.
+The structure.sections array in your output MUST reflect this order exactly.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VAHDAM BRAND CONSTRAINTS

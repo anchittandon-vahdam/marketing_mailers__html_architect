@@ -400,9 +400,8 @@ module.exports = async function handler(req, res) {
               temperature,
               maxOutputTokens: max_tokens,
               ...(response_format ? { responseMimeType: 'application/json' } : {}),
-              // thinkingBudget:0 inside generationConfig — disables thinking tokens
-              // that leak before JSON and break parsing on gemini-2.5-flash
-              ...(response_format ? { thinkingConfig: { thinkingBudget: 0 } } : {})
+              // thinkingConfig only for Gemini 2.5 thinking models — causes HTTP 400 on 2.0-flash/lite
+              ...(response_format && model.includes('2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {})
             }
           }),
           signal: ctrl.signal
@@ -458,12 +457,13 @@ module.exports = async function handler(req, res) {
         console.log('[generate] Trying Gemini model:', gModel);
         result = await callGemini(gModel);
         if (result.ok) break;
-        // 429 = rate limited, 503 = RESOURCE_EXHAUSTED, 404 = model deprecated — cascade to next
-        if (result.status === 429 || result.status === 503 || result.status === 404) {
+        // 429 = rate limited, 503 = RESOURCE_EXHAUSTED, 404 = model deprecated/not found,
+        // 400 = bad request (e.g. unsupported thinkingConfig on non-thinking model) — all cascade
+        if (result.status === 429 || result.status === 503 || result.status === 404 || result.status === 400) {
           console.warn('[generate] Gemini ' + result.status + ' on', gModel, '— trying next model');
           continue;
         }
-        break; // other error (400, 401, 500) — stop cascade
+        break; // 401 (auth), 500 (server error) — stop cascade, won't be helped by different model
       }
       // All Gemini models exhausted — try OpenAI if key exists
       if (!result.ok && (result.status === 429 || result.status === 503) && openaiKey) {
