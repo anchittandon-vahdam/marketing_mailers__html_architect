@@ -168,10 +168,11 @@ module.exports = async function callLLM(opts) {
     if (!result.ok && openaiKeysExhausted === openaiKeys.length && geminiKey) {
       allKeysQuotaExhausted = true;
       console.warn('[llm][' + stage + '] All ' + openaiKeys.length + ' OpenAI key(s) quota exhausted — trying Gemini fallback');
-      for (const gm of ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']) {
+      for (const gm of ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-8b']) {
         result = await _gemini(gm);
         if (result.ok) break;
-        if (result.status === 429 || result.status === 503) {
+        // 404 = model not found/deprecated (continue to next model, not just rate-limit)
+        if (result.status === 429 || result.status === 503 || result.status === 404) {
           console.warn('[llm][' + stage + '] Gemini ' + result.status + ' on ' + gm + ' — trying next Gemini model');
           continue;
         }
@@ -180,25 +181,26 @@ module.exports = async function callLLM(opts) {
     }
     // OpenAI rate-limit (non-quota) → fall back to Gemini
     else if (!result.ok && result.status === 429 && !result.quotaExhausted && geminiKey) {
-      for (const gm of ['gemini-2.0-flash', 'gemini-1.5-flash']) {
+      for (const gm of ['gemini-2.0-flash', 'gemini-2.0-flash-lite']) {
         result = await _gemini(gm);
-        if (result.ok || result.status !== 429) break;
+        if (result.ok || (result.status !== 429 && result.status !== 404)) break;
       }
     }
 
   } else {
-    // Gemini primary — cascade models on 429/503 (each model has its own quota bucket)
+    // Gemini primary — cascade models on 429/503/404 (each model has its own quota bucket)
     const geminiCascade = [
-      process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', // 10 RPM free
-      'gemini-2.0-flash',                                   // 15 RPM free — separate bucket
-      'gemini-1.5-flash',                                   // 15 RPM free — separate bucket
-      'gemini-2.0-flash-lite'                               // 30 RPM free — highest free quota
+      process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', // latest — highest capability
+      'gemini-2.0-flash',                                   // stable, separate quota bucket
+      'gemini-2.0-flash-lite',                              // fastest, highest free quota
+      'gemini-1.5-flash-8b'                                 // lightweight fallback
     ];
     for (const gm of geminiCascade) {
       result = await _gemini(gm);
       if (result.ok) break;
-      // 429 = rate limited, 503 = RESOURCE_EXHAUSTED (Gemini uses both) — cascade to next model
-      if (result.status === 429 || result.status === 503) {
+      // 429 = rate limited, 503 = RESOURCE_EXHAUSTED, 404 = model deprecated/not found
+      // All three: try next model (different quota bucket or model)
+      if (result.status === 429 || result.status === 503 || result.status === 404) {
         console.warn('[llm][' + stage + '] Gemini ' + result.status + ' on ' + gm + ' — trying next model');
         continue; // try next model immediately — separate quota bucket
       }
@@ -247,13 +249,37 @@ module.exports = async function callLLM(opts) {
 };
 
 /**
- * parseJSON(text) — strips markdown fences then parses.
- * Throws SyntaxError if still invalid.
+ * parseJSON(text) — multi-strategy JSON extractor.
+ * Handles: clean JSON, markdown fences, prose prefix/suffix (Gemini habit), nested fences.
+ * Throws SyntaxError only when all strategies fail.
  */
 module.exports.parseJSON = function parseJSON(text) {
+  if (!text || typeof text !== 'string') throw new SyntaxError('Empty or non-string LLM response');
+
+  // 1. Direct parse (fastest path — clean JSON response)
   try { return JSON.parse(text); } catch (_) {}
-  const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-  return JSON.parse(stripped);
+
+  // 2. Strip markdown fences (```json ... ``` or ``` ... ```)
+  const stripped = text.replace(/^```(?:json)?\s*/im, '').replace(/```\s*$/m, '').trim();
+  try { return JSON.parse(stripped); } catch (_) {}
+
+  // 3. Extract first complete { ... } block — handles Gemini prose-before-JSON habit
+  //    Uses a greedy match from first { to last } to capture nested objects correctly
+  const braceStart = text.indexOf('{');
+  const braceEnd = text.lastIndexOf('}');
+  if (braceStart !== -1 && braceEnd > braceStart) {
+    try { return JSON.parse(text.slice(braceStart, braceEnd + 1)); } catch (_) {}
+  }
+
+  // 4. Same extraction on the stripped version (catches fence + prose combo)
+  const strippedStart = stripped.indexOf('{');
+  const strippedEnd = stripped.lastIndexOf('}');
+  if (strippedStart !== -1 && strippedEnd > strippedStart) {
+    try { return JSON.parse(stripped.slice(strippedStart, strippedEnd + 1)); } catch (_) {}
+  }
+
+  // All strategies failed — throw with context
+  throw new SyntaxError('Could not parse JSON from LLM response. First 200 chars: ' + text.substring(0, 200));
 };
 
 /**
