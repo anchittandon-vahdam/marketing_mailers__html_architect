@@ -172,7 +172,7 @@ module.exports = async function callLLM(opts) {
     if (!result.ok && openaiKeysExhausted === openaiKeys.length && geminiKey) {
       allKeysQuotaExhausted = true;
       console.warn('[llm][' + stage + '] All ' + openaiKeys.length + ' OpenAI key(s) quota exhausted — trying Gemini fallback');
-      for (const gm of ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-8b']) {
+      for (const gm of ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.0-flash-lite']) {
         result = await _gemini(gm);
         if (result.ok) break;
         // 404 = model not found/deprecated (continue to next model, not just rate-limit)
@@ -194,10 +194,9 @@ module.exports = async function callLLM(opts) {
   } else {
     // Gemini primary — cascade models on 429/503/404 (each model has its own quota bucket)
     const geminiCascade = [
-      process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', // latest — highest capability
-      'gemini-2.0-flash',                                   // stable, separate quota bucket
-      'gemini-2.0-flash-lite',                              // fastest, highest free quota
-      'gemini-1.5-flash-8b'                                 // lightweight fallback
+      process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash', // stable primary — confirmed working
+      'gemini-2.5-flash',                                   // higher quality, try if 2.0 rate-limits
+      'gemini-2.0-flash-lite'                               // fastest, highest free quota
     ];
     for (const gm of geminiCascade) {
       result = await _gemini(gm);

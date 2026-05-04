@@ -446,12 +446,11 @@ module.exports = async function handler(req, res) {
         }
       }
     } else {
-      // Gemini primary — cascade through models on 429/503/404
+      // Gemini primary — cascade through models on 429/503/404/400
       const geminiModels = [
-        process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash', // latest, highest capability
-        'gemini-2.0-flash',                                   // stable, separate quota bucket
-        'gemini-2.0-flash-lite',                              // fastest, highest free quota
-        'gemini-1.5-flash-8b'                                 // lightweight last resort
+        process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash', // stable primary — confirmed working
+        'gemini-2.5-flash',                                   // higher quality when available
+        'gemini-2.0-flash-lite'                               // fastest, highest free quota
       ];
       for (const gModel of geminiModels) {
         console.log('[generate] Trying Gemini model:', gModel);
@@ -474,7 +473,12 @@ module.exports = async function handler(req, res) {
 
     if (!result || !result.ok) {
       const is429 = result && result.status === 429;
-      return res.status(result ? result.status : 500).json({
+      // Never forward Gemini/OpenAI's 404 (model not found) as our response status —
+      // that confuses clients into thinking the endpoint doesn't exist. Use 503 instead.
+      const clientStatus = !result ? 500
+        : result.status === 404 ? 503
+        : (result.status || 500);
+      return res.status(clientStatus).json({
         error: result ? result.error : 'no_provider',
         detail: result ? result.detail : 'All providers failed',
         provider: result ? result.provider : provider,
