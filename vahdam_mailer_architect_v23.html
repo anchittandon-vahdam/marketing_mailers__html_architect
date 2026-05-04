@@ -5408,12 +5408,11 @@ async function _runPipeline(mkt, opts) {
       if (!healthRes.ok) {
         var hStatus = healthRes.status;
         if (hStatus === 404) {
+          _pipelineLog(0, 'Health endpoint returned 404 — auto-switching to template fallback', 'warn');
+          _showPipelineOverlay(false);
           _PLN_RUNNING = false;
-          _pipelineShowError(
-            'Pipeline endpoints not deployed yet (HTTP 404)',
-            'GET /api/ai/pipeline/health returned 404. The new pipeline files have not been picked up by Vercel yet.',
-            'Wait 1-2 minutes for the deployment to finish, then click "Cancel & use template fallback" and retry.'
-          );
+          showStatus('AI pipeline not available yet (404). Switched to template fallback.', 'warn');
+          approveAndBuild(true);
           return;
         }
         // Non-404 error — log a warning but continue (health endpoint may just be misconfigured)
@@ -5439,12 +5438,11 @@ async function _runPipeline(mkt, opts) {
       }
     } catch (hErr) {
       // Network-level failure hitting the health endpoint — very likely means the pipeline files aren't deployed
+      _pipelineLog(0, 'Health check network error — auto-switching to template fallback', 'warn');
+      _showPipelineOverlay(false);
       _PLN_RUNNING = false;
-      _pipelineShowError(
-        'Cannot reach pipeline endpoint (' + hErr.message + ')',
-        'Network error on GET /api/ai/pipeline/health — this usually means the Vercel deployment is still in progress or the files are missing.',
-        'Check Vercel dashboard for deployment status. If the deployment is complete, redeploy from the Vercel dashboard.'
-      );
+      showStatus('Pipeline health check failed. Continued with template fallback.', 'warn');
+      approveAndBuild(true);
       return;
     }
 
@@ -10590,7 +10588,6 @@ document.addEventListener('DOMContentLoaded',function(){
 </script>
 </body>
 </html>
-
 
 
 
