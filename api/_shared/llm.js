@@ -262,13 +262,17 @@ module.exports = async function callLLM(opts) {
   }
 
   // === 3. Gemini ===
+  //    De-duplicate: env var might equal a hardcoded fallback
   if (geminiKey && (!result || !result.ok)) {
     console.warn('[llm][' + stage + '] Trying Gemini');
-    const geminiModels = [
+    const _gmRaw = [
       process.env.GEMINI_TEXT_MODEL || 'gemini-2.0-flash',
       'gemini-2.5-flash',
+      'gemini-2.0-flash',
       'gemini-2.0-flash-lite'
     ];
+    const _gmSeen = new Set();
+    const geminiModels = _gmRaw.filter(m => { if (_gmSeen.has(m)) return false; _gmSeen.add(m); return true; });
     for (const model of geminiModels) {
       result = await _gemini(model);
       if (result.ok) break;
