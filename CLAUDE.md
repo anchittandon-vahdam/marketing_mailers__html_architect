@@ -40,16 +40,34 @@ hero-led-editorial | product-grid-conversion | storytelling-narrative | single-p
 4. **CORS headers** — every serverless function needs Access-Control-Allow-Origin
 5. **Font stack in JS** — never use quoted font names inside JS template strings
 
-## Current State (v83)
-- Build stamp: `audit-additions-v83`
-- Gemini free tier is primary LLM (user has no paid credits)
-- Pollinations is primary image generator (free fallback)
+## Common Bugs to Watch (cont.)
+6. **OpenAI billing_hard_limit_reached** returns HTTP 400 (not 429/402) — quota detection must include status 400 + billing keywords
+7. **OpenAI output_format** — both gpt-image-1 and gpt-image-2 now use `'png'` (not `'b64_json'`)
+8. **Anthropic credit balance too low** also returns HTTP 400 — same pattern as OpenAI billing
+
+## Current State (v85)
+- Build stamp: `variant-b-divergence-v85`
+- Gemini free tier is primary LLM (user has no paid credits on OpenAI/Anthropic/Grok)
+- Pollinations is primary image generator (OpenAI billing exhausted → free FLUX fallback)
 - Dashboard has type/market filter chips, campaign title headings, deliverables panel
 - Concept ideation engine generates 3 grounded concepts before every Build
 - 11 layout archetypes with deterministic rotation via `_layoutSeed()`
 - Variant A/B forced structural divergence via `_alternateArchetypeForVariantB()`
+- Variant B type-based fallback uses DIFFERENT builders from A (e.g. Sale→StoryMailer)
+- `buildSaleMailer` reads concept overrides via `_vhdSetup()` instead of heuristic functions
+- 12-section director-grade brief system prompt in `generate.js`
+- Billing 400 errors properly detected as quota exhaustion in all 3 files (image.js, generate.js, llm.js)
 
 ## Environment Variables (Vercel)
-Required: `GEMINI_API_KEY` (free tier)
-Optional: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`
+Required: `GEMINI_API_KEY` (free tier — only working provider currently)
+Optional: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY` (all need billing credits to work)
 Auto-set: `VERCEL`, `VERCEL_ENV`, `VERCEL_URL`
+
+## Provider Status (as of 2026-05-06)
+| Provider | Status | Reason |
+|----------|--------|--------|
+| OpenAI | ❌ | billing_hard_limit_reached (needs credits at platform.openai.com) |
+| Anthropic | ❌ | credit balance too low (needs credits at console.anthropic.com) |
+| Gemini | ⚠️ | Free tier, daily quota limited (~1500 req/day, resets midnight PT) |
+| Grok/xAI | ❌ | No credits or licenses (needs purchase at console.x.ai) |
+| Pollinations | ✅ | Free, unlimited, FLUX model (images only) |
