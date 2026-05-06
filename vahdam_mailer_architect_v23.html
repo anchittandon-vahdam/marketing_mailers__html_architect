@@ -1134,7 +1134,7 @@ const CAT=[{"n":"2025 Castleton Classic Darjeeling Second Flush Black Tea DJ 354
 
 const S={step:1,prompt:'',market:'US',markets:['US'],marketMailers:{},activeMarket:'US',type:'',manualProds:[],finalProds:[],regenCount:0,finalHTML:'',lastImagePrompt:'',generatedPrompt:'',canvasDataUrl:'',uploadedDesignUrl:null,precomputedStrategy:null};
 window.S=S; // Make S accessible via window so the `window.S&&...` safety guards in helper functions actually work (const declarations at top-level do NOT auto-create window.X properties).
-window.__VAHDAM_BUILD__='brief-upgrade-v84';
+window.__VAHDAM_BUILD__='variant-b-divergence-v85';
 // On page load, surface Supabase connection state so the user can see if
 // data is going to Supabase or only to localStorage.
 setTimeout(function(){
@@ -7362,15 +7362,18 @@ function buildEmailVariantB(uploadedDesignImg,mktOverride){
     return _compactHTML(buildEmail(uploadedDesignImg,mktOverride));
   }
   // Type-based routing fallback (no concept archetype set)
+  // VARIANT B DIVERGENCE: when no concept engine, B uses a DIFFERENT builder
+  // from A to guarantee structural divergence. A uses the type's canonical
+  // builder; B uses an alternate that gives a contrasting layout.
   if(!_isActualUpload){
-    if(_type==='Sale')        return _compactHTML(buildSaleMailer(_heroForBuilder,mktOverride));
-    if(_type==='Story')       return _compactHTML(buildStoryMailer(_heroForBuilder,mktOverride));
-    if(_type==='Gift')        return _compactHTML(buildGiftMailer(_heroForBuilder,mktOverride));
-    if(_type==='Launch')      return _compactHTML(buildLaunchMailer(_heroForBuilder,mktOverride));
-    if(_type==='Bestseller')  return _compactHTML(buildBestsellerMailer(_heroForBuilder,mktOverride));
-    if(_type==='Discovery')   return _compactHTML(buildDiscoveryMailer(_heroForBuilder,mktOverride));
-    if(_type==='Routine')     return _compactHTML(buildRoutineMailer(_heroForBuilder,mktOverride));
-    if(_type==='Seasonal')    return _compactHTML(buildSeasonalMailer(_heroForBuilder,mktOverride));
+    if(_type==='Sale')        return _compactHTML(buildStoryMailer(_heroForBuilder,mktOverride));
+    if(_type==='Story')       return _compactHTML(buildFounderNoteMailer(_heroForBuilder,mktOverride));
+    if(_type==='Gift')        return _compactHTML(buildEditorialEditMailer(_heroForBuilder,mktOverride));
+    if(_type==='Launch')      return _compactHTML(buildDiscoveryMailer(_heroForBuilder,mktOverride));
+    if(_type==='Bestseller')  return _compactHTML(buildRoutineMailer(_heroForBuilder,mktOverride));
+    if(_type==='Discovery')   return _compactHTML(buildStoryMailer(_heroForBuilder,mktOverride));
+    if(_type==='Routine')     return _compactHTML(buildBestsellerMailer(_heroForBuilder,mktOverride));
+    if(_type==='Seasonal')    return _compactHTML(buildStoryMailer(_heroForBuilder,mktOverride));
   }
   refreshStrategy();
   const st=S.strategy||buildCampaignStrategy();
@@ -8149,17 +8152,16 @@ function buildEditorialEditMailer(uploadedDesignImg,mktOverride){
 // after the announcement bar. No long story, no ingredient spotlight, no
 // testimonial cards. Pure urgency → offer → product grid → CTA → footer.
 function buildSaleMailer(uploadedDesignImg,mktOverride){
-  refreshStrategy();
-  const st=S.strategy||buildCampaignStrategy();
-  const prods=st.products||[];
-  const p=S.activePrompt||S.prompt||'';
-  const mt=mktOverride||st.market||'US';
-  const hero=prods[0]||{n:'',i:''};
-  const base=getBase(mt);
-  const collUrl=collectionUrl(p,mt);
-  const ot=offerText(p);const oc=offerCode(p);const os=offerSub(p);
-  const hl=heroHeadline(p,'Sale');const sc=subCopy(p,'Sale');const cta=ctaText(p,'Sale');
-  const annLine=annBarLine(p,mt,'Sale');
+  var c=_vhdSetup('Sale'); if(mktOverride)c.mt=mktOverride;
+  const prods=c.prods;
+  const p=c.p;
+  const mt=c.mt;
+  const hero=c.hero;
+  const base=c.base;
+  const collUrl=c.collUrl;
+  const ot=c.ot;const oc=c.oc;const os=c.os;
+  const hl=c.hl;const sc=c.sc;const cta=c.cta;
+  const annLine=c.annLine;
   const valueLine=valueSummaryLine(p,mt);
   const pct=offerPct(p)||'25';
   const pdpFor=function(n){return pdpUrl(n,mt);};
