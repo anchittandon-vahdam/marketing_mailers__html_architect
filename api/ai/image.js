@@ -100,6 +100,22 @@ module.exports = async function handler(req, res) {
             const errText = await fetchRes.text().catch(() => '');
             console.warn('[image] ' + imageModel + ' key #' + (ki + 1) + ' → HTTP ' + fetchRes.status, errText.substring(0, 200));
 
+            // Quota / billing exhaustion — CHECK FIRST before model errors
+            // OpenAI returns 429 (rate limit), 402 (payment required), or 400 (billing_hard_limit_reached)
+            const isQuota = (fetchRes.status === 429 || fetchRes.status === 402 || fetchRes.status === 400) &&
+              (errText.includes('insufficient_quota') || errText.includes('quota') || errText.includes('billing') || errText.includes('credit') || errText.includes('billing_hard_limit') || errText.includes('billing_limit'));
+            if (isQuota && ki < openaiKeys.length - 1) {
+              exhaustedCount++;
+              console.warn('[image] Key #' + (ki + 1) + ' quota/billing exhausted — rotating to key #' + (ki + 2));
+              continue;
+            }
+            if (isQuota) {
+              exhaustedCount++;
+              allQuotaExhausted = (exhaustedCount === openaiKeys.length);
+              console.warn('[image] All keys quota/billing exhausted on ' + imageModel);
+              break; // all keys exhausted for this model — try next model or Pollinations
+            }
+
             // Model not available — break inner loop, try next model
             const isModelError = fetchRes.status === 404 ||
               errText.includes('model_not_found') ||
@@ -107,24 +123,9 @@ module.exports = async function handler(req, res) {
               errText.includes('not supported') ||
               (fetchRes.status === 400 && errText.includes(imageModel));
             if (isModelError) {
-              console.warn('[image] Model ' + imageModel + ' unavailable — falling back to gpt-image-1');
+              console.warn('[image] Model ' + imageModel + ' unavailable — falling back to next model');
               modelUnavailable = true;
               break;
-            }
-
-            // Quota exhaustion — rotate to next key
-            const isQuota = (fetchRes.status === 429 || fetchRes.status === 402) &&
-              (errText.includes('insufficient_quota') || errText.includes('quota') || errText.includes('billing') || errText.includes('credit'));
-            if (isQuota && ki < openaiKeys.length - 1) {
-              exhaustedCount++;
-              console.warn('[image] Key #' + (ki + 1) + ' quota exhausted — rotating to key #' + (ki + 2));
-              continue;
-            }
-            if (isQuota) {
-              exhaustedCount++;
-              allQuotaExhausted = (exhaustedCount === openaiKeys.length);
-              console.warn('[image] All keys quota exhausted on ' + imageModel);
-              break; // all keys exhausted for this model — try next model or Pollinations
             }
 
             // Non-quota, non-model error — try next model before giving up
