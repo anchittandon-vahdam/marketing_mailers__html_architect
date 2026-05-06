@@ -79,8 +79,8 @@ module.exports = async function callLLM(opts) {
       if (!r.ok) {
         const err = await r.text().catch(() => '');
         console.error('[llm][' + stage + '] OpenAI ' + r.status, err.substring(0, 200));
-        const isQuota = r.status === 429 &&
-          (err.includes('insufficient_quota') || err.includes('quota') || err.includes('billing'));
+        const isQuota = (r.status === 429 || r.status === 402 || r.status === 400) &&
+          (err.includes('insufficient_quota') || err.includes('quota') || err.includes('billing') || err.includes('billing_hard_limit') || err.includes('billing_limit') || err.includes('credit'));
         return { ok: false, status: r.status, err, quotaExhausted: isQuota };
       }
       const data = await r.json();

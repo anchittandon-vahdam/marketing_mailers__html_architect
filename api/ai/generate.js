@@ -416,7 +416,7 @@ module.exports = async function handler(req, res) {
       clearTimeout(t);
       if (!r.ok) {
         const err = await r.text().catch(() => '');
-        const isQuota = r.status === 429 && (err.includes('insufficient_quota') || err.includes('quota') || err.includes('billing'));
+        const isQuota = (r.status === 429 || r.status === 402 || r.status === 400) && (err.includes('insufficient_quota') || err.includes('quota') || err.includes('billing') || err.includes('billing_hard_limit') || err.includes('billing_limit') || err.includes('credit'));
         return { ok: false, status: r.status, error: 'openai_error', detail: err.substring(0, 400), provider: 'openai', model, quotaExhausted: isQuota };
       }
       const data = await r.json();
