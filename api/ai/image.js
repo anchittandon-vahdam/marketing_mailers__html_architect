@@ -89,7 +89,9 @@ module.exports = async function handler(req, res) {
             method: 'POST',
             cache: 'no-store',
             headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-            body: JSON.stringify({ model: imageModel, prompt: finalPrompt, n: 1, size, quality, output_format: 'b64_json' }),
+            // gpt-image-2 uses output_format: 'png'|'webp'|'jpeg' (returns base64)
+            // gpt-image-1 uses output_format: 'b64_json' (legacy)
+            body: JSON.stringify({ model: imageModel, prompt: finalPrompt, n: 1, size, quality, output_format: imageModel === 'gpt-image-1' ? 'b64_json' : 'png' }),
             signal: controller.signal
           });
           clearTimeout(timeout);

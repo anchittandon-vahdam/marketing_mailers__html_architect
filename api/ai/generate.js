@@ -439,11 +439,11 @@ module.exports = async function handler(req, res) {
         signal: ctrl.signal
       });
       clearTimeout(t);
-      if (!r.ok) { const err = await r.text().catch(()=>''); return { ok: false, status: r.status, error: 'anthropic_error', detail: err.substring(0,400), provider: 'anthropic', model }; }
+      if (!r.ok) { const err = await r.text().catch(()=>''); console.warn('[generate] Anthropic ' + r.status + ' on ' + model + ': ' + err.substring(0,200)); return { ok: false, status: r.status, error: 'anthropic_error', detail: err.substring(0,400), provider: 'anthropic', model }; }
       const data = await r.json();
       const text = (data.content && data.content[0] && data.content[0].text) || '';
       return { ok: true, text, provider: 'anthropic', model };
-    } catch (e) { clearTimeout(t); return { ok: false, status: 0, error: 'anthropic_fetch_error', detail: String(e.message||e).substring(0,200), provider: 'anthropic', model }; }
+    } catch (e) { clearTimeout(t); console.error('[generate] Anthropic fetch exception on ' + model + ':', String(e.message||e).substring(0,200)); return { ok: false, status: 0, error: 'anthropic_fetch_error', detail: String(e.message||e).substring(0,200), provider: 'anthropic', model }; }
   }
 
   async function callGemini(model) {
